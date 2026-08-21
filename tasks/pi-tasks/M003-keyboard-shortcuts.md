@@ -7,7 +7,7 @@
 - Owner: Pi
 - Lead: Claude (main session)
 - Repository: /Users/a.sorathiya/Documents/Ali/AIAgentConfigManager
-- Base revision: de8e80369378f20dcb75cbe5798fc7ed5476bf8e
+- Base revision: 7e1c825
 - Branch: pi/M003-keyboard-shortcuts
 - Worktree: /Users/a.sorathiya/Documents/Ali/pi-worktrees/task-M003-keyboard-shortcuts
 - Type: feature
@@ -150,9 +150,11 @@ in `App.tsx` must keep working with no required new props.
 
 ## Verification
 
-Run:
+Run (this worktree needs its own install first — pnpm workspace symlinks are
+not shared automatically into a fresh `git worktree`):
 
 ```bash
+pnpm install --frozen-lockfile
 pnpm --filter @ai-agent-config/gui typecheck
 pnpm --filter @ai-agent-config/gui build
 ```
