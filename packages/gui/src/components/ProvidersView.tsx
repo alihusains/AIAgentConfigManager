@@ -121,12 +121,23 @@ export function ProvidersView() {
                         ) : apiCapabilities.supported.length === 0 ? (
                           <span className="text-xs text-error">no API confirmed</span>
                         ) : (
-                          <div className="flex gap-1 flex-wrap">
+                          <div
+                            className="flex gap-1 flex-wrap items-center"
+                            title={`Verified ${new Date(apiCapabilities.verifiedAt).toLocaleString()}`}
+                          >
                             {apiCapabilities.supported.map((k) => (
                               <span key={k} className={`badge ${k === 'chat' ? 'badge-chat' : 'badge-responses'}`}>
                                 {k === 'chat' ? 'Chat' : 'Responses'}
                               </span>
                             ))}
+                            {(() => {
+                              const days = Math.floor(
+                                (Date.now() - new Date(apiCapabilities.verifiedAt).getTime()) / 86400000,
+                              );
+                              return days > 30 ? (
+                                <span className="text-xs text-tertiary">{days} days ago</span>
+                              ) : null;
+                            })()}
                           </div>
                         )}
                       </td>
