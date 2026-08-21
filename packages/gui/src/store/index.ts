@@ -54,7 +54,12 @@ interface GUIState {
     agentIds: string[],
     apiCapabilities?: ProviderApiCapabilities,
   ) => Promise<boolean>;
-  updateProvider: (id: string, provider: Partial<ModelProvider>, apiCapabilities?: ProviderApiCapabilities) => Promise<boolean>;
+  updateProvider: (
+    id: string,
+    provider: Partial<ModelProvider>,
+    apiCapabilities?: ProviderApiCapabilities,
+    models?: ModelConfig[],
+  ) => Promise<boolean>;
   toggleProviderAgent: (id: string, agentId: string) => Promise<boolean>;
   deleteProvider: (id: string) => Promise<boolean>;
 
@@ -173,9 +178,9 @@ export const useStore = create<GUIState>()(
           'Provider Added',
           `"${provider.name}" registered and installed into ${agentIds.length} agent(s)`,
         ),
-      updateProvider: (id, provider, apiCapabilities) =>
+      updateProvider: (id, provider, apiCapabilities, models) =>
         run(
-          () => api.updateProvider(id, { provider, apiCapabilities }),
+          () => api.updateProvider(id, { provider, apiCapabilities, models }),
           'Provider Updated',
           `"${provider.name || id}" updated`,
         ),
