@@ -127,6 +127,11 @@
       "source": "https://freebuff.com/cli",
       "addedAt": "2026-08-20",
       "binaries": ["freebuff"],
+      "settingsPaths": {
+        "darwin": ["~/.config/manicode/settings.json"],
+        "linux": ["~/.config/manicode/settings.json"],
+        "win32": ["~/.config/manicode/settings.json"]
+      },
       "install": "npm install -g freebuff",
       "uninstall": "npm uninstall -g freebuff",
       "note": "Funded by text ads — usage is free."
