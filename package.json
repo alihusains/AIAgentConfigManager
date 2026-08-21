@@ -1,0 +1,27 @@
+{
+  "name": "ai-agent-config-manager",
+  "version": "0.1.0",
+  "description": "Lightweight AI Agent Configuration Manager for managing models, providers, MCP servers, and permissions across multiple AI coding agents",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "cli": "node packages/cli/dist/index.js",
+    "gui:dev": "cd packages/gui && pnpm tauri dev",
+    "gui:build": "cd packages/gui && pnpm tauri build"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0",
+    "typescript": "^5.5.0",
+    "@types/node": "^22.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "packageManager": "pnpm@9.0.0"
+}

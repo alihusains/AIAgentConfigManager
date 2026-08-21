@@ -1,0 +1,38 @@
+name: Feature request
+description: Suggest an idea or improvement
+title: "[Feature] "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do that the tool makes hard today?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: The idea
+      description: Your suggested behavior — a sketch is enough.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - CLI
+        - Dashboard (GUI)
+        - Provider verification
+        - MCP servers
+        - Adapter / agent support
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else (optional)
+      description: Mockups, links, or "I'd like help implementing this myself" notes.

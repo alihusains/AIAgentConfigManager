@@ -1,0 +1,14 @@
+
+> @ai-agent-config/gui@0.1.0 build /Users/a.sorathiya/Documents/Ali/AIAgentConfigManager/packages/gui
+> vite build
+
+[33mThe CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.[39m
+vite v5.4.21 building for production...
+transforming...
+✓ 1537 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   1.11 kB │ gzip:  0.61 kB
+dist/assets/index-BDuRsSio.css   16.23 kB │ gzip:  3.77 kB
+dist/assets/index-C11eaZb9.js   244.12 kB │ gzip: 69.47 kB
+✓ built in 716ms
