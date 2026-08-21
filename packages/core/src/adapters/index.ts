@@ -7,6 +7,7 @@ export { createClaudeCodeAdapter, ClaudeCodeAdapter } from './claude-code';
 export { createCodexAdapter, CodexAdapter } from './codex';
 export { createOpenCodeAdapter, createMimoAdapter, OpenCodeStyleAdapter } from './opencode-style';
 export { createKiloAdapter } from './kilo';
+export { createFreebuffAdapter } from './freebuff';
 export { createPiAdapter } from './pi';
 export { createJunieAdapter } from './junie';
 export { createGeminiAdapter } from './gemini';
@@ -19,6 +20,7 @@ import { createClaudeCodeAdapter } from './claude-code';
 import { createCodexAdapter } from './codex';
 import { createOpenCodeAdapter, createMimoAdapter } from './opencode-style';
 import { createKiloAdapter } from './kilo';
+import { createFreebuffAdapter } from './freebuff';
 import { createPiAdapter } from './pi';
 import { createJunieAdapter } from './junie';
 import { createGeminiAdapter } from './gemini';
@@ -38,6 +40,8 @@ const adapters = new Map<string, () => AgentAdapter>([
   ['gemini', createGeminiAdapter],
   // Junie CLI ("junie")
   ['junie', createJunieAdapter],
+  // FreeBuff CLI ("freebuff")
+  ['freebuff', createFreebuffAdapter],
   // Kilo Code CLI ("kilo")
   ['kilo', createKiloAdapter],
   // MIMO CLI ("mimo")
