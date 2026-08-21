@@ -7,7 +7,7 @@ import { MCPView } from './components/MCPView';
 import { AgentsView } from './components/AgentsView';
 import { SettingsView } from './components/SettingsView';
 import { ToastContainer } from './components/Toast';
-import { ThemeToggle } from './components/ThemeToggle';
+import { ThemeToggle, toggleTheme } from './components/ThemeToggle';
 import { Menu, X, RefreshCw, AlertTriangle } from 'lucide-react';
 
 const VIEW_TITLES: Record<string, string> = {
@@ -18,6 +18,12 @@ const VIEW_TITLES: Record<string, string> = {
   settings: 'Settings',
 };
 
+function isTypingTarget(el: Element | null): boolean {
+  if (!el) return false;
+  const tag = el.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (el as HTMLElement).isContentEditable;
+}
+
 function App() {
   const { activeView, sidebarOpen, loading, error, authError, refreshAll, toggleSidebar, setActiveView } =
     useStore();
@@ -25,6 +31,22 @@ function App() {
   // Initial load: pull the registry + detected agents from the server
   useEffect(() => {
     refreshAll();
+  }, [refreshAll]);
+
+  // Global keyboard shortcuts: Shift+R refresh, t theme toggle (ignored while typing)
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (isTypingTarget(document.activeElement)) return;
+      if (e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey && e.key.toLowerCase() === 'r') {
+        e.preventDefault();
+        refreshAll();
+      } else if (!e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey && e.key === 't') {
+        e.preventDefault();
+        toggleTheme();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
   }, [refreshAll]);
 
   const renderView = () => {
@@ -76,6 +98,7 @@ function App() {
             {error && <span className="text-xs text-error truncate max-w-lg">{error}</span>}
             <button
               className="btn-secondary btn-sm"
+              title="Refresh (Shift+R)"
               onClick={() => refreshAll()}
               disabled={loading}
             >
