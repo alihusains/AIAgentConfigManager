@@ -11,6 +11,7 @@
     "dev": "turbo run dev",
     "test": "turbo run test",
     "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
     "cli": "node packages/cli/dist/index.js",
     "gui:dev": "cd packages/gui && pnpm tauri dev",
     "gui:build": "cd packages/gui && pnpm tauri build"
