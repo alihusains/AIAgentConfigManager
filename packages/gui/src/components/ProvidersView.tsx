@@ -492,8 +492,10 @@ interface EditProviderModalProps {
 }
 
 export function EditProviderModal({ provider, onClose }: EditProviderModalProps) {
-  const { updateProvider } = useStore();
+  const { registry, updateProvider } = useStore();
   const config = (provider.config || {}) as Record<string, unknown>;
+  const currentModels =
+    registry?.providers.find((p) => p.provider.id === provider.id)?.models || [];
   const [form, setForm] = useState({
     name: provider.name,
     apiKey: String(config.apiKey || ''),
@@ -501,6 +503,7 @@ export function EditProviderModal({ provider, onClose }: EditProviderModalProps)
     region: String(config.region || ''),
     project: String(config.project || ''),
     enabled: provider.enabled,
+    modelNames: currentModels.map((m) => m.id).join(', '),
   });
   const [submitting, setSubmitting] = useState(false);
   const [verified, setVerified] = useState<ProviderApiCapabilities | null>(null);
@@ -518,6 +521,25 @@ export function EditProviderModal({ provider, onClose }: EditProviderModalProps)
     if (form.baseUrl) nextConfig.baseUrl = form.baseUrl;
     if (form.region) nextConfig.region = form.region;
     if (form.project) nextConfig.project = form.project;
+    // Only openai-compatible providers expose the model list for editing here
+    // (see the same guard on the verifier/model-names fields below); leave
+    // `models` undefined for other types so existing entries — including any
+    // custom roles/capabilities this form can't represent — are left alone.
+    const models: ModelConfig[] | undefined =
+      provider.type === 'openai-compatible'
+        ? form.modelNames
+            .split(',')
+            .map((m) => m.trim())
+            .filter(Boolean)
+            .map((modelId) => ({
+              id: modelId,
+              providerId: provider.id,
+              name: modelId,
+              displayName: modelId,
+              roles: [...DEFAULT_ROLES],
+              capabilities: ['tool_use'],
+            }))
+        : undefined;
     const ok = await updateProvider(
       provider.id,
       {
@@ -526,6 +548,7 @@ export function EditProviderModal({ provider, onClose }: EditProviderModalProps)
         config: nextConfig,
       },
       verified ?? undefined,
+      models,
     );
     setSubmitting(false);
     if (ok) onClose();
@@ -577,6 +600,7 @@ export function EditProviderModal({ provider, onClose }: EditProviderModalProps)
                   baseUrl={form.baseUrl.trim() || undefined}
                   apiKey={form.apiKey.trim() || undefined}
                   onVerified={setVerified}
+                  onModels={(ids) => setForm((f) => ({ ...f, modelNames: ids.join(', ') }))}
                 />
                 {verified && (
                   <p className="form-help text-success mt-2">
@@ -584,6 +608,21 @@ export function EditProviderModal({ provider, onClose }: EditProviderModalProps)
                     provider on Save.
                   </p>
                 )}
+              </div>
+            )}
+            {provider.type === 'openai-compatible' && (
+              <div className="form-group">
+                <label className="form-label">Model Names (optional)</label>
+                <input
+                  className="input"
+                  placeholder="e.g., gpt-4o, gpt-4o-mini (comma-separated)"
+                  value={form.modelNames}
+                  onChange={(e) => setForm((f) => ({ ...f, modelNames: e.target.value }))}
+                />
+                <p className="form-help">
+                  Comma-separated model ids, saved with the provider on Save — or verify above and
+                  use "Use all N models" to auto-fill from the live endpoint.
+                </p>
               </div>
             )}
             {provider.type === 'bedrock' && (
