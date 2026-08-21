@@ -19,7 +19,7 @@ import type {
   ProviderProbeDetail,
   ProviderApiCapabilities,
 } from '@ai-agent-config/core';
-import { Zap, RefreshCw, Loader2 } from 'lucide-react';
+import { Zap, RefreshCw, Loader2, Copy, Check } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
 // Probe card
@@ -32,6 +32,8 @@ const TONES = {
 } as const;
 
 function ProbeCard({ probe, label, endpoint }: { probe: ProviderProbeDetail; label: string; endpoint: string }) {
+  const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
   const status = probe.ok
     ? { tone: 'success' as const, text: `OK · HTTP ${probe.httpStatus ?? '—'}` }
     : !probe.reached
@@ -41,6 +43,19 @@ function ProbeCard({ probe, label, endpoint }: { probe: ProviderProbeDetail; lab
         : !probe.endpoint
           ? { tone: 'error' as const, text: `API not offered · HTTP ${probe.httpStatus}` }
           : { tone: 'warning' as const, text: `Request rejected · HTTP ${probe.httpStatus}` };
+
+  const copyOutput = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    const text = `${probe.curl}\n\n${probe.body ?? probe.error ?? '(no response body)'}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyFailed(false);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1400);
+    } catch {
+      setCopyFailed(true);
+    }
+  };
 
   return (
     <div className="border rounded-lg p-3">
@@ -57,8 +72,20 @@ function ProbeCard({ probe, label, endpoint }: { probe: ProviderProbeDetail; lab
         <p className="text-xs text-warning mt-1">The API key was rejected — double-check it.</p>
       )}
       <details className="mt-2">
-        <summary className="text-xs text-secondary cursor-pointer select-none">curl + raw output</summary>
+        <summary className="text-xs text-secondary cursor-pointer select-none flex items-center gap-2">
+          <span>curl + raw output</span>
+          <button
+            className="btn-ghost btn-icon btn-sm"
+            title="Copy curl command and raw output"
+            onClick={copyOutput}
+          >
+            {copied ? <Check size={14} /> : <Copy size={14} />}
+          </button>
+        </summary>
         <pre className="code-block mt-2">{`${probe.curl}\n\n${probe.body ?? probe.error ?? '(no response body)'}`}</pre>
+        {copyFailed && (
+          <p className="form-help text-error mt-1">Copy failed — clipboard is not available in this browser.</p>
+        )}
       </details>
     </div>
   );
