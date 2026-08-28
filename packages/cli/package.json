@@ -5,13 +5,14 @@
   "type": "module",
   "main": "dist/index.js",
   "bin": {
+    "acm": "./dist/index.js",
     "ai-config": "./dist/index.js"
   },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
     "test": "vitest run",
-    "lint": "eslint src --ext .ts"
+    "lint": "biome lint src"
   },
   "dependencies": {
     "@ai-agent-config/core": "workspace:*",
@@ -27,5 +28,6 @@
     "@types/table": "^6.0.0",
     "typescript": "^5.5.0",
     "vitest": "^2.0.0"
-  }
+  },
+  "license": "MIT"
 }

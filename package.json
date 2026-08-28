@@ -13,16 +13,22 @@
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "cli": "node packages/cli/dist/index.js",
+    "acm": "node packages/cli/dist/index.js",
+    "start": "node packages/cli/dist/index.js start",
+    "stop": "node packages/cli/dist/index.js stop",
+    "health": "node packages/cli/dist/index.js health",
     "gui:dev": "cd packages/gui && pnpm tauri dev",
     "gui:build": "cd packages/gui && pnpm tauri build"
   },
   "devDependencies": {
     "turbo": "^2.0.0",
     "typescript": "^5.5.0",
-    "@types/node": "^22.0.0"
+    "@types/node": "^22.0.0",
+    "@biomejs/biome": "^1.9.4"
   },
   "engines": {
     "node": ">=20.0.0"
   },
-  "packageManager": "pnpm@9.0.0"
+  "packageManager": "pnpm@10.33.4",
+  "license": "MIT"
 }
