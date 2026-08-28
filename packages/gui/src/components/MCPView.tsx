@@ -36,7 +36,7 @@ export function MCPView() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-xl font-bold">MCP Servers</h2>
+          <h2 className="page-title">MCP Servers</h2>
           <p className="text-secondary text-sm mt-1">
             One definition per server — installed into the agents listed on each row.
           </p>

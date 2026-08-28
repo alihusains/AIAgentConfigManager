@@ -1,34 +1,226 @@
+import { memo, useCallback, useMemo, type ReactNode } from 'react';
 import { useStore } from '../store';
-import { Database, Server, Bot, UserPlus, AlertTriangle } from 'lucide-react';
+import { useAgentCatalog } from '../hooks/useAgentCatalog';
+import { ApiTypeBadges } from './ApiTypeBadges';
+import { AgentIconTile } from './AgentIcon';
+import { providerApiLabel } from './ProviderVerify';
+import {
+  Database,
+  Server,
+  Bot,
+  UserPlus,
+  AlertTriangle,
+  ArrowRight,
+} from 'lucide-react';
+import type { ProviderApiKind } from '@ai-agent-config/core';
 
-interface StatCardProps {
-  title: string;
-  value: string | number;
-  icon: React.ReactNode;
-  color: string;
-  trend?: string;
-  onClick?: () => void;
+/**
+ * Dashboard — at-a-glance health of the local AI-agent estate.
+ *
+ * Design intent:
+ *  - A single "stat strip" overview panel gives the headline counts (providers,
+ *    MCP servers, installed agents, custom agents) as one surface divided by
+ *    hairlines, each cell clickable through to the relevant view. This replaces
+ *    the former row of four identical tinted cards (a uniform card grid) with
+ *    one intentional overview panel in a single accent hue.
+ *  - A "Protocol coverage" panel answers the new question the catalog now
+ *    supports: how many catalog agents speak each wire protocol
+ *    (chat / responses / anthropic), rendered as proportional bars.
+ *  - A compact "Detected agents" strip surfaces installed agents with their
+ *    API-kind badges so the newest data dimension is visible immediately.
+ *
+ * Everything is memoized and derived from stable store/catalog references so
+ * the view re-renders only when the underlying data actually changes.
+ */
+
+const PROTOCOL_ORDER: ProviderApiKind[] = ['chat', 'responses', 'anthropic'];
+
+/* -------------------------------------------------------------------------- */
+/* KPI cell (one stat inside the overview strip)                              */
+/* -------------------------------------------------------------------------- */
+
+const KpiCell = memo(function KpiCell({
+  label,
+  icon,
+  value,
+  trend,
+  onClick,
+}: {
+  label: string;
+  icon: ReactNode;
+  value: ReactNode;
+  trend: string;
+  onClick: () => void;
+}) {
+  return (
+    <button type="button" className="stat-strip-cell" onClick={onClick}>
+      <span className="stat-strip-label">
+        {icon}
+        {label}
+      </span>
+      <span className="stat-value block mt-2">{value}</span>
+      <span className="stat-strip-trend">{trend}</span>
+    </button>
+  );
+});
+
+/* -------------------------------------------------------------------------- */
+/* Protocol coverage                                                          */
+/* -------------------------------------------------------------------------- */
+
+const ProtocolCoverage = memo(function ProtocolCoverage({
+  counts,
+  total,
+}: {
+  counts: Record<ProviderApiKind, number>;
+  total: number;
+}) {
+  return (
+    <div className="card">
+      <div className="card-header">
+        <h3 className="card-title">Protocol coverage</h3>
+        <span className="text-secondary text-sm">{total} catalog agents</span>
+      </div>
+      <div className="protocol-coverage">
+        {PROTOCOL_ORDER.map((kind) => {
+          const n = counts[kind];
+          const pct = total > 0 ? Math.round((n / total) * 100) : 0;
+          return (
+            <div className="protocol-row" key={kind}>
+              <span className="protocol-row-label">{providerApiLabel(kind)}</span>
+              <div
+                className="protocol-bar"
+                role="progressbar"
+                aria-valuenow={n}
+                aria-valuemin={0}
+                aria-valuemax={total}
+                aria-label={`${providerApiLabel(kind)}: ${n} of ${total} agents`}
+              >
+                <div className={`protocol-bar-fill is-${kind}`} style={{ width: `${pct}%` }} />
+              </div>
+              <span className="protocol-row-count">{n}</span>
+            </div>
+          );
+        })}
+      </div>
+      <p className="text-tertiary text-xs mt-3">
+        Share of catalog agents declaring each wire protocol: chat (OpenAI Chat
+        Completions), responses (OpenAI Responses), anthropic (Anthropic
+        Messages).
+      </p>
+    </div>
+  );
+});
+
+/* -------------------------------------------------------------------------- */
+/* Detected agents strip                                                      */
+/* -------------------------------------------------------------------------- */
+
+interface DetectedAgentVM {
+  id: string;
+  name: string;
+  icon?: string;
+  kinds?: readonly ProviderApiKind[];
 }
 
-function StatCard({ title, value, icon, color, trend, onClick }: StatCardProps) {
+const DetectedStrip = memo(function DetectedStrip({
+  agents,
+  onSelect,
+}: {
+  agents: DetectedAgentVM[];
+  onSelect: (id: string) => void;
+}) {
+  if (agents.length === 0) {
+    return (
+      <div className="card">
+        <div className="card-header">
+          <h3 className="card-title">Detected agents</h3>
+        </div>
+        <p className="text-secondary text-sm">No agents detected on this machine yet.</p>
+      </div>
+    );
+  }
   return (
-    <div className="card flex-1 cursor-pointer" onClick={onClick} style={{ minWidth: 0 }}>
-      <div className="flex items-start justify-between">
-        <div className="min-w-0">
-          <p className="text-secondary text-sm truncate">{title}</p>
-          <p className="font-bold text-lg mt-1" style={{ color }}>{value}</p>
-          {trend && <p className="text-xs text-success mt-1 truncate">{trend}</p>}
-        </div>
-        <div className="p-2 rounded-lg flex-shrink-0" style={{ background: `${color}15` }}>
-          {icon}
-        </div>
+    <div className="card">
+      <div className="card-header">
+        <h3 className="card-title">Detected agents</h3>
+        <span className="text-secondary text-sm">{agents.length} installed</span>
+      </div>
+      <div className="detected-strip">
+        {agents.map((a) => (
+          <button
+            key={a.id}
+            type="button"
+            className="detected-chip"
+            onClick={() => onSelect(a.id)}
+          >
+            <AgentIconTile icon={a.icon} id={a.id} size={24} iconSize={14} />
+            <span className="detected-chip-name">{a.name}</span>
+            <ApiTypeBadges kinds={a.kinds} compact />
+          </button>
+        ))}
       </div>
     </div>
   );
-}
+});
+
+/* -------------------------------------------------------------------------- */
+/* Dashboard                                                                  */
+/* -------------------------------------------------------------------------- */
 
 export function Dashboard() {
-  const { agents, registry, platform, loading, error, authError, setActiveView, refreshAll } = useStore();
+  const {
+    agents,
+    registry,
+    platform,
+    loading,
+    error,
+    authError,
+    setActiveView,
+    refreshAll,
+    openAgent,
+  } = useStore();
+  const catalog = useAgentCatalog();
+
+  // Protocol coverage derived from the (stable) catalog reference.
+  const coverage = useMemo(() => {
+    const counts: Record<ProviderApiKind, number> = { chat: 0, responses: 0, anthropic: 0 };
+    for (const entry of catalog) {
+      for (const kind of entry.apiTypes ?? []) {
+        if (kind in counts) counts[kind] += 1;
+      }
+    }
+    return { counts, total: catalog.length };
+  }, [catalog]);
+
+  // Map id → catalog entry so the detected strip can read both `icon` and
+  // `apiTypes` in O(1). (DetectedAgent carries no icon; that lives in the
+  // catalog.)
+  const catalogById = useMemo(() => {
+    const map = new Map<string, (typeof catalog)[number]>();
+    for (const entry of catalog) map.set(entry.id, entry);
+    return map;
+  }, [catalog]);
+
+  const detected = useMemo<DetectedAgentVM[]>(
+    () =>
+      agents
+        .filter((a) => a.detection.installed)
+        .map((a) => {
+          const entry = catalogById.get(a.id);
+          return {
+            id: a.id,
+            name: a.name,
+            icon: entry?.icon,
+            kinds: entry?.apiTypes,
+          };
+        }),
+    [agents, catalogById]
+  );
+
+  const goProviders = useCallback(() => setActiveView('providers'), [setActiveView]);
+  const goMCP = useCallback(() => setActiveView('mcp'), [setActiveView]);
+  const goAgents = useCallback(() => setActiveView('agents'), [setActiveView]);
 
   if (loading && !registry) {
     return (
@@ -84,52 +276,56 @@ export function Dashboard() {
   const installedAgents = agents.filter((a) => a.detection.installed);
   const agentsWithConfig = agents.filter((a) => a.detection.configExists);
 
-  // Providers installed into each agent (for the agent column)
-  const providerTargets = (agentId: string): string[] =>
-    providers
-      .filter((p) => p.agentIds.includes(agentId))
-      .map((p) => p.provider.name);
-
   return (
-    <div className="p-4">
-      {/* Stat cards */}
-      <div className="flex gap-4 mb-6 flex-wrap">
-        <StatCard
-          title="Model Providers (registry)"
+    <div className="p-4 dashboard">
+      {/* KPI overview strip — one surface, four stats, single accent */}
+      <div className="card stat-strip">
+        <KpiCell
+          label="Model Providers"
+          icon={<Database size={16} />}
           value={providers.length}
-          icon={<Database size={24} />}
-          color="#3b82f6"
-          trend={providers.length > 0 ? `${providers.filter((p) => p.provider.enabled).length} enabled` : 'Add your first provider'}
-          onClick={() => setActiveView('providers')}
+          trend={
+            providers.length > 0
+              ? `${providers.filter((p) => p.provider.enabled).length} enabled`
+              : 'Add your first provider'
+          }
+          onClick={goProviders}
         />
-        <StatCard
-          title="MCP Servers (registry)"
+        <KpiCell
+          label="MCP Servers"
+          icon={<Server size={16} />}
           value={mcpServers.length}
-          icon={<Server size={24} />}
-          color="#10b981"
-          trend={mcpServers.length > 0 ? `${mcpServers.filter((m) => m.server.enabled).length} enabled` : 'Add your first MCP server'}
-          onClick={() => setActiveView('mcp')}
+          trend={
+            mcpServers.length > 0
+              ? `${mcpServers.filter((m) => m.server.enabled).length} enabled`
+              : 'Add your first MCP server'
+          }
+          onClick={goMCP}
         />
-        <StatCard
-          title="Agents (installed)"
+        <KpiCell
+          label="Agents (installed)"
+          icon={<Bot size={16} />}
           value={`${installedAgents.length}/${agents.length}`}
-          icon={<Bot size={24} />}
-          color="#8b5cf6"
           trend={`${agentsWithConfig.length} have a config file`}
-          onClick={() => setActiveView('agents')}
+          onClick={goAgents}
         />
-        <StatCard
-          title="Custom Agents"
+        <KpiCell
+          label="Custom Agents"
+          icon={<UserPlus size={16} />}
           value={customAgents.length}
-          icon={<UserPlus size={24} />}
-          color="#f59e0b"
           trend={customAgents.length > 0 ? 'user-defined config paths' : 'Register custom tools'}
-          onClick={() => setActiveView('agents')}
+          onClick={goAgents}
         />
       </div>
 
+      {/* Protocol coverage + detected agents */}
+      <div className="dashboard-panels">
+        <ProtocolCoverage counts={coverage.counts} total={coverage.total} />
+        <DetectedStrip agents={detected} onSelect={openAgent} />
+      </div>
+
       {/* Registry summary */}
-      <div className="card mb-6">
+      <div className="card">
         <div className="card-header">
           <h3 className="card-title">Registry — single source of truth</h3>
           <span className="badge badge-primary">
@@ -141,83 +337,33 @@ export function Dashboard() {
             <p className="text-tertiary text-xs">Location</p>
             <p className="font-mono text-sm break-all mt-1">{registry?.path}</p>
             <p className="text-tertiary text-xs mt-2 mb-1">
-              One definition per provider / MCP server; each entry lists the agents it is installed on.
-              Agent files are generated from this registry — never edit them by hand.
+              One definition per provider / MCP server; each entry lists the agents it is
+              installed on. Agent files are generated from this registry — never edit them by
+              hand.
             </p>
           </div>
           <div className="flex-shrink-0">
             <p className="text-tertiary text-xs">Info</p>
             <div className="mt-1 space-y-1">
-              <div className="text-sm"><span className="text-tertiary">Platform:</span> <span className="font-mono">{platform}</span></div>
-              <div className="text-sm"><span className="text-tertiary">Providers:</span> {providers.length}</div>
-              <div className="text-sm"><span className="text-tertiary">MCP servers:</span> {mcpServers.length}</div>
-              <div className="text-sm"><span className="text-tertiary">Custom agents:</span> {customAgents.length}</div>
+              <div className="text-sm">
+                <span className="text-tertiary">Platform:</span>{' '}
+                <span className="font-mono">{platform}</span>
+              </div>
+              <div className="text-sm">
+                <span className="text-tertiary">Providers:</span> {providers.length}
+              </div>
+              <div className="text-sm">
+                <span className="text-tertiary">MCP servers:</span> {mcpServers.length}
+              </div>
+              <div className="text-sm">
+                <span className="text-tertiary">Custom agents:</span> {customAgents.length}
+              </div>
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* Agents table */}
-      <div className="card">
-        <div className="card-header">
-          <h3 className="card-title">Agents on this machine</h3>
-          <button className="btn-ghost btn-sm" onClick={() => setActiveView('agents')}>
-            Manage agents →
+          <button className="btn-ghost btn-sm self-start" onClick={goAgents}>
+            Manage agents
+            <ArrowRight size={14} />
           </button>
-        </div>
-        <div className="table-container">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Agent</th>
-                <th>Status</th>
-                <th>Config</th>
-                <th>Registry providers installed</th>
-              </tr>
-            </thead>
-            <tbody>
-              {agents.map((agent) => (
-                <tr key={agent.id}>
-                  <td>
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className="p-2 rounded-lg bg-bg-tertiary flex-shrink-0">
-                        <Bot size={18} />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="font-medium truncate">{agent.name}</p>
-                        <p className="text-xs text-tertiary">{agent.id}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    {agent.detection.installed ? (
-                      <span className="badge badge-success">
-                        {agent.detection.version || 'installed'}
-                      </span>
-                    ) : (
-                      <span className="badge badge-neutral">not installed</span>
-                    )}
-                  </td>
-                  <td>
-                    <span className={`badge ${agent.detection.configExists ? 'badge-success' : 'badge-neutral'}`}>
-                      {agent.detection.configExists ? 'file exists' : 'no config'}
-                    </span>
-                  </td>
-                  <td>
-                    {providerTargets(agent.id).length === 0 ? (
-                      <span className="text-tertiary text-xs">—</span>
-                    ) : (
-                      <div className="flex flex-wrap gap-1">
-                        {providerTargets(agent.id).map((name) => (
-                          <span key={name} className="chip">{name}</span>
-                        ))}
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
       </div>
     </div>

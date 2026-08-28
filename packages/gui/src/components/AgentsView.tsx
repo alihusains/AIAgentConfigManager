@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../store';
 import { api, type CatalogAgent } from '../api';
 import type {
@@ -9,7 +9,6 @@ import type {
   Platform,
 } from '@ai-agent-config/core';
 import {
-  Bot,
   UserPlus,
   Plus,
   Edit,
@@ -20,25 +19,38 @@ import {
   RefreshCw,
   AlertTriangle,
   Check,
+  MoreVertical,
+  Save,
+  ArrowUpCircle,
+  Sparkles,
 } from 'lucide-react';
+import { AgentIconTile } from './AgentIcon';
+import { CodeEditor } from './CodeEditor';
+import { ApiTypeBadges } from './ApiTypeBadges';
+import { useWindowedList } from '../hooks/useWindowedList';
 
-// Local helper types (server messages are plain JSON)
-type RawConfigResult = {
-  path: string;
-  content: string;
-  exists: boolean;
-};
+/** Which file an in-browser edit session is open on. */
+interface EditingFile {
+  agentId: string;
+  agentName: string;
+  kind: 'config' | 'mcp';
+}
 
 /** Platform-filtered install/uninstall command for a catalog entry. */
 function commandFor(
   entry: AgentCatalogEntry,
   action: 'install' | 'uninstall',
-  platform: string,
+  platform: string
 ): string | undefined {
   const cmd = action === 'install' ? entry.install : entry.uninstall;
   if (!cmd) return undefined;
-  const platforms = action === 'install' ? entry.installPlatforms : entry.uninstallPlatforms;
-  if (platforms && platforms.length > 0 && !platforms.includes(platform as Platform)) {
+  const platforms =
+    action === 'install' ? entry.installPlatforms : entry.uninstallPlatforms;
+  if (
+    platforms &&
+    platforms.length > 0 &&
+    !platforms.includes(platform as Platform)
+  ) {
     return undefined;
   }
   return cmd;
@@ -50,6 +62,150 @@ const STATUS_BADGE: Record<string, string> = {
   upcoming: 'badge-neutral',
 };
 
+interface RowActionsMenuProps {
+  open: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+  items: { label: string; onClick: () => void }[];
+}
+
+/**
+ * A "⋮" button that opens a small labeled menu — replaces a row of
+ * identical icon-only buttons (which users could not tell apart) with
+ * plain text actions.
+ */
+function RowActionsMenu({ open, onToggle, onClose, items }: RowActionsMenuProps) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [open, onClose]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        className="btn-ghost btn-icon btn-sm"
+        title="More actions"
+        onClick={onToggle}
+      >
+        <MoreVertical size={14} />
+      </button>
+      {open && (
+        <div className="popover" style={{ minWidth: 180 }}>
+          {items.map((item) => (
+            <button
+              key={item.label}
+              className="flex items-center w-full px-2 py-1.5 rounded hover:bg-bg-hover text-sm text-left"
+              onClick={item.onClick}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Windowed "Available to Install" list                                       */
+/*                                                                            */
+/* The catalog now holds 30+ installable agents and keeps growing, so this   */
+/* list is windowed: only the rows inside the scroll viewport (plus a small   */
+/* overscan) are mounted. Rows are fixed-height and memoized, and the install */
+/* handler is a stable reference, so scrolling re-renders only the slice.     */
+/* -------------------------------------------------------------------------- */
+
+const AVAIL_ROW_HEIGHT = 56;
+
+const AvailableRow = memo(function AvailableRow({
+  agent,
+  installCmd,
+  onInstall,
+}: {
+  agent: CatalogAgent;
+  installCmd?: string;
+  onInstall: (agent: CatalogAgent) => void;
+}) {
+  const handleClick = useCallback(() => onInstall(agent), [onInstall, agent]);
+  return (
+    <div className="avail-row" style={{ height: AVAIL_ROW_HEIGHT }}>
+      <AgentIconTile icon={agent.icon} id={agent.id} size={32} />
+      <div className="avail-meta">
+        <div className="avail-name-row">
+          <span className="avail-name">{agent.name}</span>
+          <span className={`badge ${STATUS_BADGE[agent.status] || 'badge-neutral'}`}>
+            {agent.status}
+          </span>
+        </div>
+        <span className="avail-id" title={agent.description || agent.id}>
+          {agent.id}
+          {agent.description ? ` — ${agent.description}` : ''}
+        </span>
+      </div>
+      <ApiTypeBadges kinds={agent.apiTypes} compact />
+      {installCmd ? (
+        <button className="btn-primary btn-sm" title={installCmd} onClick={handleClick}>
+          <Download size={14} />
+          Install
+        </button>
+      ) : (
+        <span className="text-tertiary text-xs">manual</span>
+      )}
+    </div>
+  );
+});
+
+function AvailableList({
+  agents,
+  platform,
+  onInstall,
+}: {
+  agents: CatalogAgent[];
+  platform: string;
+  onInstall: (agent: CatalogAgent) => void;
+}) {
+  const { containerRef, onScroll, range } = useWindowedList(
+    agents.length,
+    AVAIL_ROW_HEIGHT
+  );
+
+  if (agents.length === 0) {
+    return (
+      <div className="p-4 text-center text-tertiary text-sm">
+        Every catalogued agent is installed on this machine 🎉
+      </div>
+    );
+  }
+
+  const visible = agents.slice(range.start, range.end);
+
+  return (
+    <div className="agent-window avail-window" ref={containerRef} onScroll={onScroll}>
+      <div className="agent-window-viewport" style={{ height: range.totalHeight }}>
+        <div
+          className="agent-window-slice"
+          style={{ transform: `translateY(${range.offsetTop}px)` }}
+        >
+          {visible.map((a) => (
+            <AvailableRow
+              key={a.id}
+              agent={a}
+              installCmd={commandFor(a, 'install', platform)}
+              onInstall={onInstall}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function AgentsView() {
   const {
     agents,
@@ -59,19 +215,46 @@ export function AgentsView() {
     revealAgent,
     deleteCustomAgent,
     refreshAll,
+    addToast,
   } = useStore();
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState<CustomAgentDef | null>(null);
-  const [viewingConfig, setViewingConfig] = useState<string | null>(null); // agent id
-  const [rawConfig, setRawConfig] = useState<RawConfigResult | null>(null);
-  const [rawError, setRawError] = useState<string | null>(null);
+  const [editingFile, setEditingFile] = useState<EditingFile | null>(null);
+  const [fileState, setFileState] = useState<{
+    path: string;
+    content: string;
+    exists: boolean;
+  } | null>(null);
+  const [fileDraft, setFileDraft] = useState('');
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [savingFile, setSavingFile] = useState(false);
+  const [openMenuFor, setOpenMenuFor] = useState<string | null>(null); // agent id
+
+  // Update checking — per-agent result, keyed by agent id.
+  interface UpdateStatus {
+    checking: boolean;
+    updating: boolean;
+    method?: 'npm' | 'brew' | 'unsupported';
+    currentVersion?: string;
+    latestVersion?: string;
+    updateAvailable?: boolean;
+    reason?: string;
+  }
+  const [updateStatus, setUpdateStatus] = useState<Record<string, UpdateStatus>>({});
+  const [checkingAllUpdates, setCheckingAllUpdates] = useState(false);
 
   // Maintained catalog (known agent CLIs merged with live detection)
   const [catalog, setCatalog] = useState<CatalogAgent[] | null>(null);
-  const [catalogMeta, setCatalogMeta] = useState<{ version: number; updatedAt: string } | null>(null);
+  const [catalogMeta, setCatalogMeta] = useState<{
+    version: number;
+    updatedAt: string;
+  } | null>(null);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   // Active install/uninstall job modal
-  const [job, setJob] = useState<{ agent: CatalogAgent; action: 'install' | 'uninstall' } | null>(null);
+  const [job, setJob] = useState<{
+    agent: CatalogAgent;
+    action: 'install' | 'uninstall';
+  } | null>(null);
 
   const customAgents = registry?.customAgents || [];
   const p = (platform as 'darwin' | 'win32' | 'linux') || 'darwin';
@@ -91,16 +274,137 @@ export function AgentsView() {
     void loadCatalog();
   }, [loadCatalog]);
 
-  const viewConfig = async (agentId: string) => {
-    setViewingConfig(agentId);
-    setRawConfig(null);
-    setRawError(null);
-    const res = await api.getAgentConfig(agentId);
-    if (!res.ok) {
-      setRawError(res.error || 'Failed to load config');
+  const openFileEditor = async (
+    agentId: string,
+    agentName: string,
+    kind: 'config' | 'mcp'
+  ) => {
+    setOpenMenuFor(null);
+    setEditingFile({ agentId, agentName, kind });
+    setFileState(null);
+    setFileDraft('');
+    setFileError(null);
+    const res = await api.getAgentRawFile(agentId, kind);
+    if (!res.ok || !res.data) {
+      setFileError(res.error || 'Failed to load file');
       return;
     }
-    setRawConfig(res.data || null);
+    setFileState(res.data);
+    setFileDraft(res.data.content);
+  };
+
+  const closeFileEditor = () => {
+    setEditingFile(null);
+    setFileState(null);
+    setFileDraft('');
+    setFileError(null);
+  };
+
+  const saveFileEditor = async () => {
+    if (!editingFile) return;
+    setSavingFile(true);
+    const res = await api.saveAgentRawFile(
+      editingFile.agentId,
+      editingFile.kind,
+      fileDraft
+    );
+    setSavingFile(false);
+    if (!res.ok || !res.data) {
+      addToast({
+        type: 'error',
+        title: 'Save failed',
+        message: res.error || 'Could not write the file.',
+      });
+      return;
+    }
+    setFileState({ path: res.data.path, content: fileDraft, exists: true });
+    addToast({
+      type: 'success',
+      title: 'Saved',
+      message: res.data.backupPath
+        ? `${editingFile.agentName}'s ${editingFile.kind === 'mcp' ? 'MCP file' : 'config'} was updated — previous version backed up.`
+        : `${editingFile.agentName}'s ${editingFile.kind === 'mcp' ? 'MCP file' : 'config'} was created.`,
+    });
+    void loadCatalog();
+    void refreshAll();
+  };
+
+  // --------------------------------------------------------------------------
+  // Version management — check for updates, then update one or all agents.
+  // --------------------------------------------------------------------------
+  const checkOneUpdate = useCallback(async (agentId: string): Promise<UpdateStatus> => {
+    setUpdateStatus((prev) => ({
+      ...prev,
+      [agentId]: { ...prev[agentId], checking: true, updating: false },
+    }));
+    const res = await api.checkAgentUpdate(agentId);
+    const status: UpdateStatus =
+      res.ok && res.data
+        ? { checking: false, updating: false, ...res.data }
+        : { checking: false, updating: false, method: 'unsupported', reason: res.error };
+    setUpdateStatus((prev) => ({ ...prev, [agentId]: status }));
+    return status;
+  }, []);
+
+  const checkAllUpdates = async () => {
+    setCheckingAllUpdates(true);
+    const ids = installedRows.map((row) => row.id);
+    const results = await Promise.all(ids.map((id) => checkOneUpdate(id)));
+    setCheckingAllUpdates(false);
+    const available = results.filter((r) => r.updateAvailable).length;
+    addToast({
+      type: 'info',
+      title: 'Update check complete',
+      message:
+        available > 0
+          ? `${available} agent${available === 1 ? '' : 's'} can be updated.`
+          : 'Everything is up to date.',
+    });
+  };
+
+  const runUpdate = async (agentId: string, agentName: string) => {
+    setUpdateStatus((prev) => ({
+      ...prev,
+      [agentId]: { ...prev[agentId], updating: true },
+    }));
+    const res = await api.updateAgent(agentId);
+    if (!res.ok || !res.data) {
+      setUpdateStatus((prev) => ({ ...prev, [agentId]: { ...prev[agentId], updating: false } }));
+      addToast({
+        type: 'error',
+        title: 'Update failed to start',
+        message: res.error || `Could not start an update for ${agentName}.`,
+      });
+      return;
+    }
+    const jobId = res.data.jobId;
+    const poll = async (): Promise<void> => {
+      const jobRes = await api.getAgentJob(jobId);
+      if (!jobRes.ok || !jobRes.data || jobRes.data.status === 'running') {
+        setTimeout(() => void poll(), 1500);
+        return;
+      }
+      const ok = jobRes.data.status === 'success';
+      setUpdateStatus((prev) => ({ ...prev, [agentId]: { ...prev[agentId], updating: false } }));
+      addToast({
+        type: ok ? 'success' : 'error',
+        title: ok ? 'Update complete' : 'Update failed',
+        message: ok
+          ? `${agentName} was updated.`
+          : jobRes.data.error || 'The update command exited with an error.',
+      });
+      void loadCatalog();
+      void refreshAll();
+      void checkOneUpdate(agentId);
+    };
+    void poll();
+  };
+
+  const updateAllAvailable = async () => {
+    const targets = installedRows.filter((row) => updateStatus[row.id]?.updateAvailable);
+    for (const row of targets) {
+      await runUpdate(row.id, row.name);
+    }
   };
 
   // --------------------------------------------------------------------------
@@ -114,6 +418,8 @@ export function AgentsView() {
     detection: AgentDetection;
     configPath: string;
     mcpPath: string | null;
+    modelPath: string | null;
+    credentialPath: string | null;
     catalogEntry?: CatalogAgent;
   }
 
@@ -124,14 +430,24 @@ export function AgentsView() {
         .map((a) => {
           const d = a.detected;
           const cfg = d?.configPaths?.[p] || d?.configPaths?.darwin || '—';
-          const mcp = d?.mcpConfigPaths?.[p];
+          const mcp = d?.detection?.mcpPath || d?.mcpConfigPaths?.[p];
           return {
             id: a.id,
             name: a.name,
             known: a.known,
-            detection: d?.detection ?? { installed: true, configExists: false, method: 'assumed' },
+            detection: d?.detection ?? {
+              installed: true,
+              configExists: false,
+              method: 'assumed',
+            },
             configPath: cfg,
-            mcpPath: mcp ? (mcp === (d?.configPaths?.[p] || d?.configPaths?.darwin) ? 'same file' : mcp) : null,
+            mcpPath: mcp
+              ? mcp === (d?.configPaths?.[p] || d?.configPaths?.darwin)
+                ? 'same file'
+                : mcp
+              : null,
+            modelPath: d?.detection?.modelConfigPath || null,
+            credentialPath: d?.detection?.modelCredentialPath || null,
             catalogEntry: a,
           };
         });
@@ -142,36 +458,53 @@ export function AgentsView() {
       known: true,
       detection: a.detection,
       configPath: a.configPaths[p] || a.configPaths.darwin || '—',
-      mcpPath: a.mcpConfigPaths?.[p]
-        ? a.mcpConfigPaths[p] === (a.configPaths[p] || a.configPaths.darwin)
+      mcpPath: a.detection.mcpPath
+        ? a.detection.mcpPath === (a.configPaths[p] || a.configPaths.darwin)
           ? 'same file'
-          : a.mcpConfigPaths[p]
-        : null,
+          : a.detection.mcpPath
+        : a.mcpConfigPaths?.[p]
+          ? a.mcpConfigPaths[p] === (a.configPaths[p] || a.configPaths.darwin)
+            ? 'same file'
+            : a.mcpConfigPaths[p]
+          : null,
+      modelPath: a.detection.modelConfigPath || null,
+      credentialPath: a.detection.modelCredentialPath || null,
     }));
   }, [catalog, agents, p]);
 
   const availableAgents = useMemo(
     () => (catalog ?? []).filter((a) => !a.installed),
-    [catalog],
+    [catalog]
   );
 
-  const installedCount = catalog ? installedRows.length : agents.filter((a) => a.detection.installed).length;
-  const totalCount = catalog ? catalog.filter((a) => a.known).length : agents.length;
+  const installedCount = catalog
+    ? installedRows.length
+    : agents.filter((a) => a.detection.installed).length;
+  const totalCount = catalog
+    ? catalog.filter((a) => a.known).length
+    : agents.length;
 
   const jobDone = () => {
     void loadCatalog();
     void refreshAll();
   };
 
+  // Stable handler for the windowed "Available to Install" rows — keeps each
+  // memoized row from re-rendering when unrelated state changes.
+  const openInstall = useCallback(
+    (agent: CatalogAgent) => setJob({ agent, action: 'install' }),
+    []
+  );
+
   return (
     <div className="p-4">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-xl font-bold">Agents</h2>
+          <h2 className="page-title">Agents</h2>
           <p className="text-secondary text-sm mt-1">
-            Installed agent CLIs, agents available to install from the maintained catalog,
-            and custom agents with explicit config paths.
+            Installed agent CLIs, agents available to install from the
+            maintained catalog, and custom agents with explicit config paths.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -179,12 +512,19 @@ export function AgentsView() {
             className="btn-ghost btn-sm"
             title="Refresh catalog + detection"
             disabled={loading}
-            onClick={() => { void loadCatalog(); void refreshAll(); }}
+            onClick={() => {
+              void loadCatalog();
+              void refreshAll();
+            }}
           >
             <RefreshCw size={14} />
             Refresh
           </button>
-          <button className="btn-primary" onClick={() => setShowAdd(true)} disabled={loading}>
+          <button
+            className="btn-primary"
+            onClick={() => setShowAdd(true)}
+            disabled={loading}
+          >
             <UserPlus size={16} />
             Add Custom Agent
           </button>
@@ -194,36 +534,70 @@ export function AgentsView() {
       {/* ---------------- Installed Agents ---------------- */}
       <div className="card mb-6">
         <div className="card-header">
-          <h3 className="card-title">Installed Agents</h3>
-          <span className="badge badge-success">
-            {installedCount}/{totalCount || installedCount} installed
-          </span>
+          <div className="flex items-center gap-2">
+            <h3 className="card-title">Installed Agents</h3>
+            <span className="badge badge-success">
+              {installedCount}/{totalCount || installedCount} installed
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            {installedRows.filter((row) => updateStatus[row.id]?.updateAvailable).length >
+              0 && (
+              <button
+                className="btn-secondary btn-sm"
+                onClick={updateAllAvailable}
+                disabled={installedRows.some((row) => updateStatus[row.id]?.updating)}
+              >
+                <ArrowUpCircle size={14} />
+                Update all (
+                {installedRows.filter((row) => updateStatus[row.id]?.updateAvailable).length})
+              </button>
+            )}
+            <button
+              className="btn-ghost btn-sm"
+              onClick={checkAllUpdates}
+              disabled={checkingAllUpdates || installedRows.length === 0}
+            >
+              {checkingAllUpdates ? (
+                <div className="spinner" style={{ width: 14, height: 14 }} />
+              ) : (
+                <Sparkles size={14} />
+              )}
+              Check for updates
+            </button>
+          </div>
         </div>
         <div className="table-container">
           <table className="table">
             <thead>
               <tr>
                 <th>Agent</th>
+                <th>API</th>
                 <th>Status</th>
                 <th>Config File</th>
                 <th>Config Path</th>
                 <th>MCP File</th>
-                <th style={{ width: '160px' }}>Actions</th>
+                <th style={{ width: '130px' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {installedRows.map((row) => (
                 <tr key={row.id}>
                   <td>
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className="p-2 rounded-lg bg-bg-tertiary flex-shrink-0">
-                        <Bot size={18} />
-                      </div>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <AgentIconTile
+                        icon={row.catalogEntry?.icon}
+                        id={row.id}
+                        size={40}
+                      />
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5">
                           <p className="font-medium truncate">{row.name}</p>
                           {!row.known && (
-                            <span className="badge badge-neutral" title="Discovered on this machine but not in the maintained catalog yet">
+                            <span
+                              className="badge badge-neutral"
+                              title="Discovered on this machine but not in the maintained catalog yet"
+                            >
                               new
                             </span>
                           )}
@@ -233,69 +607,175 @@ export function AgentsView() {
                     </div>
                   </td>
                   <td>
+                    <ApiTypeBadges kinds={row.catalogEntry?.apiTypes} compact />
+                  </td>
+                  <td>
                     <div className="flex flex-col gap-1">
                       <span className="badge badge-success">
+                        <span className="live-dot" />
                         {row.detection.version || 'installed'}
                       </span>
                       {row.detection.binaryPath && (
-                        <span className="text-xs text-tertiary font-mono">
+                        <span
+                          className="text-xs text-tertiary font-mono"
+                          title={
+                            row.detection.detectedBy
+                              ? `found via ${row.detection.detectedBy}`
+                              : undefined
+                          }
+                        >
                           {row.detection.binaryPath}
+                          {row.detection.detectedBy && (
+                            <span className="text-tertiary">
+                              {' '}
+                              ({row.detection.detectedBy})
+                            </span>
+                          )}
                         </span>
                       )}
+                      {updateStatus[row.id]?.checking ? (
+                        <span className="text-xs text-tertiary flex items-center gap-1">
+                          <div className="spinner" style={{ width: 11, height: 11 }} />
+                          checking…
+                        </span>
+                      ) : updateStatus[row.id]?.updateAvailable ? (
+                        <button
+                          className="btn-secondary btn-sm"
+                          disabled={updateStatus[row.id]?.updating}
+                          onClick={() => runUpdate(row.id, row.name)}
+                          title={`Update to ${updateStatus[row.id]?.latestVersion}`}
+                        >
+                          {updateStatus[row.id]?.updating ? (
+                            <div className="spinner" style={{ width: 12, height: 12 }} />
+                          ) : (
+                            <ArrowUpCircle size={12} />
+                          )}
+                          Update to {updateStatus[row.id]?.latestVersion}
+                        </button>
+                      ) : updateStatus[row.id] && updateStatus[row.id].method !== 'unsupported' ? (
+                        <span className="text-xs text-tertiary">up to date</span>
+                      ) : null}
                     </div>
                   </td>
                   <td>
-                    <span className={`badge ${row.detection.configExists ? 'badge-success' : 'badge-neutral'}`}>
+                    <span
+                      className={`badge ${row.detection.configExists ? 'badge-success' : 'badge-neutral'}`}
+                    >
                       {row.detection.configExists ? 'exists' : 'missing'}
                     </span>
                   </td>
-                  <td className="font-mono text-xs break-all max-w-0" style={{ maxWidth: 240 }}>
-                    {row.configPath}
+                  <td
+                    className="font-mono text-xs break-all max-w-0"
+                    style={{ maxWidth: 220 }}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span className="flex-1 min-w-0">{row.configPath}</span>
+                      <button
+                        className="btn-ghost btn-icon btn-sm flex-shrink-0"
+                        title="Edit config file"
+                        onClick={() => openFileEditor(row.id, row.name, 'config')}
+                      >
+                        <Edit size={13} />
+                      </button>
+                    </div>
+                    {/* Model config lives in a genuinely different file only for a
+                        couple of agents (e.g. reasonix's separate credentials) — show
+                        it as a note here instead of a whole redundant column, since in
+                        every other case it's identical to the path above. */}
+                    {row.modelPath &&
+                      row.modelPath !== row.configPath &&
+                      row.modelPath !== 'same file' && (
+                        <div className="text-xs text-tertiary mt-0.5" title={row.modelPath}>
+                          model: {row.modelPath}
+                        </div>
+                      )}
+                    {row.credentialPath && (
+                      <div
+                        className="text-xs text-tertiary mt-0.5"
+                        title={row.credentialPath}
+                      >
+                        keys: {row.credentialPath}
+                      </div>
+                    )}
                   </td>
-                  <td className="font-mono text-xs break-all" style={{ maxWidth: 180 }}>
-                    {row.mcpPath ? (
-                      row.mcpPath === 'same file' ? (
-                        <span className="text-tertiary">same file</span>
-                      ) : (
-                        row.mcpPath
-                      )
+                  <td
+                    className="font-mono text-xs break-all"
+                    style={{ maxWidth: 180 }}
+                  >
+                    {row.mcpPath && row.mcpPath !== 'same file' ? (
+                      <div className="flex items-center gap-1.5">
+                        <span className="flex-1 min-w-0">{row.mcpPath}</span>
+                        <button
+                          className="btn-ghost btn-icon btn-sm flex-shrink-0"
+                          title="Edit MCP file"
+                          onClick={() => openFileEditor(row.id, row.name, 'mcp')}
+                        >
+                          <Edit size={13} />
+                        </button>
+                      </div>
+                    ) : row.mcpPath === 'same file' ? (
+                      <span className="text-tertiary">same file</span>
                     ) : (
                       <span className="text-tertiary">—</span>
+                    )}
+                    {row.detection.mcpServerCount !== undefined && (
+                      <div className="text-xs text-tertiary mt-0.5">
+                        {row.detection.mcpServerCount} server
+                        {row.detection.mcpServerCount === 1 ? '' : 's'}
+                      </div>
                     )}
                   </td>
                   <td>
                     <div className="flex items-center gap-1">
-                      <button
-                        className="btn-ghost btn-icon btn-sm"
-                        title="View config file"
-                        onClick={() => viewConfig(row.id)}
-                      >
-                        <FileCode size={14} />
-                      </button>
-                      <button
-                        className="btn-ghost btn-icon btn-sm"
-                        title="Reveal config folder"
-                        onClick={() => revealAgent(row.id)}
-                      >
-                        <FolderOpen size={14} />
-                      </button>
+                      <RowActionsMenu
+                        open={openMenuFor === row.id}
+                        onToggle={() =>
+                          setOpenMenuFor(openMenuFor === row.id ? null : row.id)
+                        }
+                        onClose={() => setOpenMenuFor(null)}
+                        items={[
+                          {
+                            label: 'Reveal config folder',
+                            onClick: () => {
+                              setOpenMenuFor(null);
+                              revealAgent(row.id);
+                            },
+                          },
+                          ...(row.mcpPath && row.mcpPath !== 'same file'
+                            ? [
+                                {
+                                  label: 'Reveal MCP folder',
+                                  onClick: () => {
+                                    setOpenMenuFor(null);
+                                    revealAgent(row.id, 'mcp');
+                                  },
+                                },
+                              ]
+                            : []),
+                        ]}
+                      />
                       {row.catalogEntry &&
                         commandFor(row.catalogEntry, 'uninstall', p) && (
-                        <button
-                          className="btn-danger btn-sm"
-                          title={commandFor(row.catalogEntry, 'uninstall', p)}
-                          onClick={() => setJob({ agent: row.catalogEntry!, action: 'uninstall' })}
-                        >
-                          Uninstall
-                        </button>
-                      )}
+                          <button
+                            className="btn-danger btn-sm"
+                            title={commandFor(row.catalogEntry, 'uninstall', p)}
+                            onClick={() =>
+                              setJob({
+                                agent: row.catalogEntry!,
+                                action: 'uninstall',
+                              })
+                            }
+                          >
+                            Uninstall
+                          </button>
+                        )}
                     </div>
                   </td>
                 </tr>
               ))}
               {installedRows.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="text-center text-tertiary py-8">
+                  <td colSpan={7} className="text-center text-tertiary py-8">
                     No agents installed yet — pick one below to install.
                   </td>
                 </tr>
@@ -310,7 +790,8 @@ export function AgentsView() {
         <div className="card-header">
           <h3 className="card-title">Available to Install</h3>
           <span className="badge badge-neutral">
-            {availableAgents.length} agent{availableAgents.length === 1 ? '' : 's'}
+            {availableAgents.length} agent
+            {availableAgents.length === 1 ? '' : 's'}
           </span>
         </div>
 
@@ -322,88 +803,18 @@ export function AgentsView() {
             </p>
           </div>
         ) : (
-          <div className="table-container">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Agent</th>
-                  <th>Status</th>
-                  <th>Install Command</th>
-                  <th style={{ width: '150px' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {availableAgents.map((a) => {
-                  const installCmd = commandFor(a, 'install', p);
-                  return (
-                    <tr key={a.id}>
-                      <td>
-                        <div className="flex items-center gap-2 min-w-0">
-                          <div className="p-2 rounded-lg bg-bg-tertiary flex-shrink-0">
-                            <Bot size={18} />
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <p className="font-medium truncate">{a.name}</p>
-                              <span className={`badge ${STATUS_BADGE[a.status] || 'badge-neutral'}`}>
-                                {a.status}
-                              </span>
-                            </div>
-                            <p className="text-xs text-tertiary">{a.id}</p>
-                            {a.description && (
-                              <p className="text-xs text-secondary mt-0.5 max-w-md">{a.description}</p>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                      <td>
-                        <span className="badge badge-neutral">not installed</span>
-                      </td>
-                      <td className="font-mono text-xs break-all" style={{ maxWidth: 320 }}>
-                        {installCmd ? (
-                          installCmd
-                        ) : (
-                          <span className="text-tertiary font-sans">manual setup</span>
-                        )}
-                        {a.note && (
-                          <span className="text-tertiary font-sans font-normal block mt-0.5">
-                            {a.note}
-                          </span>
-                        )}
-                      </td>
-                      <td>
-                        {installCmd ? (
-                          <button
-                            className="btn-primary btn-sm"
-                            title={installCmd}
-                            onClick={() => setJob({ agent: a, action: 'install' })}
-                          >
-                            <Download size={14} />
-                            Install
-                          </button>
-                        ) : (
-                          <span className="text-tertiary text-xs">—</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-                {availableAgents.length === 0 && (
-                  <tr>
-                    <td colSpan={4} className="text-center text-tertiary py-6">
-                      Every catalogued agent is installed on this machine 🎉
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          <AvailableList
+            agents={availableAgents}
+            platform={p}
+            onInstall={openInstall}
+          />
         )}
 
         {catalogMeta && (
           <div className="px-4 py-2 border-t flex items-center justify-between">
             <span className="text-xs text-tertiary">
-              Maintained agent catalog v{catalogMeta.version} · last updated {catalogMeta.updatedAt}
+              Maintained agent catalog v{catalogMeta.version} · last updated{' '}
+              {catalogMeta.updatedAt}
             </span>
           </div>
         )}
@@ -413,7 +824,10 @@ export function AgentsView() {
       <div className="card">
         <div className="card-header">
           <h3 className="card-title">Custom Agents</h3>
-          <button className="btn-primary btn-sm" onClick={() => setShowAdd(true)}>
+          <button
+            className="btn-primary btn-sm"
+            onClick={() => setShowAdd(true)}
+          >
             <Plus size={14} />
             Add
           </button>
@@ -424,9 +838,9 @@ export function AgentsView() {
             <UserPlus size={64} className="empty-state-icon" />
             <h3 className="empty-state-title">No Custom Agents</h3>
             <p className="empty-state-message">
-              Register any tool that reads a JSON config: point at its config path
-              (and optionally a separate MCP servers file) and manage it like a
-              first-class agent.
+              Register any tool that reads a JSON config: point at its config
+              path (and optionally a separate MCP servers file) and manage it
+              like a first-class agent.
             </p>
           </div>
         ) : (
@@ -450,7 +864,10 @@ export function AgentsView() {
                         <p className="text-xs text-tertiary">{def.id}</p>
                       </div>
                     </td>
-                    <td className="font-mono text-xs break-all" style={{ maxWidth: 240 }}>
+                    <td
+                      className="font-mono text-xs break-all"
+                      style={{ maxWidth: 240 }}
+                    >
                       {def.configPath}
                     </td>
                     <td className="font-mono text-xs">
@@ -461,14 +878,16 @@ export function AgentsView() {
                       )}
                     </td>
                     <td>
-                      <span className="badge badge-neutral">{def.format || 'json'}</span>
+                      <span className="badge badge-neutral">
+                        {def.format || 'json'}
+                      </span>
                     </td>
                     <td>
                       <div className="flex items-center gap-1">
                         <button
                           className="btn-ghost btn-icon btn-sm"
-                          title="View config"
-                          onClick={() => viewConfig(def.id)}
+                          title="Edit config file"
+                          onClick={() => openFileEditor(def.id, def.name, 'config')}
                         >
                           <FileCode size={14} />
                         </button>
@@ -490,7 +909,11 @@ export function AgentsView() {
                           className="btn-ghost btn-icon btn-sm text-error"
                           title="Remove (files are left untouched)"
                           onClick={() => {
-                            if (confirm(`Remove custom agent "${def.name}" from the registry?\n\nIts config files on disk are NOT deleted.`)) {
+                            if (
+                              confirm(
+                                `Remove custom agent "${def.name}" from the registry?\n\nIts config files on disk are NOT deleted.`
+                              )
+                            ) {
                               deleteCustomAgent(def.id);
                             }
                           }}
@@ -509,10 +932,7 @@ export function AgentsView() {
 
       {showAdd && <CustomAgentModal onClose={() => setShowAdd(false)} />}
       {editing && (
-        <CustomAgentModal
-          onClose={() => setEditing(null)}
-          initial={editing}
-        />
+        <CustomAgentModal onClose={() => setEditing(null)} initial={editing} />
       )}
       {job && (
         <AgentJobModal
@@ -524,38 +944,61 @@ export function AgentsView() {
         />
       )}
 
-      {/* Raw config viewer */}
-      {viewingConfig && (
-        <div className="modal-overlay" onClick={() => setViewingConfig(null)}>
-          <div className="modal max-w-lg" onClick={(e) => e.stopPropagation()}>
+      {/* In-browser config/MCP file editor */}
+      {editingFile && (
+        <div className="modal-overlay" onClick={closeFileEditor}>
+          <div
+            className="modal"
+            style={{ maxWidth: 720 }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="modal-header">
-              <h2 className="modal-title">Config — {viewingConfig}</h2>
-              <button className="modal-close" onClick={() => setViewingConfig(null)}>✕</button>
+              <h2 className="modal-title">
+                {editingFile.kind === 'mcp' ? 'MCP file' : 'Config'} —{' '}
+                {editingFile.agentName}
+              </h2>
+              <button className="modal-close" onClick={closeFileEditor}>
+                ✕
+              </button>
             </div>
             <div className="modal-body">
-              {rawError ? (
-                <p className="text-error text-sm">{rawError}</p>
-              ) : !rawConfig ? (
+              {fileError ? (
+                <p className="text-error text-sm">{fileError}</p>
+              ) : !fileState ? (
                 <div className="flex items-center gap-3 py-4">
                   <div className="spinner" />
-                  <span className="text-secondary text-sm">Reading config…</span>
+                  <span className="text-secondary text-sm">Reading file…</span>
                 </div>
               ) : (
                 <>
-                  <p className="text-xs text-tertiary font-mono break-all mb-2">{rawConfig.path}</p>
-                  {!rawConfig.exists ? (
-                    <p className="text-warning text-sm">
-                      Config file does not exist yet — it will be created when you install
-                      a provider or MCP server into this agent.
+                  <p className="text-xs text-tertiary font-mono break-all mb-2">
+                    {fileState.path}
+                  </p>
+                  {!fileState.exists && (
+                    <p className="text-warning text-sm mb-2">
+                      This file does not exist yet — saving will create it.
                     </p>
-                  ) : (
-                    <pre className="code-block">{rawConfig.content}</pre>
                   )}
+                  <CodeEditor value={fileDraft} onChange={setFileDraft} />
                 </>
               )}
             </div>
             <div className="modal-footer">
-              <button className="btn-secondary" onClick={() => setViewingConfig(null)}>Close</button>
+              <button className="btn-secondary" onClick={closeFileEditor}>
+                Close
+              </button>
+              <button
+                className="btn-primary"
+                disabled={!fileState || savingFile}
+                onClick={saveFileEditor}
+              >
+                {savingFile ? (
+                  <div className="spinner" style={{ width: 14, height: 14 }} />
+                ) : (
+                  <Save size={14} />
+                )}
+                Save
+              </button>
             </div>
           </div>
         </div>
@@ -576,7 +1019,13 @@ interface AgentJobModalProps {
   onDone: () => void;
 }
 
-function AgentJobModal({ agent, action, platform, onClose, onDone }: AgentJobModalProps) {
+function AgentJobModal({
+  agent,
+  action,
+  platform,
+  onClose,
+  onDone,
+}: AgentJobModalProps) {
   const addToast = useStore((s) => s.addToast);
   const p = (platform as 'darwin' | 'win32' | 'linux') || 'darwin';
   const command = commandFor(agent, action, p);
@@ -618,13 +1067,16 @@ function AgentJobModal({ agent, action, platform, onClose, onDone }: AgentJobMod
       addToast({
         type: ok ? 'success' : 'error',
         title: ok
-          ? action === 'install' ? 'Install complete' : 'Uninstall complete'
+          ? action === 'install'
+            ? 'Install complete'
+            : 'Uninstall complete'
           : 'Command failed',
         message: ok
           ? action === 'install'
             ? `${agent.name} installed — you can now install providers & MCP servers into it.`
             : `${agent.name} was uninstalled. Its config files on disk were left untouched.`
-          : update.error || `Exit code ${update.exitCode ?? '?'} — see the output above.`,
+          : update.error ||
+            `Exit code ${update.exitCode ?? '?'} — see the output above.`,
       });
       onDone();
     };
@@ -663,7 +1115,13 @@ function AgentJobModal({ agent, action, platform, onClose, onDone }: AgentJobMod
           <h2 className="modal-title">
             {isUninstall ? 'Uninstall' : 'Install'} — {agent.name}
           </h2>
-          <button className="modal-close" onClick={onClose} disabled={phase === 'running'}>✕</button>
+          <button
+            className="modal-close"
+            onClick={onClose}
+            disabled={phase === 'running'}
+          >
+            ✕
+          </button>
         </div>
         <div className="modal-body">
           {runError && (
@@ -682,21 +1140,25 @@ function AgentJobModal({ agent, action, platform, onClose, onDone }: AgentJobMod
                     This will remove {agent.name} from your system
                   </p>
                   <p className="text-xs text-secondary mt-1">
-                    Your config files and registry entries (providers, MCP servers) are NOT
-                    deleted — after reinstalling, everything will materialize again.
+                    Your config files and registry entries (providers, MCP
+                    servers) are NOT deleted — after reinstalling, everything
+                    will materialize again.
                   </p>
                 </div>
               ) : (
                 <div className="mb-3 p-3 rounded-lg bg-bg-tertiary">
                   <p className="text-sm text-secondary">
-                    The dashboard will run this command for you and stream the output.
+                    The dashboard will run this command for you and stream the
+                    output.
                   </p>
                 </div>
               )}
 
               {command && (
                 <div className="mb-3">
-                  <p className="text-xs text-tertiary mb-1">Command that will run</p>
+                  <p className="text-xs text-tertiary mb-1">
+                    Command that will run
+                  </p>
                   <pre className="code-block">{command}</pre>
                 </div>
               )}
@@ -707,7 +1169,8 @@ function AgentJobModal({ agent, action, platform, onClose, onDone }: AgentJobMod
               {isUninstall && (
                 <div className="form-group">
                   <label className="form-label">
-                    Type <span className="font-mono">{agent.id}</span> to confirm
+                    Type <span className="font-mono">{agent.id}</span> to
+                    confirm
                   </label>
                   <input
                     className="input"
@@ -726,12 +1189,16 @@ function AgentJobModal({ agent, action, platform, onClose, onDone }: AgentJobMod
               <div className="flex items-center gap-3 mb-2">
                 <div className="spinner" />
                 <span className="text-secondary text-sm">
-                  Running <span className="font-mono">{agent.id}</span> {verb}… this can take a few minutes.
+                  Running <span className="font-mono">{agent.id}</span> {verb}…
+                  this can take a few minutes.
                 </span>
               </div>
-              <pre ref={outputRef} className="terminal-output">{job?.output || ''}</pre>
+              <pre ref={outputRef} className="terminal-output">
+                {job?.output || ''}
+              </pre>
               <p className="text-xs text-tertiary mt-2">
-                You can close this window — the command keeps running in the background.
+                You can close this window — the command keeps running in the
+                background.
               </p>
             </>
           )}
@@ -743,17 +1210,28 @@ function AgentJobModal({ agent, action, platform, onClose, onDone }: AgentJobMod
                   <>
                     <span className="badge badge-success">
                       <Check size={12} className="inline mr-1" />
-                      {verb === 'install' ? 'Installed' : 'Uninstalled'} successfully
+                      {verb === 'install' ? 'Installed' : 'Uninstalled'}{' '}
+                      successfully
                     </span>
                   </>
                 ) : (
-                  <span className="badge badge-error">Failed{job?.exitCode !== undefined ? ` (exit ${job.exitCode})` : ''}</span>
+                  <span className="badge badge-error">
+                    Failed
+                    {job?.exitCode !== undefined
+                      ? ` (exit ${job.exitCode})`
+                      : ''}
+                  </span>
                 )}
-                {job?.error && <span className="text-error text-sm">{job.error}</span>}
+                {job?.error && (
+                  <span className="text-error text-sm">{job.error}</span>
+                )}
               </div>
-              <pre ref={outputRef} className="terminal-output">{job?.output || ''}</pre>
+              <pre ref={outputRef} className="terminal-output">
+                {job?.output || ''}
+              </pre>
               <p className="text-xs text-tertiary mt-2">
-                Detection has been refreshed — {agent.name} should now appear in the right list.
+                Detection has been refreshed — {agent.name} should now appear in
+                the right list.
               </p>
             </>
           )}
@@ -761,7 +1239,9 @@ function AgentJobModal({ agent, action, platform, onClose, onDone }: AgentJobMod
         <div className="modal-footer">
           {phase === 'confirm' && (
             <>
-              <button className="btn-secondary" onClick={onClose}>Cancel</button>
+              <button className="btn-secondary" onClick={onClose}>
+                Cancel
+              </button>
               <button
                 className={isUninstall ? 'btn-danger' : 'btn-primary'}
                 onClick={start}
@@ -773,7 +1253,9 @@ function AgentJobModal({ agent, action, platform, onClose, onDone }: AgentJobMod
             </>
           )}
           {(phase === 'running' || phase === 'done') && (
-            <button className="btn-secondary" onClick={onClose}>Close</button>
+            <button className="btn-secondary" onClick={onClose}>
+              Close
+            </button>
           )}
         </div>
       </div>
@@ -804,7 +1286,8 @@ function CustomAgentModal({ onClose, initial }: CustomAgentModalProps) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
 
-  const set = (patch: Partial<typeof form>) => setForm((f) => ({ ...f, ...patch }));
+  const set = (patch: Partial<typeof form>) =>
+    setForm((f) => ({ ...f, ...patch }));
 
   const validate = () => {
     const e: Record<string, string> = {};
@@ -845,8 +1328,12 @@ function CustomAgentModal({ onClose, initial }: CustomAgentModalProps) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal max-w-lg" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h2 className="modal-title">{isEdit ? `Edit Custom Agent — ${initial!.id}` : 'Add Custom Agent'}</h2>
-          <button className="modal-close" onClick={onClose}>✕</button>
+          <h2 className="modal-title">
+            {isEdit ? `Edit Custom Agent — ${initial!.id}` : 'Add Custom Agent'}
+          </h2>
+          <button className="modal-close" onClick={onClose}>
+            ✕
+          </button>
         </div>
         <form onSubmit={handleSubmit}>
           <div className="modal-body">
@@ -859,7 +1346,9 @@ function CustomAgentModal({ onClose, initial }: CustomAgentModalProps) {
                   value={form.id}
                   onChange={(e) => set({ id: e.target.value })}
                 />
-                {errors.id && <p className="form-help text-error">{errors.id}</p>}
+                {errors.id && (
+                  <p className="form-help text-error">{errors.id}</p>
+                )}
               </div>
             )}
             <div className="form-group">
@@ -888,13 +1377,18 @@ function CustomAgentModal({ onClose, initial }: CustomAgentModalProps) {
                 value={form.configPath}
                 onChange={(e) => set({ configPath: e.target.value })}
               />
-              {errors.configPath && <p className="form-help text-error">{errors.configPath}</p>}
+              {errors.configPath && (
+                <p className="form-help text-error">{errors.configPath}</p>
+              )}
               <p className="form-help">
-                Where model providers + models are written (unified JSON schema, extra keys preserved).
+                Where model providers + models are written (unified JSON schema,
+                extra keys preserved).
               </p>
             </div>
             <div className="form-group">
-              <label className="form-label">Agent MCP Server Path (optional)</label>
+              <label className="form-label">
+                Agent MCP Server Path (optional)
+              </label>
               <input
                 className="input"
                 placeholder="~/.config/my-agent/mcp.json"
@@ -902,8 +1396,8 @@ function CustomAgentModal({ onClose, initial }: CustomAgentModalProps) {
                 onChange={(e) => set({ mcpPath: e.target.value })}
               />
               <p className="form-help">
-                Separate file for MCP servers (e.g. an mcp.json). Leave empty to write
-                MCP servers into the config path.
+                Separate file for MCP servers (e.g. an mcp.json). Leave empty to
+                write MCP servers into the config path.
               </p>
             </div>
             <div className="form-row">
@@ -912,7 +1406,9 @@ function CustomAgentModal({ onClose, initial }: CustomAgentModalProps) {
                 <select
                   className="input select"
                   value={form.format}
-                  onChange={(e) => set({ format: e.target.value as 'json' | 'jsonc' })}
+                  onChange={(e) =>
+                    set({ format: e.target.value as 'json' | 'jsonc' })
+                  }
                 >
                   <option value="json">JSON</option>
                   <option value="jsonc">JSONC (comments allowed)</option>
@@ -920,13 +1416,16 @@ function CustomAgentModal({ onClose, initial }: CustomAgentModalProps) {
               </div>
             </div>
             <p className="text-xs text-tertiary">
-              Paths support <span className="font-mono">~/</span> home expansion and{' '}
-              <span className="font-mono">%ENV%</span> variables. The files are created
-              automatically when you install anything into this agent.
+              Paths support <span className="font-mono">~/</span> home expansion
+              and <span className="font-mono">%ENV%</span> variables. The files
+              are created automatically when you install anything into this
+              agent.
             </p>
           </div>
           <div className="modal-footer">
-            <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+            <button type="button" className="btn-secondary" onClick={onClose}>
+              Cancel
+            </button>
             <button type="submit" className="btn-primary" disabled={submitting}>
               <Plus size={16} />
               {isEdit ? 'Save Changes' : 'Add Agent'}

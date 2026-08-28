@@ -1,37 +1,111 @@
 import { useEffect } from 'react';
-import { useStore } from './store';
+import { useStore, type View } from './store';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
 import { ProvidersView } from './components/ProvidersView';
 import { MCPView } from './components/MCPView';
 import { AgentsView } from './components/AgentsView';
+import { AgentDetailView } from './components/AgentDetailView';
+import { ToolsView } from './components/ToolsView';
+import { SkillsView } from './components/SkillsView';
 import { SettingsView } from './components/SettingsView';
+import { RamMeter } from './components/RamMeter';
 import { ToastContainer } from './components/Toast';
 import { ThemeToggle, toggleTheme } from './components/ThemeToggle';
+import { Breadcrumbs } from './components/Breadcrumbs';
 import { Menu, X, RefreshCw, AlertTriangle } from 'lucide-react';
 
-const VIEW_TITLES: Record<string, string> = {
-  overview: 'Overview',
-  providers: 'Model Providers',
-  mcp: 'MCP Servers',
-  agents: 'Agents',
-  settings: 'Settings',
-};
+const VALID_VIEWS: View[] = [
+  'overview',
+  'providers',
+  'mcp',
+  'agents',
+  'agent-detail',
+  'skills',
+  'tools',
+  'settings',
+];
+
+/** Parse the hash into a view + optional agent id (e.g. #/agents/claude-code). */
+function parseHash(): { view: View; agentId?: string } | null {
+  const hash = window.location.hash.replace(/^#\/?/, '');
+  const [viewPart, idPart] = hash.split('/');
+  if (viewPart === 'agents' && idPart) {
+    return { view: 'agent-detail', agentId: decodeURIComponent(idPart) };
+  }
+  if ((VALID_VIEWS as string[]).includes(viewPart)) {
+    return { view: viewPart as View };
+  }
+  return null;
+}
 
 function isTypingTarget(el: Element | null): boolean {
   if (!el) return false;
   const tag = el.tagName;
-  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (el as HTMLElement).isContentEditable;
+  return (
+    tag === 'INPUT' ||
+    tag === 'TEXTAREA' ||
+    tag === 'SELECT' ||
+    (el as HTMLElement).isContentEditable
+  );
 }
 
 function App() {
-  const { activeView, sidebarOpen, loading, error, authError, refreshAll, toggleSidebar, setActiveView } =
-    useStore();
+  const {
+    activeView,
+    selectedAgentId,
+    sidebarOpen,
+    loading,
+    error,
+    authError,
+    refreshAll,
+    toggleSidebar,
+    setActiveView,
+    openAgent,
+  } = useStore();
 
   // Initial load: pull the registry + detected agents from the server
   useEffect(() => {
     refreshAll();
   }, [refreshAll]);
+
+  // URL <-> view sync: the active view (and selected agent) are mirrored into
+  // the hash so the address bar doubles as a breadcrumb, and a bookmarked or
+  // shared URL — plus browser back/forward — restores the exact screen.
+  useEffect(() => {
+    const parsed = parseHash();
+    if (!parsed) return;
+    if (parsed.view === 'agent-detail' && parsed.agentId) {
+      if (parsed.agentId !== selectedAgentId) openAgent(parsed.agentId);
+    } else if (parsed.view !== activeView) {
+      setActiveView(parsed.view);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const desired =
+      activeView === 'agent-detail' && selectedAgentId
+        ? `#/agents/${encodeURIComponent(selectedAgentId)}`
+        : `#/${activeView}`;
+    if (window.location.hash !== desired) {
+      window.history.replaceState(null, '', desired);
+    }
+  }, [activeView, selectedAgentId]);
+
+  useEffect(() => {
+    const onHashChange = () => {
+      const parsed = parseHash();
+      if (!parsed) return;
+      const s = useStore.getState();
+      if (parsed.view === 'agent-detail' && parsed.agentId) {
+        if (parsed.agentId !== s.selectedAgentId) s.openAgent(parsed.agentId);
+      } else if (parsed.view !== s.activeView) {
+        s.setActiveView(parsed.view);
+      }
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
 
   // Global keyboard shortcuts: Shift+R refresh, t theme toggle (ignored while typing)
   useEffect(() => {
@@ -57,6 +131,12 @@ function App() {
         return <MCPView />;
       case 'agents':
         return <AgentsView />;
+      case 'agent-detail':
+        return <AgentDetailView agentId={selectedAgentId} />;
+      case 'skills':
+        return <SkillsView />;
+      case 'tools':
+        return <ToolsView />;
       case 'settings':
         return <SettingsView />;
       default:
@@ -65,7 +145,7 @@ function App() {
   };
 
   return (
-    <div className="flex h-full bg-bg-primary">
+    <div className="flex h-full bg-bg-canvas">
       {/* Mobile sidebar toggle */}
       <button
         className="btn-secondary btn-icon fixed top-4 left-4 z-50 lg:hidden"
@@ -81,7 +161,7 @@ function App() {
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0">
         {/* Top Bar */}
-        <header className="flex items-center justify-between px-4 py-3 border-b sticky top-0 z-10 bg-bg-primary/95 backdrop-blur-sm">
+        <header className="flex items-center justify-between px-4 py-3 border-b sticky top-0 z-10 bg-bg-canvas/95 backdrop-blur-sm">
           <div className="flex items-center gap-3 min-w-0">
             <button
               className="btn-ghost btn-icon flex-shrink-0"
@@ -90,12 +170,11 @@ function App() {
             >
               {sidebarOpen ? <X size={18} /> : <Menu size={18} />}
             </button>
-            <h1 className="text-lg font-semibold truncate">
-              {VIEW_TITLES[activeView] || 'Overview'}
-            </h1>
+            <Breadcrumbs />
           </div>
           <div className="flex items-center gap-3">
             {error && <span className="text-xs text-error truncate max-w-lg">{error}</span>}
+            <RamMeter />
             <button
               className="btn-secondary btn-sm"
               title="Refresh (Shift+R)"
@@ -124,9 +203,9 @@ function App() {
                 <p className="text-sm font-semibold">Dashboard access token missing or expired</p>
                 <p className="text-xs text-secondary mt-1">
                   Each launch of <span className="font-mono">ai-config gui</span> uses a fresh
-                  per-session token. Reopen the dashboard from the terminal — it prints a{' '}
-                  <span className="font-mono">http://127.0.0.1:…/?t=…</span> URL — or paste that
-                  URL into this browser. Old bookmarks and tabs cannot authenticate.
+                  per-session token. Reopen the dashboard from the terminal — it opens{' '}
+                  <span className="font-mono">http://127.0.0.1:4321</span> with the token already
+                  set up. Old tabs cannot authenticate.
                 </p>
               </div>
               <button className="btn-secondary btn-sm" onClick={() => refreshAll()}>
