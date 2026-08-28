@@ -22,6 +22,13 @@ import {
   isSafeCommand,
   detectCatalogEntry,
   catalogEntryToDetected,
+  detectCliTools,
+  checkToolUpdates,
+  getToolUpdateCommand,
+  getSkillsSnapshot,
+  assignSkillToAgent,
+  removeSkillFromAgent,
+  createSkill,
 } from '@ai-agent-config/core';
 import type {
   ModelProvider,
@@ -31,6 +38,7 @@ import type {
   ProviderApiCapabilities,
   Platform,
   AgentJob,
+  ToolUpdateStatus,
 } from '@ai-agent-config/core';
 
 // ============================================================================
@@ -38,26 +46,11 @@ import type {
 // ============================================================================
 
 /**
- * Ports that are either commonly occupied by other developer tools, well-known
- * services, or specifically excluded by the user (110 = privileged POP3 port,
- * 786 = Gradio default). We pick a random port OUTSIDE these from a wide,
- * ephemeral-friendly range so collisions are effectively impossible.
+ * The dashboard always lives on this port so the URL is stable and
+ * bookmarkable. When it is taken the server refuses to start with a clear
+ * message instead of silently moving somewhere else.
  */
-const EXCLUDED_PORTS = new Set([
-  80, 443, 110, 25, 21, 22, 786, 8000, 8080, 8888, 3000, 3001, 5000, 5001,
-  5173, 5174, 4173, 1420, 5432, 6379, 9000, 9090, 3306, 27017,
-]);
-const PORT_MIN = 20000;
-const PORT_MAX = 60000;
-
-function randomPort(): number {
-  const span = PORT_MAX - PORT_MIN;
-  for (let i = 0; i < 64; i++) {
-    const candidate = PORT_MIN + Math.floor(Math.random() * span);
-    if (!EXCLUDED_PORTS.has(candidate)) return candidate;
-  }
-  return PORT_MIN + Math.floor(Math.random() * span);
-}
+export const DEFAULT_GUI_PORT = 4321;
 
 // ============================================================================
 // Static file serving
@@ -84,10 +77,11 @@ function serveStatic(
   req: http.IncomingMessage,
   res: http.ServerResponse,
   distDir: string,
+  token: string
 ): boolean {
   const urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
   // Never allow traversal outside dist
-  let rel = urlPath === '/' ? 'index.html' : urlPath.replace(/^\/+/, '');
+  const rel = urlPath === '/' ? 'index.html' : urlPath.replace(/^\/+/, '');
   let filePath = path.join(distDir, rel);
   if (!filePath.startsWith(distDir)) {
     res.writeHead(403).end('Forbidden');
@@ -100,11 +94,21 @@ function serveStatic(
   try {
     const content = fs.readFileSync(filePath);
     const ext = path.extname(filePath).toLowerCase();
+    const isHtml = ext === '.html';
+    let body: Buffer = content;
+    if (isHtml) {
+      // Hand the launch token to the page WITHOUT putting it in the URL:
+      // the served HTML carries it in a global the API client reads. The
+      // token never appears in the address bar, history, or shared links.
+      const inject = `<script>window.__AI_CONFIG_TOKEN__=${JSON.stringify(token)};</script>`;
+      const html = content.toString('utf8').replace('</head>', `${inject}</head>`);
+      body = Buffer.from(html, 'utf8');
+    }
     res.writeHead(200, {
       'Content-Type': MIME[ext] || 'application/octet-stream',
-      'Cache-Control': ext === '.html' ? 'no-cache' : 'public, max-age=31536000, immutable',
+      'Cache-Control': isHtml ? 'no-cache' : 'public, max-age=31536000, immutable',
     });
-    res.end(content);
+    res.end(body);
   } catch {
     res.writeHead(404).end('Not found');
   }
@@ -117,14 +121,8 @@ function serveStatic(
 
 function openBrowser(url: string): void {
   const platform = process.platform;
-  const cmd =
-    platform === 'darwin'
-      ? 'open'
-      : platform === 'win32'
-        ? 'cmd'
-        : 'xdg-open';
-  const args =
-    platform === 'win32' ? ['/c', 'start', '', url] : [url];
+  const cmd = platform === 'darwin' ? 'open' : platform === 'win32' ? 'cmd' : 'xdg-open';
+  const args = platform === 'win32' ? ['/c', 'start', '', url] : [url];
   try {
     const child = spawn(cmd, args, { stdio: 'ignore', detached: true });
     child.on('error', () => undefined);
@@ -139,7 +137,7 @@ function openBrowser(url: string): void {
 // ============================================================================
 
 export interface GUIServerOptions {
-  /** Preferred port; random conflict-free port when omitted */
+  /** Port to bind (default: 4321 — fails with a clear message when busy) */
   port?: number;
   /** Override the GUI dist directory (default: <cli>/../../gui/dist) */
   distDir?: string;
@@ -172,13 +170,24 @@ function resolveDistDir(override?: string): string {
 // ============================================================================
 
 const MAX_JOB_OUTPUT = 16 * 1024;
+const JOB_TTL_MS = 10 * 60_000; // finished jobs are evicted after 10 min
 const agentJobs = new Map<string, AgentJob>();
+
+/** Evict finished jobs older than JOB_TTL_MS. Called on each new job. */
+function evictStaleJobs(): void {
+  const now = Date.now();
+  for (const [id, job] of agentJobs) {
+    if (job.status !== 'running' && job.finishedAt && now - new Date(job.finishedAt).getTime() > JOB_TTL_MS) {
+      agentJobs.delete(id);
+    }
+  }
+}
 
 function startAgentJob(
   agentId: string,
-  action: 'install' | 'uninstall',
+  action: AgentJob['action'],
   command: string,
-  options?: { timeoutMs?: number },
+  options?: { timeoutMs?: number }
 ): AgentJob {
   const id = randomBytes(8).toString('hex');
   const job: AgentJob = {
@@ -191,6 +200,7 @@ function startAgentJob(
     startedAt: new Date().toISOString(),
   };
   agentJobs.set(id, job);
+  evictStaleJobs();
 
   const append = (chunk: Buffer) => {
     if (job.output.length >= MAX_JOB_OUTPUT && job.output.endsWith('\n…(output truncated)…\n')) {
@@ -248,13 +258,11 @@ export { startAgentJob };
 
 export async function startGuiServer(
   manager: AgentConfigManager,
-  options: GUIServerOptions = {},
+  options: GUIServerOptions = {}
 ): Promise<GUIServerHandle> {
   const distDir = resolveDistDir(options.distDir);
   if (!fs.existsSync(path.join(distDir, 'index.html'))) {
-    throw new Error(
-      `GUI build not found at ${distDir}. Run "pnpm build" (or set AI_CONFIG_DIST).`,
-    );
+    throw new Error(`GUI build not found at ${distDir}. Run "pnpm build" (or set AI_CONFIG_DIST).`);
   }
 
   // Warm up the registry before listening so /api/state is instant
@@ -265,11 +273,13 @@ export async function startGuiServer(
 
   const server = http.createServer(async (req, res) => {
     // ---- Auth: every /api request must carry the launch token ----
+    // /api/health is the exception: it is the liveness probe used by
+    // `acm health` before any token exists on the machine.
+    const isHealth = req.url?.startsWith('/api/health');
     const isApi = req.url?.startsWith('/api');
-    if (isApi) {
+    if (isApi && !isHealth) {
       const q = new URL(req.url || '', 'http://localhost');
-      const tokenOk =
-        q.searchParams.get('t') === token || req.headers['x-config-token'] === token;
+      const tokenOk = q.searchParams.get('t') === token || req.headers['x-config-token'] === token;
       if (!tokenOk) {
         res.writeHead(401, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: false, error: 'Unauthorized' }));
@@ -279,7 +289,7 @@ export async function startGuiServer(
 
     // ---- Static ----
     if (!isApi) {
-      serveStatic(req, res, distDir);
+      serveStatic(req, res, distDir, token);
       return;
     }
 
@@ -311,7 +321,9 @@ export async function startGuiServer(
         });
         req.on('error', reject);
       });
-    const handle = async (fn: () => Promise<{ status?: number; data?: unknown; error?: string }>) => {
+    const handle = async (
+      fn: () => Promise<{ status?: number; data?: unknown; error?: string }>
+    ) => {
       try {
         const result = await fn();
         if (result.error !== undefined) {
@@ -324,17 +336,26 @@ export async function startGuiServer(
       }
     };
 
+    // Read the JSON request body (empty object when there is none).
     const url = new URL(req.url || '', 'http://localhost');
     const parts = url.pathname.split('/').filter(Boolean); // e.g. ['api','providers','x','agents','y']
     const method = req.method || 'GET';
 
     // ================= REST routes =================
-    if (parts[0] !== 'api') return serveStatic(req, res, distDir);
+    if (parts[0] !== 'api') return serveStatic(req, res, distDir, token);
 
-    const wrap = async (data: unknown, status = 200) =>
-      handle(async () => ({ status, data }));
+    const wrap = async (data: unknown, status = 200) => handle(async () => ({ status, data }));
 
     try {
+      // ---- GET /api/health ----
+      // Unauthenticated liveness probe for `acm health` / scripts.
+      if (method === 'GET' && parts.length === 2 && parts[0] === 'api' && parts[1] === 'health') {
+        return send(200, {
+          ok: true,
+          data: { pid: process.pid, uptimeSec: Math.round(process.uptime()) },
+        });
+      }
+
       // ---- GET /api/state ----
       if (method === 'GET' && parts.length === 2 && parts[1] === 'state') {
         const agents = await manager.detectAgents();
@@ -342,8 +363,132 @@ export async function startGuiServer(
         return wrap({ agents, registry, platform: process.platform });
       }
 
+      // ---- GET /api/system/stats ----
+      // Live process memory for the dashboard RAM meter. Cheap: one
+      // process.memoryUsage() call, no allocations beyond the response.
+      if (method === 'GET' && parts.length === 3 && parts[1] === 'system' && parts[2] === 'stats') {
+        const mem = process.memoryUsage();
+        return wrap({
+          rssBytes: mem.rss,
+          heapUsedBytes: mem.heapUsed,
+          heapTotalBytes: mem.heapTotal,
+          externalBytes: mem.external,
+          uptimeSec: process.uptime(),
+          processId: process.pid,
+          startedAt: new Date(Date.now() - process.uptime() * 1000).toISOString(),
+        });
+      }
+
+      // ---- CLI/environment tools (node, npm, pnpm, bun, git, …) ----
+      // GET /api/tools — live re-detection of the curated CLI list. Always
+      // probes fresh (this IS the user's 'Check' action); detection itself is
+      // cheap: parallel, bounded probes over a static list.
+      if (method === 'GET' && parts.length === 2 && parts[1] === 'tools') {
+        return handle(async () => {
+          const tools = await detectCliTools();
+          return {
+            data: {
+              platform: process.platform,
+              checkedAt: new Date().toISOString(),
+              tools,
+            },
+          };
+        });
+      }
+
+      // GET /api/tools/update-check — live re-detection + npm-registry update
+      // check for the npm-published environment tools (npm/pnpm/yarn/bun).
+      // Returns both the fresh detection and a per-tool update status.
+      if (
+        method === 'GET' &&
+        parts.length === 3 &&
+        parts[1] === 'tools' &&
+        parts[2] === 'update-check'
+      ) {
+        return handle(async () => {
+          const tools = await detectCliTools();
+          const updates = await checkToolUpdates(tools);
+          return {
+            data: {
+              platform: process.platform,
+              checkedAt: new Date().toISOString(),
+              tools,
+              updates,
+            },
+          };
+        });
+      }
+
+      // POST /api/tools/:name/update — run an allow-listed update for an
+      // environment tool. The command comes ONLY from the server-trusted
+      // allow-list (`getToolUpdateCommand`), never from client input, and only
+      // after an explicit user action (the Update button triggers this POST).
+      if (
+        method === 'POST' &&
+        parts.length === 4 &&
+        parts[1] === 'tools' &&
+        parts[3] === 'update'
+      ) {
+        return handle(async () => {
+          const toolName = decodeURIComponent(parts[2]);
+          const command = getToolUpdateCommand(toolName);
+          if (!command) {
+            return { error: `No allow-listed update available for tool "${toolName}"`, status: 400 };
+          }
+          if (!isSafeCommand(command)) {
+            return { error: 'Update command is not permitted.', status: 400 };
+          }
+          const job = startAgentJob(toolName, 'update', command, { timeoutMs: 120000 });
+          return { data: { jobId: job.id, tool: toolName, command } };
+        });
+      }
+
+      // ---- Skills ----
+      if (parts[1] === 'skills') {
+        // GET /api/skills — library + skill-capable agents + assignments in one shot.
+        if (method === 'GET' && parts.length === 2) {
+          return handle(async () => ({ data: await getSkillsSnapshot() }));
+        }
+        // POST /api/skills { name, description?, body? } — create a skill in the library.
+        if (method === 'POST' && parts.length === 2) {
+          const body = await readBody();
+          return handle(async () => {
+            const skill = await createSkill({
+              name: String(body.name ?? ''),
+              description: typeof body.description === 'string' ? body.description : undefined,
+              body: typeof body.body === 'string' ? body.body : undefined,
+            });
+            return { data: { skill } };
+          });
+        }
+        // POST /api/skills/:id/assign { agentId } — copy a library skill to an agent.
+        if (method === 'POST' && parts.length === 4 && parts[3] === 'assign') {
+          const body = await readBody();
+          return handle(async () => {
+            const result = await assignSkillToAgent(
+              decodeURIComponent(parts[2]),
+              String(body.agentId ?? ''),
+            );
+            return { data: result };
+          });
+        }
+        // POST /api/skills/:id/unassign { agentId } — remove the copy from an agent.
+        if (method === 'POST' && parts.length === 4 && parts[3] === 'unassign') {
+          const body = await readBody();
+          return handle(async () => {
+            await removeSkillFromAgent(decodeURIComponent(parts[2]), String(body.agentId ?? ''));
+            return { data: { ok: true } };
+          });
+        }
+      }
+
       // ---- Registry import/export ----
-      if (method === 'POST' && parts.length === 3 && parts[1] === 'registry' && parts[2] === 'import') {
+      if (
+        method === 'POST' &&
+        parts.length === 3 &&
+        parts[1] === 'registry' &&
+        parts[2] === 'import'
+      ) {
         const body = await readBody();
         return handle(async () => {
           const result = await manager.importRegistry(body.registry);
@@ -377,13 +522,25 @@ export async function startGuiServer(
           return handle(async () => {
             const state = await manager.getRegistryState();
             const entry = state.providers.find((p) => p.provider.id === parts[2]);
-            if (!entry) return { error: `Provider "${parts[2]}" not found in registry`, status: 404 };
+            if (!entry)
+              return {
+                error: `Provider "${parts[2]}" not found in registry`,
+                status: 404,
+              };
             const config = (entry.provider.config || {}) as Record<string, unknown>;
             const baseUrl = String(config.baseUrl || '');
-            if (!baseUrl) return { error: 'This provider has no base URL configured — add one first', status: 400 };
+            if (!baseUrl)
+              return {
+                error: 'This provider has no base URL configured — add one first',
+                status: 400,
+              };
             const result = await probeProviderAPIs({
               baseUrl,
-              apiKey: body.apiKey ? String(body.apiKey) : config.apiKey ? String(config.apiKey) : undefined,
+              apiKey: body.apiKey
+                ? String(body.apiKey)
+                : config.apiKey
+                  ? String(config.apiKey)
+                  : undefined,
             });
             const capabilities: ProviderApiCapabilities = {
               supported: result.supported,
@@ -402,10 +559,12 @@ export async function startGuiServer(
               body.provider as ModelProvider,
               (body.models as ModelConfig[]) || [],
               (body.agentIds as string[]) || [],
-              body.apiCapabilities as ProviderApiCapabilities | undefined,
+              body.apiCapabilities as ProviderApiCapabilities | undefined
             );
             if (!result.success) return { error: result.error, status: 400 };
-            return { data: { registry: result.data, warnings: result.warnings } };
+            return {
+              data: { registry: result.data, warnings: result.warnings },
+            };
           });
         }
         if (method === 'PUT' && parts.length === 3) {
@@ -431,7 +590,10 @@ export async function startGuiServer(
         if (method === 'POST' && parts.length === 4 && parts[3] === 'agents') {
           const body = await readBody();
           return handle(async () => {
-            const result = await manager.addProviderToAgents(parts[2], (body.agentIds as string[]) || []);
+            const result = await manager.addProviderToAgents(
+              parts[2],
+              (body.agentIds as string[]) || []
+            );
             if (!result.success) return { error: result.error, status: 400 };
             return { data: result.data };
           });
@@ -453,16 +615,21 @@ export async function startGuiServer(
           return handle(async () => {
             const result = await manager.registerMCPServer(
               body.server as MCPServerConfig,
-              (body.agentIds as string[]) || [],
+              (body.agentIds as string[]) || []
             );
             if (!result.success) return { error: result.error, status: 400 };
-            return { data: { registry: result.data, warnings: result.warnings } };
+            return {
+              data: { registry: result.data, warnings: result.warnings },
+            };
           });
         }
         if (method === 'PUT' && parts.length === 3) {
           const body = await readBody();
           return handle(async () => {
-            const result = await manager.updateMCPServer(parts[2], body.server as Partial<MCPServerConfig>);
+            const result = await manager.updateMCPServer(
+              parts[2],
+              body.server as Partial<MCPServerConfig>
+            );
             if (!result.success) return { error: result.error, status: 400 };
             return { data: result.data };
           });
@@ -477,7 +644,10 @@ export async function startGuiServer(
         if (method === 'POST' && parts.length === 4 && parts[3] === 'agents') {
           const body = await readBody();
           return handle(async () => {
-            const result = await manager.addMCPServerToAgents(parts[2], (body.agentIds as string[]) || []);
+            const result = await manager.addMCPServerToAgents(
+              parts[2],
+              (body.agentIds as string[]) || []
+            );
             if (!result.success) return { error: result.error, status: 400 };
             return { data: result.data };
           });
@@ -566,7 +736,13 @@ export async function startGuiServer(
               });
             }
           }
-          return { data: { platform: process.platform, agents, meta: getAgentCatalogMeta() } };
+          return {
+            data: {
+              platform: process.platform,
+              agents,
+              meta: getAgentCatalogMeta(),
+            },
+          };
         });
       }
 
@@ -584,18 +760,102 @@ export async function startGuiServer(
         });
       }
 
-      // ---- Reveal config folder in file manager ----
-      if (parts[1] === 'agents' && method === 'POST' && parts.length === 4 && parts[3] === 'reveal') {
+      // ---- Raw agent file (config or MCP) — read for the in-browser editor ----
+      // GET /api/agents/:id/raw-file?kind=config|mcp
+      if (
+        parts[1] === 'agents' &&
+        method === 'GET' &&
+        parts.length === 4 &&
+        parts[3] === 'raw-file'
+      ) {
         return handle(async () => {
-          const result = await manager.readRawConfig(parts[2]);
-          if (!result.success || !result.data) return { error: 'Agent not found', status: 404 };
-          const dir = path.dirname(result.data.path);
+          const kind = url.searchParams.get('kind');
+          if (kind !== 'config' && kind !== 'mcp') {
+            return { error: `Invalid or missing kind (expected 'config' or 'mcp')`, status: 400 };
+          }
+          const result = await manager.readAgentFile(parts[2], kind);
+          if (!result.success) return { error: result.error || 'Not found', status: 404 };
+          return { data: result.data };
+        });
+      }
+
+      // ---- Raw agent file (config or MCP) — save from the in-browser editor ----
+      // PUT /api/agents/:id/raw-file?kind=config|mcp   Body: { content: string }
+      if (
+        parts[1] === 'agents' &&
+        method === 'PUT' &&
+        parts.length === 4 &&
+        parts[3] === 'raw-file'
+      ) {
+        return handle(async () => {
+          const kind = url.searchParams.get('kind');
+          if (kind !== 'config' && kind !== 'mcp') {
+            return { error: `Invalid or missing kind (expected 'config' or 'mcp')`, status: 400 };
+          }
+          const body = await readBody();
+          const content =
+            body && typeof body === 'object' && 'content' in body
+              ? (body as { content?: unknown }).content
+              : undefined;
+          if (typeof content !== 'string') {
+            return { error: 'Body must be { content: string }', status: 400 };
+          }
+          const result = await manager.writeAgentFile(parts[2], kind, content);
+          if (!result.success) return { error: result.error || 'Write failed', status: 500 };
+          return { data: result.data };
+        });
+      }
+
+      // ---- Reveal config folder in file manager ----
+      // Body: { kind?: 'config' | 'mcp' | 'model' } — defaults to 'config'.
+      if (
+        parts[1] === 'agents' &&
+        method === 'POST' &&
+        parts.length === 4 &&
+        parts[3] === 'reveal'
+      ) {
+        return handle(async () => {
+          const body = await readBody();
+          const kind =
+            body && typeof body === 'object' && 'kind' in body
+              ? (body as { kind?: string }).kind
+              : 'config';
+          if (kind !== 'config' && kind !== 'mcp' && kind !== 'model') {
+            return {
+              error: `Invalid kind: ${String(kind)} (expected 'config', 'mcp', or 'model')`,
+              status: 400,
+            };
+          }
+          const det = await manager.detectAgent(parts[2]);
+          if (!det) return { error: 'Agent not found', status: 404 };
+          let target: string | undefined;
+          if (kind === 'mcp') {
+            target = det.detection.mcpPath;
+          } else if (kind === 'model') {
+            target = det.detection.modelConfigPath;
+          } else {
+            target = manager.getConfigPath(parts[2]) ?? undefined;
+          }
+          if (!target) {
+            return {
+              error: `This agent has no ${kind} path on this machine`,
+              status: 404,
+            };
+          }
+          if (kind !== 'config' && !fs.existsSync(target)) {
+            return {
+              error: `This agent's ${kind} file does not exist yet: ${target}`,
+              status: 404,
+            };
+          }
+          const dir = path.dirname(target);
           const platform = process.platform;
-          const cmd = platform === 'darwin' ? 'open' : platform === 'win32' ? 'explorer' : 'xdg-open';
+          const cmd =
+            platform === 'darwin' ? 'open' : platform === 'win32' ? 'explorer' : 'xdg-open';
           const child = spawn(cmd, [dir], { stdio: 'ignore', detached: true });
           child.on('error', () => undefined);
           child.unref();
-          return { data: { dir } };
+          return { data: { dir, path: target, kind } };
         });
       }
 
@@ -613,6 +873,53 @@ export async function startGuiServer(
           return { data: job };
         });
       }
+      // GET /api/agents/:id/update-check — best-effort "is a newer version
+      // published" check, derived from the catalog's install command.
+      if (
+        method === 'GET' &&
+        parts.length === 4 &&
+        parts[1] === 'agents' &&
+        parts[3] === 'update-check'
+      ) {
+        return handle(async () => {
+          const result = await manager.checkAgentUpdate(parts[2]);
+          if (!result.success) return { error: result.error || 'Update check failed', status: 500 };
+          return { data: result.data };
+        });
+      }
+
+      // POST /api/agents/:id/update — re-run the install/upgrade command.
+      if (
+        method === 'POST' &&
+        parts.length === 4 &&
+        parts[1] === 'agents' &&
+        parts[3] === 'update'
+      ) {
+        return handle(async () => {
+          const agentId = parts[2];
+          const command = manager.getAgentUpdateCommand(agentId);
+          if (!command) {
+            return { error: `No update command is available for "${agentId}".`, status: 400 };
+          }
+          if (!isSafeCommand(command)) {
+            return {
+              error: `The update command for "${agentId}" was blocked by a safety rule.`,
+              status: 400,
+            };
+          }
+          if (
+            [...agentJobs.values()].some((j) => j.agentId === agentId && j.status === 'running')
+          ) {
+            return {
+              error: `A job is already running for "${agentId}" — wait for it to finish first.`,
+              status: 409,
+            };
+          }
+          const job = startAgentJob(agentId, 'install', command);
+          return { data: { jobId: job.id, agentId, action: 'update', command } };
+        });
+      }
+
       // POST /api/agents/:id/install  |  /api/agents/:id/uninstall
       if (
         method === 'POST' &&
@@ -638,7 +945,9 @@ export async function startGuiServer(
               status: 400,
             };
           }
-          if ([...agentJobs.values()].some((j) => j.agentId === agentId && j.status === 'running')) {
+          if (
+            [...agentJobs.values()].some((j) => j.agentId === agentId && j.status === 'running')
+          ) {
             return {
               error: `A ${action} is already running for "${agentId}" — wait for it to finish first.`,
               status: 409,
@@ -649,46 +958,44 @@ export async function startGuiServer(
         });
       }
 
-      return send(404, { ok: false, error: `No route: ${method} ${url.pathname}` });
+      return send(404, {
+        ok: false,
+        error: `No route: ${method} ${url.pathname}`,
+      });
     } catch (error) {
       return send(500, { ok: false, error: String(error) });
     }
   });
 
-  // ---- Bind: try the preferred port, then random ones, then OS-assigned ----
-  const attempts: number[] = [];
-  if (options.port && !EXCLUDED_PORTS.has(options.port) && options.port > 0) {
-    attempts.push(options.port);
-  }
-  for (let i = 0; i < 5; i++) attempts.push(randomPort());
-  attempts.push(0); // final fallback: OS-assigned
-
-  let boundPort = 0;
-  for (const port of attempts) {
-    try {
-      await new Promise<void>((resolve, reject) => {
-        const onError = (err: Error) => {
-          server.removeListener('listening', onListening);
-          reject(err);
-        };
-        const onListening = () => {
-          server.removeListener('error', onError);
-          resolve();
-        };
-        server.once('error', onError);
-        server.once('listening', onListening);
-        server.listen(port, '127.0.0.1');
-      });
-      boundPort = port;
-      break;
-    } catch {
-      // Try the next candidate
-    }
+  // ---- Bind: the dashboard owns port 4321, period ----
+  const preferred = options.port && options.port > 0 ? options.port : DEFAULT_GUI_PORT;
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const onError = (err: Error) => {
+        server.removeListener('listening', onListening);
+        reject(err);
+      };
+      const onListening = () => {
+        server.removeListener('error', onError);
+        resolve();
+      };
+      server.once('error', onError);
+      server.once('listening', onListening);
+      server.listen(preferred, '127.0.0.1');
+    });
+  } catch {
+    throw new Error(
+      `Port ${preferred} is already in use — is the dashboard already running? ` +
+        `Open http://127.0.0.1:${preferred} or stop it with \`acm stop\`` +
+        (options.port ? '' : ' (or pass --port to pick a different one)') +
+        '.'
+    );
   }
 
   const address = server.address();
-  const actualPort = typeof address === 'object' && address ? address.port : boundPort;
-  const url = `http://127.0.0.1:${actualPort}/?t=${token}`;
+  const actualPort = typeof address === 'object' && address ? address.port : preferred;
+  // Clean URL — no token in the query string; the served HTML carries it.
+  const url = `http://127.0.0.1:${actualPort}/`;
 
   if (options.openBrowser !== false) {
     setTimeout(() => openBrowser(url), 150);

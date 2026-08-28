@@ -12,6 +12,9 @@ export * from './registry';
 // Utilities
 export * from './utils';
 
+// Skill management (shared library + assignment to skill-capable agents)
+export * from './skills';
+
 // Adapters
 export * from './adapters';
 
@@ -21,10 +24,53 @@ export * from './agent-catalog';
 // Provider API verification (probe /models, /chat/completions, /responses)
 export * from './provider-test';
 
+// Binary resolution (robust CLI detection)
+export * from './detect/binary';
+export * from './detect/version';
+
+// CLI/environment tool detection (node, npm, pnpm, bun, git, …)
+export * from './detect/tools';
+
 // Main class for managing multiple agents
-import { AgentAdapter, AgentConfig, AgentInfo, AgentDetection, ModelProvider, ModelConfig, MCPServerConfig, PermissionConfig, Platform, OperationResult, Registry, RegistryState, RegistryProvider, RegistryMCPServer, MCPServerAgentOverride, MaterializeResult, CustomAgentDef, ProviderApiCapabilities } from './types';
-import { getAdapter, listAvailableAdapters, getAdapterInfo, resolveConfigPathForAgent, createGenericAdapter } from './adapters';
-import { getCommandPath, getCommandVersion, fileExists, readFileSafe } from './utils';
+import type {
+  AgentAdapter,
+  AgentConfig,
+  AgentInfo,
+  AgentDetection,
+  ModelProvider,
+  ModelConfig,
+  MCPServerConfig,
+  PermissionConfig,
+  Platform,
+  OperationResult,
+  Registry,
+  RegistryState,
+  RegistryProvider,
+  RegistryMCPServer,
+  MCPServerAgentOverride,
+  MaterializeResult,
+  CustomAgentDef,
+  ProviderApiCapabilities,
+} from './types';
+import {
+  getAdapter,
+  listAvailableAdapters,
+  getAdapterInfo,
+  resolveConfigPathForAgent,
+  createGenericAdapter,
+} from './adapters';
+import {
+  backupFile,
+  fileExists,
+  getCommandVersion,
+  parseConfig,
+  readFileSafe,
+  resolveConfigPath,
+  runCommand,
+  writeFileSafe,
+} from './utils';
+import { resolveBinary } from './detect/binary';
+import { getAgentCatalogEntry } from './agent-catalog';
 import {
   resolveRegistryPath,
   loadRegistry,
@@ -38,7 +84,7 @@ import {
   addMCPServerAgents,
   removeMCPServerAgent,
   aggregateMaterialize,
-  MigrationInput,
+  type MigrationInput,
 } from './registry';
 
 /**
@@ -47,6 +93,81 @@ import {
  */
 export interface DetectedAgent extends AgentInfo {
   detection: AgentDetection;
+}
+
+/**
+ * Resolve the first existing candidate (or the first candidate as the
+ * "would-be" path) from a per-platform candidate list. Returns null when
+ * no candidates are declared.
+ */
+async function firstExistingPath(
+  candidates: Partial<Record<Platform, string[]>> | undefined
+): Promise<{ path: string; exists: boolean } | null> {
+  const platform = (
+    process.platform === 'win32' ? 'win32' : process.platform === 'linux' ? 'linux' : 'darwin'
+  ) as Platform;
+  const list = candidates?.[platform] || candidates?.darwin;
+  if (!list || list.length === 0) return null;
+  for (const template of list) {
+    const resolved = resolveConfigPath(template, platform);
+    try {
+      if (await fileExists(resolved)) return { path: resolved, exists: true };
+    } catch {
+      // keep looking
+    }
+  }
+  // None exist — report the first candidate as the would-be path.
+  return { path: resolveConfigPath(list[0], platform), exists: false };
+}
+
+/**
+ * Best-effort MCP server count from a config file. Returns 0 on parse
+ * failure, undefined when the file is unreadable or the agent has no MCP
+ * support.
+ */
+async function countMcpServers(path: string, configFormat: string): Promise<number | undefined> {
+  try {
+    const content = await readFileSafe(path);
+    if (content === null || content === undefined) return undefined;
+    let raw: unknown;
+    try {
+      raw = parseConfig(content, configFormat as never);
+    } catch {
+      return 0;
+    }
+    if (!raw || typeof raw !== 'object') return 0;
+    const obj = raw as Record<string, unknown>;
+    // Keyed map: { mcpServers: {...} } (claude, gemini, junie, freebuff, pi)
+    const keyed = obj.mcpServers;
+    if (keyed && typeof keyed === 'object' && !Array.isArray(keyed)) {
+      return Object.keys(keyed as object).length;
+    }
+    // Same-file array: { mcp: [...] } (opencode, kilo, mimo)
+    const arr = obj.mcp;
+    if (Array.isArray(arr)) return arr.length;
+    // TOML: [[plugins]] tables (reasonix) or mcp_servers key (codex)
+    const plugins = obj.plugins;
+    if (Array.isArray(plugins)) return plugins.length;
+    const mcpServers = obj.mcp_servers;
+    if (mcpServers && typeof mcpServers === 'object' && !Array.isArray(mcpServers)) {
+      return Object.keys(mcpServers as object).length;
+    }
+    return 0;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Pull the last semver-like token out of a version string — CLIs print
+ * things like "codex-cli 0.149.1" or "omp/18.0.4"; the trailing
+ * `\d+\.\d+(\.\d+)?` is what's comparable across an install command's own
+ * "latest version" output (npm/brew print just the bare number).
+ */
+function extractVersionToken(raw: string | null | undefined): string | undefined {
+  if (!raw) return undefined;
+  const matches = raw.match(/\d+\.\d+(?:\.\d+)?(?:[-.][\w.]+)?/g);
+  return matches ? matches[matches.length - 1] : undefined;
 }
 
 export class AgentConfigManager {
@@ -62,7 +183,7 @@ export class AgentConfigManager {
 
   // Agent management
   getAvailableAgents(): AgentInfo[] {
-    return Array.from(this.adapters.values()).map(a => a.info);
+    return Array.from(this.adapters.values()).map((a) => a.info);
   }
 
   getAgent(agentId: string): AgentAdapter | undefined {
@@ -94,13 +215,14 @@ export class AgentConfigManager {
 
     for (const binary of info.binaries) {
       try {
-        const binaryPath = await getCommandPath(binary);
-        if (binaryPath) {
+        const resolved = await resolveBinary(binary);
+        if (resolved) {
           detection.installed = true;
-          detection.binaryPath = binaryPath;
+          detection.binaryPath = resolved.path;
+          detection.detectedBy = resolved.foundBy;
           detection.method = 'command';
           try {
-            const version = await getCommandVersion(binary);
+            const version = await getCommandVersion(binary, info.versionArgs, resolved.path);
             if (version) detection.version = version;
           } catch {
             // Version query is best-effort
@@ -122,6 +244,42 @@ export class AgentConfigManager {
       detection.configExists = false;
     }
 
+    // MCP config surface (same-file or separate, per adapter)
+    try {
+      const mcpPath = adapter.getMCPConfigPath?.() ?? null;
+      if (mcpPath) {
+        detection.mcpPath = mcpPath;
+        detection.mcpConfigExists = await fileExists(mcpPath);
+        if (detection.mcpConfigExists) {
+          detection.mcpServerCount = await countMcpServers(mcpPath, info.configFormat);
+        }
+      }
+    } catch {
+      // best-effort
+    }
+
+    // Model/provider config surface
+    try {
+      const modelPath = await firstExistingPath(info.modelConfigPaths);
+      if (modelPath) {
+        detection.modelConfigPath = modelPath.path;
+        detection.modelConfigExists = modelPath.exists;
+      }
+    } catch {
+      // best-effort
+    }
+
+    // Separate credential store (e.g. reasonix's ~/.reasonix/.env)
+    try {
+      const credPath = await firstExistingPath(info.modelCredentialPaths);
+      if (credPath) {
+        detection.modelCredentialPath = credPath.path;
+        detection.modelCredentialExists = credPath.exists;
+      }
+    } catch {
+      // best-effort
+    }
+
     if (!detection.installed && !detection.configExists) {
       detection.method = 'assumed';
     }
@@ -135,7 +293,7 @@ export class AgentConfigManager {
    */
   async detectAgents(): Promise<DetectedAgent[]> {
     const results = await Promise.all(
-      Array.from(this.adapters.keys()).map((id) => this.detectAgent(id)),
+      Array.from(this.adapters.keys()).map((id) => this.detectAgent(id))
     );
     const detected = results.filter((r): r is DetectedAgent => r !== null);
     detected.sort((a, b) => {
@@ -320,7 +478,10 @@ export class AgentConfigManager {
   }
 
   // Batch operations (Select All functionality)
-  async addModelProviderToAll(provider: ModelProvider, agentIds?: string[]): Promise<OperationResult> {
+  async addModelProviderToAll(
+    provider: ModelProvider,
+    agentIds?: string[]
+  ): Promise<OperationResult> {
     const targets = agentIds || Array.from(this.adapters.keys());
     const results: OperationResult[] = [];
 
@@ -342,7 +503,10 @@ export class AgentConfigManager {
         const result = await this.addModel(id, model);
         results.push(result);
       } else {
-        results.push({ success: false, error: `Agent "${id}" doesn't support model configs` });
+        results.push({
+          success: false,
+          error: `Agent "${id}" doesn't support model configs`,
+        });
       }
     }
 
@@ -358,7 +522,7 @@ export class AgentConfigManager {
   async installProvider(
     provider: ModelProvider,
     models: ModelConfig[] = [],
-    agentIds?: string[],
+    agentIds?: string[]
   ): Promise<OperationResult> {
     const targets = agentIds || Array.from(this.adapters.keys());
     const results: OperationResult[] = [];
@@ -370,7 +534,10 @@ export class AgentConfigManager {
         continue;
       }
       if (!adapter.info.supports.modelProviders) {
-        results.push({ success: false, error: `Agent "${id}" doesn't support model providers` });
+        results.push({
+          success: false,
+          error: `Agent "${id}" doesn't support model providers`,
+        });
         continue;
       }
 
@@ -407,14 +574,20 @@ export class AgentConfigManager {
         const result = await this.addMCPServer(id, server);
         results.push(result);
       } else {
-        results.push({ success: false, error: `Agent "${id}" doesn't support MCP servers` });
+        results.push({
+          success: false,
+          error: `Agent "${id}" doesn't support MCP servers`,
+        });
       }
     }
 
     return this.summarizeResults(results);
   }
 
-  async addPermissionToAll(permission: PermissionConfig, agentIds?: string[]): Promise<OperationResult> {
+  async addPermissionToAll(
+    permission: PermissionConfig,
+    agentIds?: string[]
+  ): Promise<OperationResult> {
     const targets = agentIds || Array.from(this.adapters.keys());
     const results: OperationResult[] = [];
 
@@ -424,7 +597,10 @@ export class AgentConfigManager {
         const result = await this.addPermission(id, permission);
         results.push(result);
       } else {
-        results.push({ success: false, error: `Agent "${id}" doesn't support permissions` });
+        results.push({
+          success: false,
+          error: `Agent "${id}" doesn't support permissions`,
+        });
       }
     }
 
@@ -438,13 +614,21 @@ export class AgentConfigManager {
   /**
    * Load the registry (creating it on first run by absorbing the current
    * content of every agent's config file). Safe to call multiple times.
+   *
+   * On every load the current agent configs are merge-migrated into the
+   * registry, so providers/MCP servers added manually inside an agent
+   * (e.g. a provider added via Pi's own auth flow) are detected and
+   * absorbed. The merge is additive — first-seen definitions win and
+   * registry-managed entries are never overwritten.
    */
   async initRegistry(): Promise<OperationResult<RegistryState>> {
     this.registryFilePath = resolveRegistryPath();
     let registry = await loadRegistry(this.registryFilePath);
 
-    if (!registry) {
-      // First run: migrate existing agent configs into the registry
+    const collectInputs = async (): Promise<{
+      inputs: MigrationInput[];
+      warnings: string[];
+    }> => {
       const inputs: MigrationInput[] = [];
       const warnings: string[] = [];
       for (const [id, adapter] of this.adapters) {
@@ -455,16 +639,36 @@ export class AgentConfigManager {
           warnings.push(`${id}: ${error}`);
         }
       }
+      return { inputs, warnings };
+    };
+
+    if (!registry) {
+      // First run: migrate existing agent configs into the registry
+      const { inputs, warnings } = await collectInputs();
       const migrated = await migrateFromAgentConfigs(inputs, emptyRegistry());
       registry = migrated.registry;
-      registry.migrationWarnings = [...(migrated.warnings), ...warnings];
+      registry.migrationWarnings = [...migrated.warnings, ...warnings];
       await saveRegistry(this.registryFilePath, registry);
+    } else {
+      // Self-heal: absorb entries added manually to agent configs since the
+      // last run. Only persist when the merge actually changed something.
+      const { inputs, warnings } = await collectInputs();
+      const before = JSON.stringify([registry.providers, registry.mcpServers]);
+      const migrated = await migrateFromAgentConfigs(inputs, registry);
+      const after = JSON.stringify([migrated.registry.providers, migrated.registry.mcpServers]);
+      if (after !== before) {
+        registry = migrated.registry;
+        if (warnings.length > 0) {
+          registry.migrationWarnings = [...(registry.migrationWarnings || []), ...warnings];
+        }
+        await saveRegistry(this.registryFilePath, registry);
+      }
     }
 
     if ((registry as { corrupt?: boolean }).corrupt) {
       registry.migrationWarnings = registry.migrationWarnings || [];
       registry.migrationWarnings.push(
-        'registry.json was unreadable and was replaced with an empty registry',
+        'registry.json was unreadable and was replaced with an empty registry'
       );
       await saveRegistry(this.registryFilePath, registry);
     }
@@ -497,7 +701,7 @@ export class AgentConfigManager {
           configPath: def.configPath,
           mcpPath: def.mcpPath,
           format: def.format,
-        }),
+        })
       );
       this.customAdapterIds.add(def.id);
     }
@@ -525,7 +729,10 @@ export class AgentConfigManager {
     }
     const candidate = data as Partial<Registry>;
     if (!Array.isArray(candidate.providers) || !Array.isArray(candidate.mcpServers)) {
-      return { success: false, error: 'Registry file must have providers[] and mcpServers[]' };
+      return {
+        success: false,
+        error: 'Registry file must have providers[] and mcpServers[]',
+      };
     }
     if (candidate.customAgents && !Array.isArray(candidate.customAgents)) {
       return { success: false, error: 'customAgents must be an array' };
@@ -533,10 +740,13 @@ export class AgentConfigManager {
     // Minimal shape checks so a malformed file cannot wedge the app
     const allHaveAgentIds = (entries: unknown[]): boolean =>
       entries.every(
-        (e) => e && typeof e === 'object' && Array.isArray((e as { agentIds?: unknown }).agentIds),
+        (e) => e && typeof e === 'object' && Array.isArray((e as { agentIds?: unknown }).agentIds)
       );
     if (!allHaveAgentIds(candidate.providers) || !allHaveAgentIds(candidate.mcpServers)) {
-      return { success: false, error: 'Registry entries must carry agentIds[]' };
+      return {
+        success: false,
+        error: 'Registry entries must carry agentIds[]',
+      };
     }
     const next: Registry = {
       version: 1,
@@ -596,7 +806,7 @@ export class AgentConfigManager {
         configPath: entry.configPath,
         mcpPath: entry.mcpPath,
         format: entry.format,
-      }),
+      })
     );
     this.customAdapterIds.add(id);
     await saveRegistry(this.registryFilePath, registry);
@@ -613,13 +823,16 @@ export class AgentConfigManager {
   /** Update a custom agent's paths / name; re-registers its adapter. */
   async updateCustomAgent(
     id: string,
-    updates: Partial<Pick<CustomAgentDef, 'name' | 'description' | 'configPath' | 'mcpPath' | 'format'>>,
+    updates: Partial<
+      Pick<CustomAgentDef, 'name' | 'description' | 'configPath' | 'mcpPath' | 'format'>
+    >
   ): Promise<OperationResult<RegistryState>> {
     const registry = await this.requireRegistry();
     const entry = registry.customAgents.find((a) => a.id === id);
     if (!entry) return { success: false, error: `Agent "${id}" not found` };
     if (updates.name !== undefined) entry.name = updates.name.trim() || entry.name;
-    if (updates.description !== undefined) entry.description = updates.description?.trim() || undefined;
+    if (updates.description !== undefined)
+      entry.description = updates.description?.trim() || undefined;
     if (updates.configPath !== undefined) {
       if (!updates.configPath.trim()) return { success: false, error: 'Config path is required' };
       entry.configPath = updates.configPath.trim();
@@ -635,7 +848,7 @@ export class AgentConfigManager {
         configPath: entry.configPath,
         mcpPath: entry.mcpPath,
         format: entry.format,
-      }),
+      })
     );
     await saveRegistry(this.registryFilePath, registry);
     const materialize = await this.syncAgents([id]);
@@ -682,7 +895,11 @@ export class AgentConfigManager {
    * config file. Entries the agent does not manage (agent-local providers,
    * permissions, custom settings) are left untouched.
    */
-  private async materializeAgent(agentId: string): Promise<{ agentId: string; ok: boolean; error?: string }> {
+  private async materializeAgent(
+    agentId: string,
+    staleProviderIds: ReadonlySet<string> = new Set(),
+    staleServerNames: ReadonlySet<string> = new Set()
+  ): Promise<{ agentId: string; ok: boolean; error?: string }> {
     const adapter = this.adapters.get(agentId);
     if (!adapter) return { agentId, ok: false, error: 'Agent not found' };
     // Detect-only agents (e.g. OMP) have their own YAML config and inherit
@@ -696,19 +913,34 @@ export class AgentConfigManager {
       const current = await adapter.readConfig();
 
       const targetedProviders = registry.providers.filter((p) => p.agentIds.includes(agentId));
-      const registryProviderIds = new Set(registry.providers.map((p) => p.provider.id));
+      // Alternate-wire siblings (e.g. "<id>-anthropic" on OpenCode-style
+      // agents) are registry-managed too: they must refresh with the parent
+      // entry and disappear when it does.
+      const alternateProviders = targetedProviders.flatMap(
+        (rp) => adapter.deriveAlternateProviders?.(rp) ?? []
+      );
+      const registryProviderIds = new Set([
+        ...registry.providers.map((p) => p.provider.id),
+        ...alternateProviders.map((d) => d.provider.id),
+        ...staleProviderIds,
+      ]);
       const targetedServers = registry.mcpServers.filter((s) => s.agentIds.includes(agentId));
-      const registryServerNames = new Set(registry.mcpServers.map((s) => s.server.name));
+      const registryServerNames = new Set([
+        ...registry.mcpServers.map((s) => s.server.name),
+        ...staleServerNames,
+      ]);
 
       // Drop registry-managed entries that do NOT target this agent; upsert
       // those that do; leave everything else (agent-local) untouched.
       const modelProviders: ModelProvider[] = current.modelProviders
         .filter((p) => !registryProviderIds.has(p.id))
-        .concat(targetedProviders.map((rp) => ({ ...rp.provider })));
+        .concat(targetedProviders.map((rp) => ({ ...rp.provider })))
+        .concat(alternateProviders.map((d) => ({ ...d.provider })));
 
       const models: ModelConfig[] = current.models
         .filter((m) => !registryProviderIds.has(m.providerId))
-        .concat(targetedProviders.flatMap((rp) => rp.models.map((m) => ({ ...m }))));
+        .concat(targetedProviders.flatMap((rp) => rp.models.map((m) => ({ ...m }))))
+        .concat(alternateProviders.flatMap((d) => d.models.map((m) => ({ ...m }))));
 
       const mcpServers: MCPServerConfig[] = current.mcpServers
         .filter((s) => !registryServerNames.has(s.name))
@@ -724,7 +956,7 @@ export class AgentConfigManager {
               ...(override?.approvalMode ? { approvalMode: override.approvalMode } : {}),
               enabled: override?.enabled ?? rs.server.enabled,
             };
-          }),
+          })
         );
 
       const merged: AgentConfig = {
@@ -742,8 +974,14 @@ export class AgentConfigManager {
   }
 
   /** Materialize the registry into the given agents' config files. */
-  async syncAgents(agentIds: string[]): Promise<MaterializeResult> {
-    const results = await Promise.all(agentIds.map((id) => this.materializeAgent(id)));
+  async syncAgents(
+    agentIds: string[],
+    staleProviderIds: ReadonlySet<string> = new Set(),
+    staleServerNames: ReadonlySet<string> = new Set()
+  ): Promise<MaterializeResult> {
+    const results = await Promise.all(
+      agentIds.map((id) => this.materializeAgent(id, staleProviderIds, staleServerNames))
+    );
     const aggregate = aggregateMaterialize(results);
     for (const id of aggregate.written) {
       await this.reloadConfig(id).catch(() => undefined);
@@ -754,12 +992,14 @@ export class AgentConfigManager {
   private async registryMutation(
     mutate: (registry: Registry) => void,
     affectedAgents: string[],
+    staleProviderIds: ReadonlySet<string> = new Set(),
+    staleServerNames: ReadonlySet<string> = new Set()
   ): Promise<OperationResult<RegistryState>> {
     const registry = await this.requireRegistry();
     mutate(registry);
     await saveRegistry(this.registryFilePath, registry);
     this.registry = registry;
-    const materialize = await this.syncAgents(affectedAgents);
+    const materialize = await this.syncAgents(affectedAgents, staleProviderIds, staleServerNames);
     const data = await this.getRegistryState();
     return {
       success: materialize.ok,
@@ -773,41 +1013,97 @@ export class AgentConfigManager {
   // ============================================================================
 
   /**
+   * Agents whose config format cannot hold model providers (Pi, Junie,
+   * FreeBuff, OMP manage their own model lists). They may be listed in
+   * agentIds, but materialization never writes to their files — callers get
+   * a warning instead of silent success.
+   */
+  private modelProviderWarnings(agentIds: string[]): string[] {
+    const unsupported = agentIds.filter((id) => {
+      const adapter = this.adapters.get(id);
+      return adapter ? !adapter.info.supports.modelProviders : false;
+    });
+    return unsupported.length > 0
+      ? [
+          `${unsupported.join(', ')} cannot store model providers in their config format — registered in the registry only, no config files were written`,
+        ]
+      : [];
+  }
+
+  /**
    * Register (or update) a provider with its models and install it into the
    * given agents. The registry holds ONE definition; agent files are rewritten
    * from it.
    */
+  /**
+   * Stamp the confirmed wire protocol onto an OpenAI-compatible provider's
+   * config from live verification results (the Codex adapter writes it as
+   * TOML `wire_api`). An explicitly configured wireApi always wins; nothing
+   * is stamped before a successful verification. "responses" is preferred —
+   * it is the native protocol of ChatGPT/Codex accounts and newer gateways.
+   */
+  private applyWireApiPreference(
+    provider: ModelProvider,
+    apiCapabilities?: ProviderApiCapabilities
+  ): ModelProvider {
+    if (provider.type !== 'openai-compatible') return provider;
+    const supported = apiCapabilities?.supported ?? [];
+    if (supported.length === 0) return provider;
+    const cfg = { ...(provider.config || {}) } as Record<string, unknown>;
+    if (cfg.wireApi) return provider;
+    const preferred = supported.includes('responses')
+      ? 'responses'
+      : supported.includes('chat')
+        ? 'chat'
+        : undefined;
+    if (!preferred) return provider;
+    cfg.wireApi = preferred;
+    return { ...provider, config: cfg };
+  }
+
   async registerProvider(
     provider: ModelProvider,
     models: ModelConfig[] = [],
     agentIds: string[] = [],
-    apiCapabilities?: ProviderApiCapabilities,
+    apiCapabilities?: ProviderApiCapabilities
   ): Promise<OperationResult<RegistryState>> {
     const registry = await this.requireRegistry();
-    upsertProvider(registry, provider, models, apiCapabilities);
+    upsertProvider(
+      registry,
+      this.applyWireApiPreference(provider, apiCapabilities),
+      models,
+      apiCapabilities
+    );
     const added = addProviderAgents(registry, provider.id, agentIds);
     if (!added.ok) return { success: false, error: added.error };
-    return this.registryMutation(() => {}, agentIds);
+    const result = await this.registryMutation(() => {}, agentIds);
+    const warnings = [...(result.warnings || []), ...this.modelProviderWarnings(agentIds)];
+    return { ...result, warnings: warnings.length > 0 ? warnings : undefined };
   }
 
   /** Install an existing registry provider into additional agents. */
   async addProviderToAgents(
     providerId: string,
-    agentIds: string[],
+    agentIds: string[]
   ): Promise<OperationResult<RegistryState>> {
-    return this.registryMutation((registry) => {
+    const result = await this.registryMutation((registry) => {
       addProviderAgents(registry, providerId, agentIds);
     }, agentIds);
+    const warnings = [...(result.warnings || []), ...this.modelProviderWarnings(agentIds)];
+    return { ...result, warnings: warnings.length > 0 ? warnings : undefined };
   }
 
   /** Remove a provider from ONE agent's config (definition stays in registry). */
   async removeProviderFromAgent(
     providerId: string,
-    agentId: string,
+    agentId: string
   ): Promise<OperationResult<RegistryState>> {
-    return this.registryMutation((registry) => {
-      removeProviderAgent(registry, providerId, agentId);
-    }, [agentId]);
+    return this.registryMutation(
+      (registry) => {
+        removeProviderAgent(registry, providerId, agentId);
+      },
+      [agentId]
+    );
   }
 
   /**
@@ -820,17 +1116,26 @@ export class AgentConfigManager {
       provider?: Partial<ModelProvider>;
       models?: ModelConfig[];
       apiCapabilities?: ProviderApiCapabilities;
-    },
+    }
   ): Promise<OperationResult<RegistryState>> {
-    return this.registryMutation((registry) => {
-      const entry = registry.providers.find((p) => p.provider.id === providerId);
-      if (!entry) return;
-      if (updates.provider) {
-        entry.provider = { ...entry.provider, ...updates.provider, id: providerId };
-      }
-      if (updates.models) entry.models = updates.models;
-      if (updates.apiCapabilities !== undefined) entry.apiCapabilities = updates.apiCapabilities;
-    }, this.registry?.providers.find((p) => p.provider.id === providerId)?.agentIds || []);
+    return this.registryMutation(
+      (registry) => {
+        const entry = registry.providers.find((p) => p.provider.id === providerId);
+        if (!entry) return;
+        if (updates.provider) {
+          entry.provider = {
+            ...entry.provider,
+            ...updates.provider,
+            id: providerId,
+          };
+        }
+        if (updates.models) entry.models = updates.models;
+        if (updates.apiCapabilities !== undefined) entry.apiCapabilities = updates.apiCapabilities;
+        // Re-stamp the wire preference from the latest verification.
+        entry.provider = this.applyWireApiPreference(entry.provider, entry.apiCapabilities);
+      },
+      this.registry?.providers.find((p) => p.provider.id === providerId)?.agentIds || []
+    );
   }
 
   /**
@@ -839,11 +1144,15 @@ export class AgentConfigManager {
    */
   async recordProviderCapabilities(
     providerId: string,
-    apiCapabilities: ProviderApiCapabilities,
+    apiCapabilities: ProviderApiCapabilities
   ): Promise<OperationResult<boolean>> {
     const registry = await this.requireRegistry();
     const entry = registry.providers.find((p) => p.provider.id === providerId);
-    if (!entry) return { success: false, error: `Provider "${providerId}" not found in registry` };
+    if (!entry)
+      return {
+        success: false,
+        error: `Provider "${providerId}" not found in registry`,
+      };
     entry.apiCapabilities = apiCapabilities;
     await saveRegistry(this.registryFilePath, registry);
     this.registry = registry;
@@ -855,9 +1164,27 @@ export class AgentConfigManager {
     const registry = await this.requireRegistry();
     const entry = registry.providers.find((p) => p.provider.id === providerId);
     const affected = entry ? [...entry.agentIds] : [];
-    return this.registryMutation((r) => {
-      r.providers = r.providers.filter((p) => p.provider.id !== providerId);
-    }, affected);
+    // Materialization strips every provider id under "registry management".
+    // Once the entry is removed from the registry those ids are no longer
+    // discoverable, so capture them *before* mutation via the stale set: the
+    // parent id plus any alternate-wire siblings derived from it.
+    const staleProviderIds = new Set<string>();
+    if (entry) {
+      staleProviderIds.add(entry.provider.id);
+      for (const agentId of affected) {
+        const adapter = this.adapters.get(agentId);
+        for (const alt of adapter?.deriveAlternateProviders?.(entry) ?? []) {
+          staleProviderIds.add(alt.provider.id);
+        }
+      }
+    }
+    return this.registryMutation(
+      (r) => {
+        r.providers = r.providers.filter((p) => p.provider.id !== providerId);
+      },
+      affected,
+      staleProviderIds
+    );
   }
 
   // ============================================================================
@@ -870,7 +1197,7 @@ export class AgentConfigManager {
    */
   async registerMCPServer(
     server: MCPServerConfig,
-    agentIds: string[] = [],
+    agentIds: string[] = []
   ): Promise<OperationResult<RegistryState>> {
     const registry = await this.requireRegistry();
     upsertMCPServer(registry, server);
@@ -882,7 +1209,7 @@ export class AgentConfigManager {
   /** Install an existing registry MCP server into additional agents. */
   async addMCPServerToAgents(
     serverName: string,
-    agentIds: string[],
+    agentIds: string[]
   ): Promise<OperationResult<RegistryState>> {
     return this.registryMutation((registry) => {
       addMCPServerAgents(registry, serverName, agentIds);
@@ -892,24 +1219,30 @@ export class AgentConfigManager {
   /** Remove an MCP server from ONE agent's config (definition stays in registry). */
   async removeMCPServerFromAgent(
     serverName: string,
-    agentId: string,
+    agentId: string
   ): Promise<OperationResult<RegistryState>> {
-    return this.registryMutation((registry) => {
-      removeMCPServerAgent(registry, serverName, agentId);
-    }, [agentId]);
+    return this.registryMutation(
+      (registry) => {
+        removeMCPServerAgent(registry, serverName, agentId);
+      },
+      [agentId]
+    );
   }
 
   /** Update an MCP server's shared definition; every covered agent is rewritten. */
   async updateMCPServer(
     serverName: string,
-    updates: Partial<MCPServerConfig>,
+    updates: Partial<MCPServerConfig>
   ): Promise<OperationResult<RegistryState>> {
-    return this.registryMutation((registry) => {
-      const entry = registry.mcpServers.find((s) => s.server.name === serverName);
-      if (entry) {
-        entry.server = { ...entry.server, ...updates, name: serverName };
-      }
-    }, this.registry?.mcpServers.find((s) => s.server.name === serverName)?.agentIds || []);
+    return this.registryMutation(
+      (registry) => {
+        const entry = registry.mcpServers.find((s) => s.server.name === serverName);
+        if (entry) {
+          entry.server = { ...entry.server, ...updates, name: serverName };
+        }
+      },
+      this.registry?.mcpServers.find((s) => s.server.name === serverName)?.agentIds || []
+    );
   }
 
   /**
@@ -919,16 +1252,22 @@ export class AgentConfigManager {
   async setMCPServerAgentOverride(
     serverName: string,
     agentId: string,
-    override: MCPServerAgentOverride,
+    override: MCPServerAgentOverride
   ): Promise<OperationResult<RegistryState>> {
-    return this.registryMutation((registry) => {
-      const entry = registry.mcpServers.find((s) => s.server.name === serverName);
-      if (entry) {
-        entry.agentOverrides = entry.agentOverrides || {};
-        entry.agentOverrides[agentId] = { ...entry.agentOverrides[agentId], ...override };
-        if (!entry.agentIds.includes(agentId)) entry.agentIds.push(agentId);
-      }
-    }, [agentId]);
+    return this.registryMutation(
+      (registry) => {
+        const entry = registry.mcpServers.find((s) => s.server.name === serverName);
+        if (entry) {
+          entry.agentOverrides = entry.agentOverrides || {};
+          entry.agentOverrides[agentId] = {
+            ...entry.agentOverrides[agentId],
+            ...override,
+          };
+          if (!entry.agentIds.includes(agentId)) entry.agentIds.push(agentId);
+        }
+      },
+      [agentId]
+    );
   }
 
   /** Delete an MCP server from the registry and from every agent config. */
@@ -936,13 +1275,23 @@ export class AgentConfigManager {
     const registry = await this.requireRegistry();
     const entry = registry.mcpServers.find((s) => s.server.name === serverName);
     const affected = entry ? [...entry.agentIds] : [];
-    return this.registryMutation((r) => {
-      r.mcpServers = r.mcpServers.filter((s) => s.server.name !== serverName);
-    }, affected);
+    // Same cascade as deleteProvider: once the server is dropped from the
+    // registry its name is no longer discoverable, so force materialize to
+    // strip it from every affected agent config too.
+    return this.registryMutation(
+      (r) => {
+        r.mcpServers = r.mcpServers.filter((s) => s.server.name !== serverName);
+      },
+      affected,
+      new Set(),
+      new Set([serverName])
+    );
   }
 
   /** Read the raw config file of an agent (for directory checking / review). */
-  async readRawConfig(agentId: string): Promise<OperationResult<{ path: string; content: string; exists: boolean }>> {
+  async readRawConfig(
+    agentId: string
+  ): Promise<OperationResult<{ path: string; content: string; exists: boolean }>> {
     const adapter = this.adapters.get(agentId);
     if (!adapter) return { success: false, error: `Agent "${agentId}" not found` };
     try {
@@ -953,6 +1302,209 @@ export class AgentConfigManager {
     } catch (error) {
       return { success: false, error: String(error) };
     }
+  }
+
+  /**
+   * Read an agent's raw config file or its separate MCP file (when it has
+   * one) as plain text, for the in-browser editor.
+   */
+  async readAgentFile(
+    agentId: string,
+    kind: 'config' | 'mcp'
+  ): Promise<OperationResult<{ path: string; content: string; exists: boolean }>> {
+    const targetPath = await this.resolveAgentFilePath(agentId, kind);
+    if (!targetPath.success) return { success: false, error: targetPath.error };
+    const target = targetPath.data as string;
+    try {
+      const exists = await fileExists(target);
+      const content = exists ? (await readFileSafe(target)) || '' : '';
+      return { success: true, data: { path: target, content, exists } };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  }
+
+  /**
+   * Overwrite an agent's raw config file or its separate MCP file with new
+   * content, taking a timestamped backup of the previous content first (if
+   * the file already existed). Content is written exactly as given — no
+   * parsing, validation, or reformatting; the caller (GUI editor) is
+   * responsible for the file being well-formed for its format.
+   */
+  async writeAgentFile(
+    agentId: string,
+    kind: 'config' | 'mcp',
+    content: string
+  ): Promise<OperationResult<{ path: string; backupPath: string | null }>> {
+    const targetPath = await this.resolveAgentFilePath(agentId, kind);
+    if (!targetPath.success) return { success: false, error: targetPath.error };
+    const target = targetPath.data as string;
+    try {
+      const existed = await fileExists(target);
+      const backupPath = existed ? await backupFile(target) : null;
+      await writeFileSafe(target, content);
+      return { success: true, data: { path: target, backupPath } };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  }
+
+  /** Shared path resolution for readAgentFile/writeAgentFile — mirrors the
+   * kind resolution already used by the `reveal` endpoint in gui-server.ts. */
+  private async resolveAgentFilePath(
+    agentId: string,
+    kind: 'config' | 'mcp'
+  ): Promise<OperationResult<string>> {
+    if (kind === 'config') {
+      const path = this.getConfigPath(agentId);
+      if (!path)
+        return { success: false, error: `Agent "${agentId}" not found or has no config path` };
+      return { success: true, data: path };
+    }
+    const detected = await this.detectAgent(agentId);
+    const mcpPath = detected?.detection.mcpPath;
+    if (!mcpPath) {
+      return { success: false, error: `This agent has no separate MCP file on this machine` };
+    }
+    return { success: true, data: mcpPath };
+  }
+
+  // ============================================================================
+  // Update checking (npm/bun/pnpm/yarn and Homebrew installs only)
+  // ============================================================================
+
+  /**
+   * Best-effort "is a newer version available" check, derived from the
+   * catalog's `install` command. Supports package-manager installs that
+   * publish to the npm registry (npm/bun/pnpm/yarn `install -g`/`add -g`)
+   * and Homebrew formulae; any other install method (curl installers,
+   * pipx, etc.) reports `method: 'unsupported'` rather than guessing.
+   */
+  async checkAgentUpdate(agentId: string): Promise<
+    OperationResult<{
+      method: 'npm' | 'brew' | 'unsupported';
+      currentVersion?: string;
+      latestVersion?: string;
+      updateAvailable: boolean;
+      reason?: string;
+    }>
+  > {
+    const entry = getAgentCatalogEntry(agentId);
+    const installCmd = entry?.install;
+    if (!installCmd) {
+      return {
+        success: true,
+        data: {
+          method: 'unsupported',
+          updateAvailable: false,
+          reason: 'No known install command for this agent',
+        },
+      };
+    }
+
+    const detected = await this.detectAgent(agentId);
+    const currentVersion = extractVersionToken(detected?.detection.version);
+
+    const npmMatch = installCmd.match(/^(?:npm|bun|pnpm|yarn)\s+(?:install|add)\s+-g\s+(\S+)/);
+    const brewMatch = installCmd.match(/^brew\s+install\s+(\S+)/);
+
+    if (npmMatch) {
+      const pkg = npmMatch[1];
+      try {
+        const result = await runCommand('npm', ['view', pkg, 'version'], 15000);
+        const latestVersion = extractVersionToken(result.stdout.trim());
+        if (!latestVersion) {
+          return {
+            success: true,
+            data: {
+              method: 'npm',
+              currentVersion,
+              updateAvailable: false,
+              reason: 'Could not parse the latest version from npm',
+            },
+          };
+        }
+        return {
+          success: true,
+          data: {
+            method: 'npm',
+            currentVersion,
+            latestVersion,
+            updateAvailable: Boolean(currentVersion) && currentVersion !== latestVersion,
+          },
+        };
+      } catch (error) {
+        return {
+          success: true,
+          data: { method: 'npm', currentVersion, updateAvailable: false, reason: String(error) },
+        };
+      }
+    }
+
+    if (brewMatch) {
+      const formula = brewMatch[1];
+      try {
+        const result = await runCommand('brew', ['info', '--json=v2', formula], 15000);
+        const parsed = JSON.parse(result.stdout) as {
+          formulae?: { versions?: { stable?: string } }[];
+        };
+        const latestVersion = extractVersionToken(parsed.formulae?.[0]?.versions?.stable);
+        if (!latestVersion) {
+          return {
+            success: true,
+            data: {
+              method: 'brew',
+              currentVersion,
+              updateAvailable: false,
+              reason: 'Could not parse the latest version from Homebrew',
+            },
+          };
+        }
+        return {
+          success: true,
+          data: {
+            method: 'brew',
+            currentVersion,
+            latestVersion,
+            updateAvailable: Boolean(currentVersion) && currentVersion !== latestVersion,
+          },
+        };
+      } catch (error) {
+        return {
+          success: true,
+          data: { method: 'brew', currentVersion, updateAvailable: false, reason: String(error) },
+        };
+      }
+    }
+
+    return {
+      success: true,
+      data: {
+        method: 'unsupported',
+        currentVersion,
+        updateAvailable: false,
+        reason: 'This agent installs via a script/pipx, not a package registry this tool can query',
+      },
+    };
+  }
+
+  /**
+   * The shell command that upgrades an agent in place, or `undefined` when
+   * `checkAgentUpdate` reports `method: 'unsupported'`. For npm-family
+   * installs this is the same command as `install` (npm/bun/pnpm/yarn
+   * always fetch latest); for Homebrew it's `brew upgrade <formula>`
+   * instead of `install`, since `brew install` on an already-installed
+   * formula is a no-op.
+   */
+  getAgentUpdateCommand(agentId: string): string | undefined {
+    const installCmd = getAgentCatalogEntry(agentId)?.install;
+    if (!installCmd) return undefined;
+    if (/^(?:npm|bun|pnpm|yarn)\s+(?:install|add)\s+-g\s+\S+/.test(installCmd)) {
+      return installCmd;
+    }
+    const brewMatch = installCmd.match(/^brew\s+install\s+(\S+)/);
+    if (brewMatch) return `brew upgrade ${brewMatch[1]}`;
+    return undefined;
   }
 
   // Utility
@@ -996,11 +1548,11 @@ export class AgentConfigManager {
   }
 
   private summarizeResults(results: OperationResult[]): OperationResult {
-    const succeeded = results.filter(r => r.success).length;
-    const failed = results.filter(r => !r.success).length;
+    const succeeded = results.filter((r) => r.success).length;
+    const failed = results.filter((r) => !r.success).length;
     const errors = results
-      .filter(r => !r.success)
-      .map(r => r.error)
+      .filter((r) => !r.success)
+      .map((r) => r.error)
       .filter((e): e is string => Boolean(e));
 
     return {
