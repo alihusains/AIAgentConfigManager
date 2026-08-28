@@ -177,7 +177,11 @@ const agentJobs = new Map<string, AgentJob>();
 function evictStaleJobs(): void {
   const now = Date.now();
   for (const [id, job] of agentJobs) {
-    if (job.status !== 'running' && job.finishedAt && now - new Date(job.finishedAt).getTime() > JOB_TTL_MS) {
+    if (
+      job.status !== 'running' &&
+      job.finishedAt &&
+      now - new Date(job.finishedAt).getTime() > JOB_TTL_MS
+    ) {
       agentJobs.delete(id);
     }
   }
@@ -209,7 +213,7 @@ function startAgentJob(
     const next = job.output + chunk.toString('utf8');
     job.output =
       next.length > MAX_JOB_OUTPUT
-        ? '…(output truncated)…\n' + next.slice(next.length - MAX_JOB_OUTPUT)
+        ? `…(output truncated)…\n${next.slice(next.length - MAX_JOB_OUTPUT)}`
         : next;
   };
 
@@ -433,7 +437,10 @@ export async function startGuiServer(
           const toolName = decodeURIComponent(parts[2]);
           const command = getToolUpdateCommand(toolName);
           if (!command) {
-            return { error: `No allow-listed update available for tool "${toolName}"`, status: 400 };
+            return {
+              error: `No allow-listed update available for tool "${toolName}"`,
+              status: 400,
+            };
           }
           if (!isSafeCommand(command)) {
             return { error: 'Update command is not permitted.', status: 400 };
@@ -467,7 +474,7 @@ export async function startGuiServer(
           return handle(async () => {
             const result = await assignSkillToAgent(
               decodeURIComponent(parts[2]),
-              String(body.agentId ?? ''),
+              String(body.agentId ?? '')
             );
             return { data: result };
           });
@@ -570,7 +577,8 @@ export async function startGuiServer(
         if (method === 'PUT' && parts.length === 3) {
           const body = await readBody();
           return handle(async () => {
-            const result = await manager.updateProvider(parts[2], {
+            const providerId = decodeURIComponent(parts[2]);
+            const result = await manager.updateProvider(providerId, {
               provider: body.provider as Partial<ModelProvider> | undefined,
               models: body.models as ModelConfig[] | undefined,
               apiCapabilities: body.apiCapabilities as ProviderApiCapabilities | undefined,
@@ -581,8 +589,9 @@ export async function startGuiServer(
         }
         if (method === 'DELETE' && parts.length === 3) {
           return handle(async () => {
-            const result = await manager.deleteProvider(parts[2]);
-            if (!result.success) return { error: result.error, status: 400 };
+            const providerId = decodeURIComponent(parts[2]);
+            const result = await manager.deleteProvider(providerId);
+            if (!result.success) return { error: result.error ?? result.warnings?.join('; ') ?? 'Operation failed', status: 400 };
             return { data: result.data };
           });
         }
@@ -590,8 +599,9 @@ export async function startGuiServer(
         if (method === 'POST' && parts.length === 4 && parts[3] === 'agents') {
           const body = await readBody();
           return handle(async () => {
+            const providerId = decodeURIComponent(parts[2]);
             const result = await manager.addProviderToAgents(
-              parts[2],
+              providerId,
               (body.agentIds as string[]) || []
             );
             if (!result.success) return { error: result.error, status: 400 };
@@ -601,7 +611,9 @@ export async function startGuiServer(
         // DELETE /api/providers/:id/agents/:agentId
         if (method === 'DELETE' && parts.length === 5 && parts[3] === 'agents') {
           return handle(async () => {
-            const result = await manager.removeProviderFromAgent(parts[2], parts[4]);
+            const providerId = decodeURIComponent(parts[2]);
+            const agentId = decodeURIComponent(parts[4]);
+            const result = await manager.removeProviderFromAgent(providerId, agentId);
             if (!result.success) return { error: result.error, status: 400 };
             return { data: result.data };
           });
@@ -985,10 +997,7 @@ export async function startGuiServer(
     });
   } catch {
     throw new Error(
-      `Port ${preferred} is already in use — is the dashboard already running? ` +
-        `Open http://127.0.0.1:${preferred} or stop it with \`acm stop\`` +
-        (options.port ? '' : ' (or pass --port to pick a different one)') +
-        '.'
+      `Port ${preferred} is already in use — is the dashboard already running? Open http://127.0.0.1:${preferred} or stop it with \`acm stop\`${options.port ? '' : ' (or pass --port to pick a different one)'}.`
     );
   }
 

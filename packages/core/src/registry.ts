@@ -11,13 +11,13 @@
  */
 
 import {
-  Registry,
-  RegistryProvider,
+  type Registry,
+  type RegistryProvider,
   RegistryMCPServer,
-  MCPServerConfig,
-  ModelProvider,
-  ModelConfig,
-  MaterializeResult,
+  type MCPServerConfig,
+  type ModelProvider,
+  type ModelConfig,
+  type MaterializeResult,
 } from './types';
 import { fileExists, writeFileSafe, readFileSafe } from './utils';
 import * as os from 'node:os';
@@ -102,7 +102,7 @@ export function upsertProvider(
   registry: Registry,
   provider: ModelProvider,
   models: ModelConfig[],
-  apiCapabilities?: RegistryProvider['apiCapabilities'],
+  apiCapabilities?: RegistryProvider['apiCapabilities']
 ): Registry {
   const index = registry.providers.findIndex((p) => p.provider.id === provider.id);
   if (index === -1) {
@@ -138,7 +138,7 @@ export function upsertMCPServer(registry: Registry, server: MCPServerConfig): Re
 export function addProviderAgents(
   registry: Registry,
   providerId: string,
-  agentIds: string[],
+  agentIds: string[]
 ): { ok: boolean; error?: string } {
   const entry = registry.providers.find((p) => p.provider.id === providerId);
   if (!entry) return { ok: false, error: `Provider "${providerId}" not found in registry` };
@@ -149,7 +149,11 @@ export function addProviderAgents(
 }
 
 /** Remove an agent from a provider's coverage. */
-export function removeProviderAgent(registry: Registry, providerId: string, agentId: string): Registry {
+export function removeProviderAgent(
+  registry: Registry,
+  providerId: string,
+  agentId: string
+): Registry {
   const entry = registry.providers.find((p) => p.provider.id === providerId);
   if (entry) {
     entry.agentIds = entry.agentIds.filter((id) => id !== agentId);
@@ -161,7 +165,7 @@ export function removeProviderAgent(registry: Registry, providerId: string, agen
 export function addMCPServerAgents(
   registry: Registry,
   serverName: string,
-  agentIds: string[],
+  agentIds: string[]
 ): { ok: boolean; error?: string } {
   const entry = registry.mcpServers.find((s) => s.server.name === serverName);
   if (!entry) return { ok: false, error: `MCP server "${serverName}" not found in registry` };
@@ -172,7 +176,11 @@ export function addMCPServerAgents(
 }
 
 /** Remove an agent from an MCP server's coverage. */
-export function removeMCPServerAgent(registry: Registry, serverName: string, agentId: string): Registry {
+export function removeMCPServerAgent(
+  registry: Registry,
+  serverName: string,
+  agentId: string
+): Registry {
   const entry = registry.mcpServers.find((s) => s.server.name === serverName);
   if (entry) {
     entry.agentIds = entry.agentIds.filter((id) => id !== agentId);
@@ -203,9 +211,13 @@ export interface MigrationInput {
  */
 export async function migrateFromAgentConfigs(
   inputs: MigrationInput[],
-  existing: Registry,
+  existing: Registry
 ): Promise<{ registry: Registry; warnings: string[] }> {
-  const registry = { ...existing, providers: [...existing.providers], mcpServers: [...existing.mcpServers] };
+  const registry = {
+    ...existing,
+    providers: [...existing.providers],
+    mcpServers: [...existing.mcpServers],
+  };
   const warnings: string[] = [];
 
   for (const input of inputs) {
@@ -243,11 +255,13 @@ export async function migrateFromAgentConfigs(
 }
 
 /** Aggregate per-agent write results into a MaterializeResult. */
-export function aggregateMaterialize(results: {
-  agentId: string;
-  ok: boolean;
-  error?: string;
-}[]): MaterializeResult {
+export function aggregateMaterialize(
+  results: {
+    agentId: string;
+    ok: boolean;
+    error?: string;
+  }[]
+): MaterializeResult {
   const written: string[] = [];
   const errors: string[] = [];
   const warnings: string[] = [];
