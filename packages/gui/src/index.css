@@ -1,103 +1,130 @@
-/* AI Agent Config Manager - Lightweight, Modern UI */
+/* AI Agent Config Manager — Agentic Control Plane design tokens.
+   Single source of truth for all color, type, spacing, radius, and motion.
+   Components consume tokens only — no hex literals in component code. */
 
 :root {
-  /* Light theme (default) — warm bone, not cool slate. */
+  /* ── Light theme (default) ───────────────────────────────────────────── */
   color-scheme: light;
-  /* Layered warm surfaces: canvas (page) -> secondary (cards/sidebar) ->
-     primary (raised inputs/modals) -> tertiary (insets). Canvas is the
-     darkest layer so cards and controls read as raised surfaces. */
-  --bg-canvas: #edeae3;
-  --bg-primary: #fffdfb;
-  --bg-secondary: #f9f7f2;
-  --bg-tertiary: #ebe8e0;
-  --bg-hover: #e4e1d7;
-  --bg-active: #d9d5c9;
 
-  --text-primary: #20242a;
-  --text-secondary: #575c63;
-  --text-tertiary: #6f747b;
-  --text-inverse: #f7f5f0;
+  /* Surfaces: canvas (page) → secondary (cards/sidebar) → tertiary (raised) */
+  --bg-canvas: #f7f8fa;
+  --bg-primary: #ffffff;
+  --bg-secondary: #f1f3f5;
+  --bg-tertiary: #ffffff;
+  --bg-hover: #f1f3f5;
+  --bg-active: #e9ecef;
 
-  --border-primary: #e2dfd6;
-  --border-secondary: #d1cdc2;
-  --border-focus: #0f766e;
+  /* Text */
+  --text-primary: #171a1f;
+  --text-secondary: #5e6670;
+  --text-tertiary: #8a929c;
+  --text-inverse: #f7f8fa;
 
-  /* ONE interactive accent (deep teal). Semantic status colors are kept
-     because they carry meaning; decorative multi-hue accents are not.
-     Values tuned so accent-colored text clears WCAG AA on light bg. */
-  --accent-primary: #0f766e;
-  --accent-primary-hover: #115e59;
-  --accent-success: #047857;
-  --accent-warning: #b45309;
-  --accent-error: #dc2626;
-  /* Muted steel blue — info / "responses" API type. Replaces the removed
-     indigo #4f46e5; desaturated so it reads categorical, not decorative. */
-  --accent-info: #44688a;
+  /* Borders */
+  --border-primary: #e3e7eb;
+  --border-secondary: #d1d5db;
+  --border-focus: #5c6ef2;
 
-  /* Muted categorical tints for API-type + agent-identity encoding.
-     Warm-tuned and desaturated; text variants clear WCAG AA on light bg. */
+  /* Accents — primary (actions, active nav, focus) + secondary (links, info) */
+  --accent-primary: #159f84;
+  --accent-primary-hover: #128a73;
+  --accent-secondary: #5c6ef2;
+
+  /* Status / semantic */
+  --accent-success: #16845f;
+  --accent-warning: #a66b00;
+  --accent-error: #d64559;
+  --accent-info: #3d73c9;
+
+  /* Categorical — API type + agent identity tints */
   --anthropic-accent: #b3542e;
   --cat-olive: #6b744c;
-
-  /* Provider-type brand tints — muted so brand identity stays recognizable
-     without saturated neon; each clears WCAG AA (>=4.5:1) as badge text on the
-     light surface. Consumed by .ptype-* classes in ProvidersView. */
   --provider-anthropic: #8a6d26;
   --provider-openai: #3a6d8c;
   --provider-bedrock: #9c5f22;
   --provider-vertex: #47598c;
 
-  --shadow-sm: 0 1px 2px 0 rgb(32 30 24 / 0.05);
-  --shadow-md: 0 4px 6px -1px rgb(32 30 24 / 0.08), 0 2px 4px -2px rgb(32 30 24 / 0.06);
-  --shadow-lg: 0 12px 24px -6px rgb(32 30 24 / 0.12), 0 4px 8px -4px rgb(32 30 24 / 0.08);
-  --shadow-elevated: 0 22px 44px -14px rgb(32 30 24 / 0.2), 0 8px 16px -8px rgb(32 30 24 / 0.1);
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgb(23 26 31 / 0.05);
+  --shadow-md:
+    0 4px 6px -1px rgb(23 26 31 / 0.08), 0 2px 4px -2px rgb(23 26 31 / 0.06);
+  --shadow-lg:
+    0 12px 24px -6px rgb(23 26 31 / 0.12), 0 4px 8px -4px rgb(23 26 31 / 0.08);
+  --shadow-elevated:
+    0 22px 44px -14px rgb(23 26 31 / 0.2), 0 8px 16px -8px rgb(23 26 31 / 0.1);
 
-  --radius-sm: 4px;
+  /* Radius — buttons/inputs 8px, cards 10-12px */
+  --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 12px;
   --radius-full: 9999px;
 
-  --font-display: "Space Grotesk", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
-    sans-serif;
-  --font-sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  /* Typography — Inter for UI, JetBrains Mono for identifiers */
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: "JetBrains Mono", "Fira Code", monospace;
+  --font-display: var(--font-sans);
 
-  --transition-fast: 150ms cubic-bezier(0.32, 0.72, 0, 1);
-  --transition-normal: 220ms cubic-bezier(0.32, 0.72, 0, 1);
-  --transition-slow: 320ms cubic-bezier(0.32, 0.72, 0, 1);
+  /* Type scale */
+  --text-size-xs: 12px;
+  --text-size-sm: 13px;
+  --text-size-base: 14px;
+  --text-size-md: 15px;
+  --text-size-lg: 18px;
+  --text-size-xl: 20px;
+  --text-size-2xl: 28px;
+  --text-size-3xl: 32px;
+
+  /* Spacing — 8px scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+
+  /* Motion — 150-220ms ease-out */
+  --transition-fast: 150ms ease-out;
+  --transition-normal: 200ms ease-out;
+  --transition-slow: 220ms ease-out;
 }
 
-/* Dark theme — follows the OS unless the user pinned a choice via the
-   theme toggle (html[data-theme='light'|'dark'], set before first paint).
-   html[data-theme='dark'] wins over the media query; the media query is
-   disabled entirely when the user explicitly chose light. */
+/* ── Dark theme ──────────────────────────────────────────────────────────
+   Two triggers, identical values (invariant: first-run vs toggle must
+   resolve to the same colors). html[data-theme='dark'] wins over the
+   media query; the media query is disabled when the user chose light.
+   CANONICAL DARK TOKENS — keep the two blocks below in exact sync. */
+
+/* OS-follow dark (no explicit user choice) */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    /* CANONICAL DARK TOKENS — keep in exact sync with the
-       html[data-theme="dark"] block below (same values, both triggers). */
-    --bg-canvas: #121316;
-    --bg-primary: #1b1d21;
-    --bg-secondary: #17191d;
-    --bg-tertiary: #22252a;
-    --bg-hover: #26292f;
-    --bg-active: #32363d;
+    --bg-canvas: #0b0d0f;
+    --bg-primary: #111418;
+    --bg-secondary: #161a1f;
+    --bg-tertiary: #1b2026;
+    --bg-hover: #1b2026;
+    --bg-active: #252b32;
 
-    --text-primary: #ebe9e4;
-    --text-secondary: #a6a6a0;
-    --text-tertiary: #86877f;
-    --text-inverse: #16181c;
+    --text-primary: #f5f7fa;
+    --text-secondary: #9ba4ae;
+    --text-tertiary: #69727d;
+    --text-inverse: #0b0d0f;
 
-    --border-primary: #2a2d32;
-    --border-secondary: #3a3e44;
-    --border-focus: #5eead4;
+    --border-primary: #252b32;
+    --border-secondary: #2f363e;
+    --border-focus: #5ee6c0;
 
-    --accent-primary: #5eead4;
-    --accent-primary-hover: #99f6e4;
-    --accent-success: #34d399;
-    --accent-warning: #fbbf24;
-    --accent-error: #f87171;
-    --accent-info: #8fb3d9;
+    --accent-primary: #5ee6c0;
+    --accent-primary-hover: #7ce8d0;
+    --accent-secondary: #7c8cff;
+
+    --accent-success: #48d597;
+    --accent-warning: #f5c76a;
+    --accent-error: #ff6b7a;
+    --accent-info: #6cb7ff;
+
     --anthropic-accent: #e8927c;
     --cat-olive: #b3bd8a;
     --provider-anthropic: #d4b160;
@@ -106,39 +133,44 @@
     --provider-vertex: #8fa3d9;
 
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.35);
-    --shadow-md: 0 6px 12px -2px rgb(0 0 0 / 0.4), 0 3px 6px -3px rgb(0 0 0 / 0.35);
-    --shadow-lg: 0 18px 36px -10px rgb(0 0 0 / 0.55), 0 6px 12px -6px rgb(0 0 0 / 0.45);
-    --shadow-elevated: 0 28px 56px -16px rgb(0 0 0 / 0.65), 0 10px 20px -10px rgb(0 0 0 / 0.55);
+    --shadow-md:
+      0 6px 12px -2px rgb(0 0 0 / 0.4), 0 3px 6px -3px rgb(0 0 0 / 0.35);
+    --shadow-lg:
+      0 18px 36px -10px rgb(0 0 0 / 0.55), 0 6px 12px -6px rgb(0 0 0 / 0.45);
+    --shadow-elevated:
+      0 28px 56px -16px rgb(0 0 0 / 0.65), 0 10px 20px -10px rgb(0 0 0 / 0.55);
   }
 }
 
 /* Explicit dark mode (user pinned via the theme toggle).
-   Values MUST mirror the prefers-color-scheme block above so first-run
-   (OS-follow) and toggled dark resolve identically. */
+   Values MUST mirror the prefers-color-scheme block above. */
 html[data-theme="dark"] {
   color-scheme: dark;
-  --bg-canvas: #121316;
-  --bg-primary: #1b1d21;
-  --bg-secondary: #17191d;
-  --bg-tertiary: #22252a;
-  --bg-hover: #26292f;
-  --bg-active: #32363d;
+  --bg-canvas: #0b0d0f;
+  --bg-primary: #111418;
+  --bg-secondary: #161a1f;
+  --bg-tertiary: #1b2026;
+  --bg-hover: #1b2026;
+  --bg-active: #252b32;
 
-  --text-primary: #ebe9e4;
-  --text-secondary: #a6a6a0;
-  --text-tertiary: #86877f;
-  --text-inverse: #16181c;
+  --text-primary: #f5f7fa;
+  --text-secondary: #9ba4ae;
+  --text-tertiary: #69727d;
+  --text-inverse: #0b0d0f;
 
-  --border-primary: #2a2d32;
-  --border-secondary: #3a3e44;
-  --border-focus: #5eead4;
+  --border-primary: #252b32;
+  --border-secondary: #2f363e;
+  --border-focus: #5ee6c0;
 
-  --accent-primary: #5eead4;
-  --accent-primary-hover: #99f6e4;
-  --accent-success: #34d399;
-  --accent-warning: #fbbf24;
-  --accent-error: #f87171;
-  --accent-info: #8fb3d9;
+  --accent-primary: #5ee6c0;
+  --accent-primary-hover: #7ce8d0;
+  --accent-secondary: #7c8cff;
+
+  --accent-success: #48d597;
+  --accent-warning: #f5c76a;
+  --accent-error: #ff6b7a;
+  --accent-info: #6cb7ff;
+
   --anthropic-accent: #e8927c;
   --cat-olive: #b3bd8a;
   --provider-anthropic: #d4b160;
@@ -147,9 +179,12 @@ html[data-theme="dark"] {
   --provider-vertex: #8fa3d9;
 
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.35);
-  --shadow-md: 0 6px 12px -2px rgb(0 0 0 / 0.4), 0 3px 6px -3px rgb(0 0 0 / 0.35);
-  --shadow-lg: 0 18px 36px -10px rgb(0 0 0 / 0.55), 0 6px 12px -6px rgb(0 0 0 / 0.45);
-  --shadow-elevated: 0 28px 56px -16px rgb(0 0 0 / 0.65), 0 10px 20px -10px rgb(0 0 0 / 0.55);
+  --shadow-md:
+    0 6px 12px -2px rgb(0 0 0 / 0.4), 0 3px 6px -3px rgb(0 0 0 / 0.35);
+  --shadow-lg:
+    0 18px 36px -10px rgb(0 0 0 / 0.55), 0 6px 12px -6px rgb(0 0 0 / 0.45);
+  --shadow-elevated:
+    0 28px 56px -16px rgb(0 0 0 / 0.65), 0 10px 20px -10px rgb(0 0 0 / 0.55);
 }
 
 * {
@@ -204,6 +239,26 @@ body {
 :focus-visible {
   outline: 2px solid var(--border-focus);
   outline-offset: 2px;
+}
+
+/* Skip-to-content link (audit H1): hidden until keyboard-focused, then pinned
+   to the top-left so it sits above the chrome. Tokens only — no hex. */
+.skip-link {
+  position: absolute;
+  top: -100%;
+  left: 12px;
+  z-index: 200;
+  padding: 10px 14px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.skip-link:focus {
+  top: 12px;
 }
 
 /* Utility Classes */
@@ -1350,6 +1405,66 @@ body {
   flex-shrink: 0;
 }
 
+/* Compact, right-aligned counter for registry nav entries (e.g. "Providers 20").
+   Neutral (not a pill/status); tabular-nums so live counts don't jitter. */
+.nav-item-count {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-tertiary);
+  margin-left: auto;
+  padding-left: 8px;
+}
+
+/* Tiny runtime-integration status dots for detected agents. Not pills. */
+.status-dot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  background: currentColor;
+}
+.status-dot--on {
+  color: var(--accent-success);
+  background: var(--accent-success);
+}
+.status-dot--off {
+  color: var(--text-tertiary);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--text-tertiary);
+}
+
+/* Shared status component — dot + text, never color-only (accessibility). */
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.status-label {
+  color: inherit;
+}
+
+/* Skeleton loading placeholder (audit D1): content-shaped, opacity-only pulse
+   (compositor-friendly — never animates layout). The global
+   prefers-reduced-motion override disables it for reduced-motion users. */
+.skeleton {
+  display: inline-block;
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  animation: skeleton-pulse 1.6s ease-in-out infinite;
+}
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+
 .nav-section {
   margin-top: 16px;
 }
@@ -1878,16 +1993,43 @@ textarea.input {
    Typography
    ============================================================================ */
 
-/* Display face for headings — Space Grotesk (geometric, technical, distinctive)
-   with a system fallback so first paint is instant. */
+/* Inter for all UI text; JetBrains Mono for identifiers, model IDs, paths,
+   CLI commands, and any machine-readable string. */
 h1,
 h2,
 h3,
+h4,
+h5,
+h6,
 .card-title,
 .sidebar-title,
 .empty-state-title {
-  font-family: var(--font-display);
+  font-family: var(--font-sans);
   letter-spacing: -0.01em;
+}
+
+h1 {
+  font-size: var(--text-size-3xl);
+  font-weight: 600;
+}
+
+h2 {
+  font-size: var(--text-size-2xl);
+  font-weight: 600;
+}
+
+h3 {
+  font-size: var(--text-size-lg);
+  font-weight: 600;
+}
+
+/* All numeric displays use tabular figures (audit A4). */
+.tabular-nums,
+.stat-value,
+.dash-provider-num,
+.adr-stat-value,
+.nav-item-count {
+  font-variant-numeric: tabular-nums;
 }
 
 /* ============================================================================
@@ -2304,8 +2446,8 @@ textarea {
 }
 
 .stat-card-hover {
-  transition: transform var(--transition-fast), box-shadow var(--transition-fast),
-    border-color var(--transition-fast);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color
+    var(--transition-fast);
 }
 
 .stat-card-hover:hover {
@@ -2448,8 +2590,8 @@ textarea {
   font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
-  transition: border-color var(--transition-fast), background var(--transition-fast),
-    transform var(--transition-fast);
+  transition: border-color var(--transition-fast), background var(--transition-fast), transform
+    var(--transition-fast);
 }
 
 .detected-chip:hover {
@@ -2469,5 +2611,3 @@ textarea {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
-
