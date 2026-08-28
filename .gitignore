@@ -6,3 +6,21 @@ dist/
 .env
 .env.*
 !.env.example
+
+# Agent / team-session runtime artifacts
+.claude/
+.codex/
+.gemini/
+.opencode/
+.pi/
+.omp/
+.mimocode/
+.aionrs/
+.scratch/
+
+# CodeGraph index (runtime)
+.cgr-dir-mtimes.json
+.cgr-hash-cache.json
+.cgr-parser-fingerprint
+/index.bin
+/manifest.json
