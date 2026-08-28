@@ -1,5 +1,5 @@
 {
-  "version": 13,
+  "version": 14,
   "updatedAt": "2026-08-28",
   "description": "Maintained catalog of known AI coding agent CLIs. The dashboard merges this list with live detection: entries installed on the machine appear under Installed; the rest appear under Available to Install. Add a new agent here (and bump `version`) to surface it in the GUI. Install/uninstall commands are the ONLY commands the dashboard is allowed to execute. For adapter-backed entries `binaries` is derived from the adapter at runtime — declare it here only for non-adapter entries (see the allow-list in agent-catalog.test.ts). `settingsPaths` lets non-adapter entries be detected by their config footprint too. Path research: research/ai-agent-config-paths-consolidated.md (2026-08-21).",
   "agents": [
@@ -150,14 +150,51 @@
       "id": "omp",
       "name": "Oh My Pi",
       "icon": "Bot",
-      "description": "Oh My Pi (omp) — wrapper around Pi with a Rust core + Bun runtime.",
+      "description": "Oh My Pi (omp) — Pi fork with a Rust core + Bun runtime. YAML config, MCP in JSON, permissions in config.yml.",
       "apiTypes": [
         "chat",
         "anthropic"
       ],
       "status": "stable",
+      "source": "https://github.com/can1357/oh-my-pi",
       "addedAt": "2026-08-20",
-      "note": "Custom curl installer (Rust core + Bun). Please install or uninstall manually."
+      "settingsPaths": {
+        "darwin": [
+          "~/.omp/agent/config.yml"
+        ],
+        "linux": [
+          "~/.omp/agent/config.yml"
+        ],
+        "win32": [
+          "%USERPROFILE%\\.omp\\agent\\config.yml"
+        ]
+      },
+      "mcpPaths": {
+        "darwin": [
+          "~/.omp/agent/mcp.json"
+        ],
+        "linux": [
+          "~/.omp/agent/mcp.json"
+        ],
+        "win32": [
+          "%USERPROFILE%\\.omp\\agent\\mcp.json"
+        ]
+      },
+      "modelConfigPaths": {
+        "darwin": [
+          "~/.omp/agent/config.yml",
+          "~/.omp/agent/models.yml"
+        ],
+        "linux": [
+          "~/.omp/agent/config.yml",
+          "~/.omp/agent/models.yml"
+        ],
+        "win32": [
+          "%USERPROFILE%\\.omp\\agent\\config.yml",
+          "%USERPROFILE%\\.omp\\agent\\models.yml"
+        ]
+      },
+      "note": "Custom curl installer (Rust core + Bun). Please install or uninstall manually. MCP servers also imported from other agents' configs (Claude, Codex, Gemini, ...) with first-definition-wins precedence."
     },
     {
       "id": "reasonix",
@@ -316,9 +353,6 @@
       "status": "stable",
       "source": "https://aider.chat",
       "addedAt": "2026-08-21",
-      "binaries": [
-        "aider"
-      ],
       "settingsPaths": {
         "darwin": [
           "~/.aider.conf.yml"
@@ -439,9 +473,6 @@
       "status": "stable",
       "source": "https://zed.dev/docs/ai/assistant",
       "addedAt": "2026-08-21",
-      "binaries": [
-        "zed"
-      ],
       "settingsPaths": {
         "darwin": [
           "~/.config/zed/settings.json"
@@ -475,7 +506,7 @@
           "%APPDATA%\\Zed\\auth.json"
         ]
       },
-      "note": "GUI editor (agent inside). MCP under `context_servers` in settings.json."
+      "note": "GUI editor (agent inside). MCP under `context_servers` in settings.json (keyed map, command/args/env or url/headers)."
     },
     {
       "id": "continue",
@@ -538,9 +569,6 @@
       "status": "stable",
       "source": "https://docs.github.com/en/copilot/reference/copilot-cli-reference",
       "addedAt": "2026-08-21",
-      "binaries": [
-        "copilot"
-      ],
       "settingsPaths": {
         "darwin": [
           "~/.copilot/settings.json"
@@ -797,10 +825,6 @@
       "status": "stable",
       "source": "https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-interface.html",
       "addedAt": "2026-08-21",
-      "binaries": [
-        "q",
-        "amazon-q"
-      ],
       "settingsPaths": {
         "darwin": [
           "~/.aws/amazonq"
@@ -833,7 +857,18 @@
         "darwin",
         "linux"
       ],
-      "note": "AWS SSO/profile credentials. Env: AWS_PROFILE."
+      "note": "AWS SSO/profile credentials (Env: AWS_PROFILE). MCP in ~/.aws/amazonq/mcp.json (keyed mcpServers).",
+      "mcpPaths": {
+        "darwin": [
+          "~/.aws/amazonq/mcp.json"
+        ],
+        "linux": [
+          "~/.aws/amazonq/mcp.json"
+        ],
+        "win32": [
+          "%USERPROFILE%\\.aws\\amazonq\\mcp.json"
+        ]
+      }
     },
     {
       "id": "kimi",

@@ -28,6 +28,10 @@ export { createContinueAdapter, ContinueAdapter } from './continue';
 export { createCrushAdapter, CrushAdapter } from './crush';
 export { createWindsurfAdapter } from './windsurf';
 export { createRooCodeAdapter } from './roo-code';
+export { createAiderAdapter } from './aider';
+export { createZedAdapter } from './zed';
+export { createAmazonQAdapter } from './amazon-q';
+export { createCopilotCliAdapter } from './copilot-cli';
 
 // Adapter registry
 import { createClaudeCodeAdapter } from './claude-code';
@@ -49,6 +53,10 @@ import { createContinueAdapter } from './continue';
 import { createCrushAdapter } from './crush';
 import { createWindsurfAdapter } from './windsurf';
 import { createRooCodeAdapter } from './roo-code';
+import { createAiderAdapter } from './aider';
+import { createZedAdapter } from './zed';
+import { createAmazonQAdapter } from './amazon-q';
+import { createCopilotCliAdapter } from './copilot-cli';
 import type { AgentAdapter, Platform } from '../types';
 
 /**
@@ -70,7 +78,7 @@ const adapters = new Map<string, () => AgentAdapter>([
   ['kilo', createKiloAdapter],
   // MIMO CLI ("mimo")
   ['mimo', createMimoAdapter],
-  // OMP / Oh My Pi ("omp") — detect-only
+  // OMP / Oh My Pi ("omp")
   ['omp', createOmpAdapter],
   // OpenCode CLI ("opencode")
   ['opencode', createOpenCodeAdapter],
@@ -96,6 +104,14 @@ const adapters = new Map<string, () => AgentAdapter>([
   ['windsurf', createWindsurfAdapter],
   // Roo Code (Cline fork) ("roo")
   ['roo', createRooCodeAdapter],
+  // Aider (detect-only, no native MCP)
+  ['aider', createAiderAdapter],
+  // Zed editor ("zed")
+  ['zed', createZedAdapter],
+  // Amazon Q Developer CLI ("q")
+  ['amazonq', createAmazonQAdapter],
+  // GitHub Copilot CLI ("copilot")
+  ['copilot-cli', createCopilotCliAdapter],
 ]);
 
 export function getAdapter(agentId: string): AgentAdapter | null {

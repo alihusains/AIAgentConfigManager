@@ -11,6 +11,7 @@ import * as os from 'node:os';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { getAdapter } from './index';
+import { parseConfig } from '../utils';
 import type { MCPServerConfig } from '../types';
 
 function stdioServer(
@@ -609,6 +610,234 @@ describe('roo adapter (separate mcp_settings.json)', () => {
     const after = JSON.parse(readBack('~/.vscode-mock/global-storage/mcp_settings.json'));
     expect(after.mcpServers.keep).toBeUndefined();
     expect(after.mcpServers.gh).toBeDefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// OMP / Oh My Pi — YAML config.yml + models.yml, JSON mcp.json (keyed)
+// ---------------------------------------------------------------------------
+describe('omp adapter (YAML config + models, JSON mcp)', () => {
+  it('round-trips models, MCP servers, and permissions, preserving keys', async () => {
+    resetHome();
+    seed(
+      '~/.omp/agent/config.yml',
+      [
+        'theme: dark',
+        'tools:',
+        '  approvalMode: write',
+        '  approval:',
+        '    bash: prompt',
+        '  tools:',
+        '    read: allow',
+        'bash:',
+        '  patterns:',
+        '    - match: "git push"',
+        '      approval: prompt',
+      ].join('\n')
+    );
+    seed(
+      '~/.omp/agent/models.yml',
+      [
+        'providers:',
+        '  openai:',
+        '    baseUrl: https://api.openai.com/v1',
+        '    api: openai-completions',
+        '    models:',
+        '      - id: gpt-4o',
+        '        name: GPT-4o',
+        '        reasoning: true',
+        '        input: [text, image]',
+        '        contextWindow: 128000',
+        '        maxTokens: 16384',
+      ].join('\n')
+    );
+    seed(
+      '~/.omp/agent/mcp.json',
+      JSON.stringify({
+        mcpServers: {
+          existing: { command: 'node', args: ['s.js'], env: { KEY: 'v' } },
+          remote: { type: 'http', url: 'https://ex.com/mcp' },
+        },
+        customKey: 'keep-me',
+      })
+    );
+
+    const a = getAdapter('omp')!;
+    const cfg = await a.readConfig();
+
+    // Models decoded from models.yml
+    expect(cfg.modelProviders).toHaveLength(1);
+    expect(cfg.modelProviders[0].id).toBe('openai');
+    expect(cfg.models).toHaveLength(1);
+    expect(cfg.models[0].id).toBe('gpt-4o');
+    expect(cfg.models[0].capabilities).toContain('reasoning');
+    expect(cfg.models[0].capabilities).toContain('vision');
+
+    // MCP servers decoded from mcp.json
+    expect(cfg.mcpServers.map((s) => s.name).sort()).toEqual(['existing', 'remote']);
+    expect(cfg.mcpServers.find((s) => s.name === 'remote')!.url).toBe('https://ex.com/mcp');
+
+    // Permissions decoded from config.yml
+    expect(cfg.permissions.some((p) => p.id === 'omp-approval-bash' && !p.allowed)).toBe(true);
+    expect(cfg.permissions.some((p) => p.id === 'omp-tool-read' && p.allowed)).toBe(true);
+
+    // Add a model provider + model
+    await a.addModelProvider({
+      id: 'anthropic',
+      providerId: 'anthropic',
+      name: 'Anthropic',
+      type: 'custom',
+      config: { baseUrl: 'https://api.anthropic.com/v1', api: 'anthropic-messages' },
+      enabled: true,
+      priority: 1,
+    });
+    await a.addModel('anthropic', {
+      id: 'claude-sonnet-4-6',
+      providerId: 'anthropic',
+      name: 'Claude Sonnet 4.6',
+      displayName: 'Claude Sonnet 4.6',
+      roles: ['chat', 'apply', 'edit'],
+      contextLength: 200000,
+      maxTokens: 64000,
+    });
+
+    const modelsYaml = parseConfig(readBack('~/.omp/agent/models.yml'), 'yaml') as Record<string, unknown>;
+    const providers = modelsYaml.providers as Record<string, Record<string, unknown>>;
+    expect(providers.openai.baseUrl).toBe('https://api.openai.com/v1');
+    expect(providers.openai.models).toHaveLength(1);
+    expect(providers.anthropic.baseUrl).toBe('https://api.anthropic.com/v1');
+    expect(providers.anthropic.models).toHaveLength(1);
+
+    // Add an MCP server
+    await a.addMCPServer(stdioServer('gh', 'npx', ['-y', 'gh-mcp'], { T: '1' }));
+    const mcp = JSON.parse(readBack('~/.omp/agent/mcp.json'));
+    expect(mcp.customKey).toBe('keep-me');
+    expect(mcp.mcpServers.existing.command).toBe('node');
+    expect(mcp.mcpServers.gh.command).toBe('npx');
+    expect(mcp.mcpServers.gh.args).toEqual(['-y', 'gh-mcp']);
+    expect(mcp.mcpServers.remote.url).toBe('https://ex.com/mcp');
+
+    // Add a permission
+    await a.addPermission({
+      id: 'omp-approval-write',
+      type: 'tool',
+      pattern: 'write',
+      allowed: true,
+      description: 'Allow write tool',
+    });
+    const configYaml = parseConfig(readBack('~/.omp/agent/config.yml'), 'yaml') as Record<string, unknown>;
+    const tools = configYaml.tools as Record<string, unknown>;
+    const approval = tools.approval as Record<string, unknown>;
+    expect(approval.bash).toBe('prompt');
+    expect(approval.write).toBe('allow');
+    // bash.patterns preserved
+    const bash = configYaml.bash as Record<string, unknown>;
+    expect(bash.patterns).toBeDefined();
+    // theme preserved
+    expect(configYaml.theme).toBe('dark');
+
+    // Remove MCP server
+    await a.removeMCPServer('existing');
+    const after = JSON.parse(readBack('~/.omp/agent/mcp.json'));
+    expect(after.mcpServers.existing).toBeUndefined();
+    expect(after.mcpServers.gh).toBeDefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Zed — JSON settings.json, MCP under `context_servers` (NOT mcpServers)
+// ---------------------------------------------------------------------------
+describe('zed adapter (context_servers keyed map)', () => {
+  it('reads context_servers, adds stdio + remote, preserves other keys', async () => {
+    resetHome();
+    seed(
+      '~/.config/zed/settings.json',
+      JSON.stringify({
+        theme: 'one-dark',
+        context_servers: {
+          keep: { command: 'k', args: ['serve'] },
+        },
+      })
+    );
+    const a = getAdapter('zed')!;
+    const cfg = await a.readConfig();
+    expect(cfg.mcpServers.map((s) => s.name)).toEqual(['keep']);
+
+    await a.addMCPServer(stdioServer('gh', 'npx', ['-y', 'gh-mcp'], { T: '1' }));
+    await a.addMCPServer(httpServer('remote', 'https://ex.com/mcp'));
+    const json = JSON.parse(readBack('~/.config/zed/settings.json'));
+    expect(json.theme).toBe('one-dark');
+    // MCP lives under context_servers, never mcpServers
+    expect(json.context_servers.keep.command).toBe('k');
+    expect(json.context_servers.gh.command).toBe('npx');
+    expect(json.context_servers.gh.args).toEqual(['-y', 'gh-mcp']);
+    expect(json.context_servers.remote.url).toBe('https://ex.com/mcp');
+    expect(json.mcpServers).toBeUndefined();
+
+    await a.removeMCPServer('keep');
+    const after = JSON.parse(readBack('~/.config/zed/settings.json'));
+    expect(after.context_servers.keep).toBeUndefined();
+    expect(after.context_servers.gh).toBeDefined();
+    expect(after.mcpServers).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Amazon Q Developer CLI — JSON, separate mcp.json (keyed)
+// ---------------------------------------------------------------------------
+describe('amazonq adapter (separate mcp.json)', () => {
+  it('round-trips mcpServers in ~/.aws/amazonq/mcp.json', async () => {
+    resetHome();
+    seed('~/.aws/amazonq/mcp.json', JSON.stringify({ mcpServers: { keep: { command: 'k' } } }));
+    const a = getAdapter('amazonq')!;
+    const cfg = await a.readConfig();
+    expect(cfg.mcpServers.map((s) => s.name)).toEqual(['keep']);
+    await a.addMCPServer(stdioServer('ivs', 'node', ['/srv.js'], { K: 'v' }));
+    await a.addMCPServer(httpServer('remote', 'https://ex.com/mcp'));
+    const mcp = JSON.parse(readBack('~/.aws/amazonq/mcp.json'));
+    expect(mcp.mcpServers.keep.command).toBe('k');
+    expect(mcp.mcpServers.ivs.command).toBe('node');
+    expect(mcp.mcpServers.ivs.args).toEqual(['/srv.js']);
+    expect(mcp.mcpServers.ivs.env).toEqual({ K: 'v' });
+    expect(mcp.mcpServers.remote.url).toBe('https://ex.com/mcp');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GitHub Copilot CLI — JSONC settings.json + separate mcp-config.json (keyed)
+// ---------------------------------------------------------------------------
+describe('copilot-cli adapter (separate mcp-config.json)', () => {
+  it('writes MCP into mcp-config.json, leaves settings.json untouched', async () => {
+    resetHome();
+    seed('~/.copilot/settings.json', '// user settings\n{\n  "theme": "dark"\n}');
+    seed('~/.copilot/mcp-config.json', JSON.stringify({ mcpServers: { keep: { command: 'k' } } }));
+    const a = getAdapter('copilot-cli')!;
+    await a.readConfig();
+    await a.addMCPServer(stdioServer('fs', 'npx', ['-y', 'fs-mcp']));
+    const mcp = JSON.parse(readBack('~/.copilot/mcp-config.json'));
+    expect(mcp.mcpServers.keep.command).toBe('k');
+    expect(mcp.mcpServers.fs.command).toBe('npx');
+    // settings.json untouched (comment + theme preserved)
+    const settings = readBack('~/.copilot/settings.json');
+    expect(settings).toContain('"theme": "dark"');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Aider — detect-only (no native MCP; YAML config read into customSettings)
+// ---------------------------------------------------------------------------
+describe('aider adapter (detect-only)', () => {
+  it('reads .aider.conf.yml into customSettings and refuses writes', async () => {
+    resetHome();
+    seed('~/.aider.conf.yml', 'model: gpt-4o\nedit-format: wholefile\n');
+    const a = getAdapter('aider')!;
+    const cfg = await a.readConfig();
+    expect(cfg.customSettings.model).toBe('gpt-4o');
+    expect(cfg.customSettings['edit-format']).toBe('wholefile');
+    expect(cfg.mcpServers).toEqual([]);
+    expect(a.info.supports.mcpServers).toBe(false);
+    expect(a.getMCPConfigPath()).toBeNull();
+    await expect(a.writeConfig(cfg)).rejects.toThrow(/detect-only/);
   });
 });
 
