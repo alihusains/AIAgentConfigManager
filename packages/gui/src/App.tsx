@@ -13,7 +13,8 @@ import { RamMeter } from './components/RamMeter';
 import { ToastContainer } from './components/Toast';
 import { ThemeToggle, toggleTheme } from './components/ThemeToggle';
 import { Breadcrumbs } from './components/Breadcrumbs';
-import { Menu, X, RefreshCw, AlertTriangle } from 'lucide-react';
+import { CommandPalette } from './components/CommandPalette';
+import { Menu, X, RefreshCw, AlertTriangle, Search } from 'lucide-react';
 
 const VALID_VIEWS: View[] = [
   'overview',
@@ -146,6 +147,12 @@ function App() {
 
   return (
     <div className="flex h-full bg-bg-canvas">
+      {/* Skip-to-content link (audit H1): first focusable element, bypasses the
+          sidebar + header to reach the main content. */}
+      <a href="#main" className="skip-link">
+        Skip to content
+      </a>
+
       {/* Mobile sidebar toggle */}
       <button
         className="btn-secondary btn-icon fixed top-4 left-4 z-50 lg:hidden"
@@ -159,7 +166,7 @@ function App() {
       <Sidebar />
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col min-w-0">
+      <main id="main" className="flex-1 flex flex-col min-w-0">
         {/* Top Bar */}
         <header className="flex items-center justify-between px-4 py-3 border-b sticky top-0 z-10 bg-bg-canvas/95 backdrop-blur-sm">
           <div className="flex items-center gap-3 min-w-0">
@@ -174,6 +181,18 @@ function App() {
           </div>
           <div className="flex items-center gap-3">
             {error && <span className="text-xs text-error truncate max-w-lg">{error}</span>}
+            <button
+              className="btn-secondary btn-sm"
+              title="Search (Cmd-K)"
+              onClick={() => {
+                // Dispatch a synthetic Cmd-K to open the palette
+                window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }));
+              }}
+            >
+              <Search size={14} />
+              <span className="hidden sm:inline">Search</span>
+              <kbd className="font-mono text-xs opacity-60 ml-1">⌘K</kbd>
+            </button>
             <RamMeter />
             <button
               className="btn-secondary btn-sm"
@@ -218,6 +237,7 @@ function App() {
       </main>
 
       <ToastContainer />
+      <CommandPalette />
     </div>
   );
 }
