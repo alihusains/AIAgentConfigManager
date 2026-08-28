@@ -38,13 +38,13 @@ The honest inventory, including what is broken:
 - Live API verification (`/models`, `/chat/completions`, `/responses`) with curl and raw output shown to the user.
 - CLI surface (`detect`, `provider`, `model`, `mcp`, `permission`, `backup`, `gui`) and a local-first dashboard behind a per-launch session token.
 
-**Broken right now.**
-- **Provider delete cascade is regressed.** Deleting a provider from the dashboard either does nothing (multi-agent case) or shows a success toast while the agent still lists the provider (single-agent case, reproduced against Mimo). The README advertises cascade correctness as a success metric. Until the fix lands and is verified, that claim is not true. Fix is in progress.
-- **Codex rename bug** produces a second silent failure. Also being fixed this cycle.
+**Broken until this cycle (status at time of writing, 2026-08-28).**
+- **Provider delete cascade regressed and was caught in the wild.** Deleting a provider from the dashboard either did nothing (multi-agent case) or showed a success toast while the agent still listed the provider (single-agent case, reproduced against Mimo; root cause involved GUI-encoded provider ids with spaces). A fix now sits in the working tree with four passing regression tests covering the multi-agent cascade and both spaced-id symptoms (`gui-server-delete.test.ts`), but it is not yet committed or verified end to end in the dashboard. Until that verification lands, treat the README's cascade claim as test-backed intent, not a proven guarantee.
+- **Codex rename bug** produced a second silent failure; fixed this cycle (commit history: `fix(core)` series).
 
 **Debt we are carrying.**
 - **GUI design debt.** A full audit (`docs/audits/gui-design-audit.md`) found weak typographic hierarchy (page titles at 20px, stat values at body size), four competing accent hues, two divergent dark themes that render differently depending on how dark mode is triggered, hardcoded hex values that never adapt to theme, pill badges on nearly every data point, and a better StatCard design that exists as dead CSS while the worse one ships.
-- **Test coverage was thin until this round.** Seven adapters had no tests and `packages/gui` had no test script at all. This cycle added 26 adapter tests and the first GUI test harness. Coverage is now real but young.
+- **Test coverage was thin until this round.** Seven adapters had no tests and `packages/gui` had no test script at all. Measured on 2026-08-28: core 88 passing (1 skipped), cli 24 passing, gui 32 passing, 144 total. Coverage is now real but young, and no coverage-percentage claim is made because none has been measured.
 - **Lint was formatting-only.** `pnpm lint` checked whitespace, not correctness. Real lint rules are landing with the current fixes.
 
 **What we do not have at all.**

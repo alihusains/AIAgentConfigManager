@@ -30,6 +30,23 @@ body:
       description: The commands you ran (`ai-config …`) or the dashboard actions you used.
     validations:
       required: true
+  - type: input
+    id: agent
+    attributes:
+      label: Which agent/tool is involved?
+      description: e.g. Claude Code, Codex, opencode, Cursor CLI, Cline, Aider… (or "none / the tool itself")
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Linux
+        - Windows (unsupported, but tell us anyway)
+    validations:
+      required: true
   - type: dropdown
     id: area
     attributes:

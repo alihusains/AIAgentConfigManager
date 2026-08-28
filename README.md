@@ -8,7 +8,7 @@
 ![Version](https://img.shields.io/badge/version-v0.1.0-3b82f6)
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-0f172a)
 ![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)
-![License](https://img.shields.io/badge/license-MIT-blue)
+![License](https://img.shields.io/badge/license-TBD-lightgrey)
 
 *A local-first configuration manager for your AI coding agents: providers, models, MCP servers, and permissions, defined once and synced into every agent you use.*
 
@@ -228,4 +228,6 @@ Yes. Issues are curated for onboarding and every PR gets reviewed. See
 
 ## License
 
-MIT. Add the `LICENSE` file before publishing the repository.
+Not yet decided. No `LICENSE` file exists and `package.json` declares no license; the
+maintainer will pick one before the repository is published. Until then, all rights
+reserved by default.
