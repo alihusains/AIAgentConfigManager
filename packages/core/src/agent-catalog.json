@@ -8,10 +8,7 @@
       "name": "OpenAI Codex (chatgpt)",
       "icon": "MessageSquare",
       "description": "OpenAI's coding agent CLI (binaries: codex / chatgpt). Installed via bun on this machine.",
-      "apiTypes": [
-        "responses",
-        "chat"
-      ],
+      "apiTypes": ["responses", "chat"],
       "status": "stable",
       "source": "https://developers.openai.com/codex/",
       "addedAt": "2026-08-20",
@@ -29,18 +26,12 @@
       "name": "Claude Code",
       "icon": "MessageCircle",
       "description": "Anthropic's Claude Code CLI for the terminal.",
-      "apiTypes": [
-        "anthropic",
-        "chat"
-      ],
+      "apiTypes": ["anthropic", "chat"],
       "status": "stable",
       "source": "https://docs.anthropic.com/en/docs/claude-code/overview",
       "addedAt": "2026-08-20",
       "install": "curl -fsSL https://claude.ai/install.sh | bash",
-      "installPlatforms": [
-        "darwin",
-        "linux"
-      ],
+      "installPlatforms": ["darwin", "linux"],
       "skillsPaths": {
         "darwin": "~/.claude/skills",
         "linux": "~/.claude/skills",
@@ -53,21 +44,14 @@
       "name": "OpenCode",
       "icon": "Code",
       "description": "The open-source terminal coding agent (Rust core, extensible).",
-      "apiTypes": [
-        "chat",
-        "anthropic"
-      ],
+      "apiTypes": ["chat", "anthropic"],
       "status": "stable",
       "source": "https://opencode.ai",
       "addedAt": "2026-08-20",
       "install": "brew install opencode",
-      "installPlatforms": [
-        "darwin"
-      ],
+      "installPlatforms": ["darwin"],
       "uninstall": "brew uninstall opencode",
-      "uninstallPlatforms": [
-        "darwin"
-      ],
+      "uninstallPlatforms": ["darwin"],
       "skillsPaths": {
         "darwin": "~/.config/opencode/skills",
         "linux": "~/.config/opencode/skills",
@@ -80,9 +64,7 @@
       "name": "Mimo",
       "icon": "Sparkles",
       "description": "Mimo CLI by Moonshot AI (mimocode).",
-      "apiTypes": [
-        "chat"
-      ],
+      "apiTypes": ["chat"],
       "status": "stable",
       "addedAt": "2026-08-20",
       "install": "npm install -g @mimo-ai/cli",
@@ -93,10 +75,7 @@
       "name": "Kilo Code",
       "icon": "Zap",
       "description": "Kilo Code CLI (VS Code extension family + terminal CLI).",
-      "apiTypes": [
-        "chat",
-        "anthropic"
-      ],
+      "apiTypes": ["chat", "anthropic"],
       "status": "stable",
       "source": "https://kilocode.ai",
       "addedAt": "2026-08-20",
@@ -108,10 +87,7 @@
       "name": "Pi",
       "icon": "Bot",
       "description": "Pi — the lightweight coding agent from the Pi / cmux stack.",
-      "apiTypes": [
-        "chat",
-        "anthropic"
-      ],
+      "apiTypes": ["chat", "anthropic"],
       "status": "stable",
       "addedAt": "2026-08-20",
       "install": "npm install -g @earendil-works/pi-coding-agent",
@@ -122,10 +98,7 @@
       "name": "Gemini CLI",
       "icon": "Sparkles",
       "description": "Google Gemini CLI — Google's coding agent in your terminal.",
-      "apiTypes": [
-        "anthropic",
-        "chat"
-      ],
+      "apiTypes": ["anthropic", "chat"],
       "status": "stable",
       "source": "https://github.com/google-gemini/gemini-cli",
       "addedAt": "2026-08-20",
@@ -137,10 +110,7 @@
       "name": "Junie",
       "icon": "Braces",
       "description": "JetBrains Junie — coding agent CLI from the JetBrains ecosystem.",
-      "apiTypes": [
-        "chat",
-        "anthropic"
-      ],
+      "apiTypes": ["chat", "anthropic"],
       "status": "stable",
       "source": "https://www.jetbrains.com/junie/",
       "addedAt": "2026-08-20",
@@ -150,99 +120,55 @@
       "id": "omp",
       "name": "Oh My Pi",
       "icon": "Bot",
-      "description": "Oh My Pi (omp) — Pi fork with a Rust core + Bun runtime. YAML config, MCP in JSON, permissions in config.yml.",
-      "apiTypes": [
-        "chat",
-        "anthropic"
-      ],
+      "description": "Oh My Pi (omp) — Pi fork with a Rust core + Bun runtime. Detect-only: config read/write not yet supported.",
+      "apiTypes": ["chat", "anthropic"],
       "status": "stable",
       "source": "https://github.com/can1357/oh-my-pi",
       "addedAt": "2026-08-20",
       "settingsPaths": {
-        "darwin": [
-          "~/.omp/agent/config.yml"
-        ],
-        "linux": [
-          "~/.omp/agent/config.yml"
-        ],
-        "win32": [
-          "%USERPROFILE%\\.omp\\agent\\config.yml"
-        ]
+        "darwin": ["~/.omp/agent/config.yml"],
+        "linux": ["~/.omp/agent/config.yml"],
+        "win32": ["%USERPROFILE%\\.omp\\agent\\config.yml"]
       },
       "mcpPaths": {
-        "darwin": [
-          "~/.omp/agent/mcp.json"
-        ],
-        "linux": [
-          "~/.omp/agent/mcp.json"
-        ],
-        "win32": [
-          "%USERPROFILE%\\.omp\\agent\\mcp.json"
-        ]
+        "darwin": ["~/.omp/agent/mcp.json"],
+        "linux": ["~/.omp/agent/mcp.json"],
+        "win32": ["%USERPROFILE%\\.omp\\agent\\mcp.json"]
       },
       "modelConfigPaths": {
-        "darwin": [
-          "~/.omp/agent/config.yml",
-          "~/.omp/agent/models.yml"
-        ],
-        "linux": [
-          "~/.omp/agent/config.yml",
-          "~/.omp/agent/models.yml"
-        ],
+        "darwin": ["~/.omp/agent/config.yml", "~/.omp/agent/models.yml"],
+        "linux": ["~/.omp/agent/config.yml", "~/.omp/agent/models.yml"],
         "win32": [
           "%USERPROFILE%\\.omp\\agent\\config.yml",
           "%USERPROFILE%\\.omp\\agent\\models.yml"
         ]
       },
-      "note": "Custom curl installer (Rust core + Bun). Please install or uninstall manually. MCP servers also imported from other agents' configs (Claude, Codex, Gemini, ...) with first-definition-wins precedence."
+      "note": "Detect-only. Custom curl installer (Rust core + Bun). Config read/write deferred: OMP's YAML provider store and permission model don't map cleanly onto the unified schema. MCP servers also imported from other agents' configs with first-definition-wins precedence."
     },
     {
       "id": "reasonix",
       "name": "Reasonix (DeepSeek-Reasonix)",
       "icon": "Cpu",
       "description": "DeepSeek-native coding harness (published as esengine/DeepSeek-Reasonix) engineered for byte-stable prefix-cache performance. Requires Node >= 22. Searchable as 'deepseek' / 'DeepSeek harness'.",
-      "apiTypes": [
-        "chat"
-      ],
+      "apiTypes": ["chat"],
       "status": "beta",
       "source": "https://github.com/esengine/DeepSeek-Reasonix",
       "addedAt": "2026-08-20",
-      "binaries": [
-        "reasonix",
-        "deepseek-reasonix"
-      ],
+      "binaries": ["reasonix", "deepseek-reasonix"],
       "settingsPaths": {
-        "darwin": [
-          "~/.reasonix/config.toml"
-        ],
-        "linux": [
-          "~/.reasonix/config.toml"
-        ],
-        "win32": [
-          "%APPDATA%\\reasonix\\config.toml"
-        ]
+        "darwin": ["~/.reasonix/config.toml"],
+        "linux": ["~/.reasonix/config.toml"],
+        "win32": ["%APPDATA%\\reasonix\\config.toml"]
       },
       "mcpPaths": {
-        "darwin": [
-          "~/.reasonix/config.toml"
-        ],
-        "linux": [
-          "~/.reasonix/config.toml"
-        ],
-        "win32": [
-          "%APPDATA%\\reasonix\\config.toml"
-        ]
+        "darwin": ["~/.reasonix/config.toml"],
+        "linux": ["~/.reasonix/config.toml"],
+        "win32": ["%APPDATA%\\reasonix\\config.toml"]
       },
       "modelCredentialPaths": {
-        "darwin": [
-          "~/.reasonix/.env"
-        ],
-        "linux": [
-          "~/.reasonix/.env"
-        ],
-        "win32": [
-          "%APPDATA%\\reasonix\\.env"
-        ]
+        "darwin": ["~/.reasonix/.env"],
+        "linux": ["~/.reasonix/.env"],
+        "win32": ["%APPDATA%\\reasonix\\.env"]
       },
       "install": "npm install -g reasonix",
       "uninstall": "npm uninstall -g reasonix",
@@ -253,48 +179,25 @@
       "name": "DeepSeek Harness",
       "icon": "Cpu",
       "description": "DeepSeek harness (esengine/DeepSeek-Reasonix) — DeepSeek-native coding agent engineered for byte-stable prefix-cache performance. Explicit 'deepseek' catalog entry so the DeepSeek harness is discoverable and searchable.",
-      "apiTypes": [
-        "chat"
-      ],
+      "apiTypes": ["chat"],
       "status": "stable",
       "source": "https://github.com/esengine/DeepSeek-Reasonix",
       "addedAt": "2026-08-27",
-      "binaries": [
-        "deepseek-reasonix",
-        "reasonix"
-      ],
+      "binaries": ["deepseek-reasonix", "reasonix"],
       "settingsPaths": {
-        "darwin": [
-          "~/.reasonix/config.toml"
-        ],
-        "linux": [
-          "~/.reasonix/config.toml"
-        ],
-        "win32": [
-          "%APPDATA%\\reasonix\\config.toml"
-        ]
+        "darwin": ["~/.reasonix/config.toml"],
+        "linux": ["~/.reasonix/config.toml"],
+        "win32": ["%APPDATA%\\reasonix\\config.toml"]
       },
       "mcpPaths": {
-        "darwin": [
-          "~/.reasonix/config.toml"
-        ],
-        "linux": [
-          "~/.reasonix/config.toml"
-        ],
-        "win32": [
-          "%APPDATA%\\reasonix\\config.toml"
-        ]
+        "darwin": ["~/.reasonix/config.toml"],
+        "linux": ["~/.reasonix/config.toml"],
+        "win32": ["%APPDATA%\\reasonix\\config.toml"]
       },
       "modelCredentialPaths": {
-        "darwin": [
-          "~/.reasonix/.env"
-        ],
-        "linux": [
-          "~/.reasonix/.env"
-        ],
-        "win32": [
-          "%APPDATA%\\reasonix\\.env"
-        ]
+        "darwin": ["~/.reasonix/.env"],
+        "linux": ["~/.reasonix/.env"],
+        "win32": ["%APPDATA%\\reasonix\\.env"]
       },
       "install": "npm install -g reasonix",
       "uninstall": "npm uninstall -g reasonix",
@@ -305,22 +208,14 @@
       "name": "FreeBuff",
       "icon": "Wind",
       "description": "Free, ad-supported coding agent CLI. No API key, account, or config file needed. Requires Node >= 18.",
-      "apiTypes": [
-        "chat"
-      ],
+      "apiTypes": ["chat"],
       "status": "beta",
       "source": "https://freebuff.com/cli",
       "addedAt": "2026-08-20",
       "settingsPaths": {
-        "darwin": [
-          "~/.config/manicode/settings.json"
-        ],
-        "linux": [
-          "~/.config/manicode/settings.json"
-        ],
-        "win32": [
-          "~/.config/manicode/settings.json"
-        ]
+        "darwin": ["~/.config/manicode/settings.json"],
+        "linux": ["~/.config/manicode/settings.json"],
+        "win32": ["~/.config/manicode/settings.json"]
       },
       "install": "npm install -g freebuff",
       "uninstall": "npm uninstall -g freebuff",
@@ -331,14 +226,10 @@
       "name": "Little Coder",
       "icon": "Bot",
       "description": "Little coder — small-model-friendly coding agent CLI.",
-      "apiTypes": [
-        "chat"
-      ],
+      "apiTypes": ["chat"],
       "status": "beta",
       "addedAt": "2026-08-21",
-      "binaries": [
-        "little-coder"
-      ],
+      "binaries": ["little-coder"],
       "note": "Config schema not yet researched — detected by binary only."
     },
     {
@@ -346,34 +237,19 @@
       "name": "Aider",
       "icon": "Wrench",
       "description": "Aider — AI pair programming in your terminal (Python).",
-      "apiTypes": [
-        "chat",
-        "anthropic"
-      ],
+      "apiTypes": ["chat", "anthropic"],
       "status": "stable",
       "source": "https://aider.chat",
       "addedAt": "2026-08-21",
       "settingsPaths": {
-        "darwin": [
-          "~/.aider.conf.yml"
-        ],
-        "linux": [
-          "~/.aider.conf.yml"
-        ],
-        "win32": [
-          "%USERPROFILE%\\.aider.conf.yml"
-        ]
+        "darwin": ["~/.aider.conf.yml"],
+        "linux": ["~/.aider.conf.yml"],
+        "win32": ["%USERPROFILE%\\.aider.conf.yml"]
       },
       "modelCredentialPaths": {
-        "darwin": [
-          "~/.aider.conf.yml"
-        ],
-        "linux": [
-          "~/.aider.conf.yml"
-        ],
-        "win32": [
-          "%USERPROFILE%\\.aider.conf.yml"
-        ]
+        "darwin": ["~/.aider.conf.yml"],
+        "linux": ["~/.aider.conf.yml"],
+        "win32": ["%USERPROFILE%\\.aider.conf.yml"]
       },
       "install": "pipx install aider-chat",
       "uninstall": "pipx uninstall aider-chat",
@@ -384,34 +260,19 @@
       "name": "Cline",
       "icon": "Rocket",
       "description": "Cline — autonomous coding agent (VS Code extension + terminal CLI).",
-      "apiTypes": [
-        "chat",
-        "anthropic"
-      ],
+      "apiTypes": ["chat", "anthropic"],
       "status": "stable",
       "source": "https://docs.cline.bot",
       "addedAt": "2026-08-21",
       "settingsPaths": {
-        "darwin": [
-          "~/.cline/settings.json"
-        ],
-        "linux": [
-          "~/.cline/settings.json"
-        ],
-        "win32": [
-          "%APPDATA%\\Cline\\settings.json"
-        ]
+        "darwin": ["~/.cline/settings.json"],
+        "linux": ["~/.cline/settings.json"],
+        "win32": ["%APPDATA%\\Cline\\settings.json"]
       },
       "mcpPaths": {
-        "darwin": [
-          "~/.cline/mcp.json"
-        ],
-        "linux": [
-          "~/.cline/mcp.json"
-        ],
-        "win32": [
-          "%APPDATA%\\Cline\\mcp.json"
-        ]
+        "darwin": ["~/.cline/mcp.json"],
+        "linux": ["~/.cline/mcp.json"],
+        "win32": ["%APPDATA%\\Cline\\mcp.json"]
       },
       "install": "npm install -g cline",
       "uninstall": "npm uninstall -g cline",
@@ -422,43 +283,24 @@
       "name": "Goose",
       "icon": "Bird",
       "description": "Goose — Block’s open-source extensible coding agent.",
-      "apiTypes": [
-        "chat",
-        "anthropic"
-      ],
+      "apiTypes": ["chat", "anthropic"],
       "status": "stable",
       "source": "https://github.com/block/goose",
       "addedAt": "2026-08-21",
       "settingsPaths": {
-        "darwin": [
-          "~/.config/goose/config.yaml"
-        ],
-        "linux": [
-          "~/.config/goose/config.yaml"
-        ],
-        "win32": [
-          "%APPDATA%\\Block\\goose\\config\\config.yaml"
-        ]
+        "darwin": ["~/.config/goose/config.yaml"],
+        "linux": ["~/.config/goose/config.yaml"],
+        "win32": ["%APPDATA%\\Block\\goose\\config\\config.yaml"]
       },
       "modelCredentialPaths": {
-        "darwin": [
-          "~/.config/goose/credentials"
-        ],
-        "linux": [
-          "~/.config/goose/credentials"
-        ],
-        "win32": [
-          "%APPDATA%\\Block\\goose\\credentials"
-        ]
+        "darwin": ["~/.config/goose/credentials"],
+        "linux": ["~/.config/goose/credentials"],
+        "win32": ["%APPDATA%\\Block\\goose\\credentials"]
       },
       "install": "brew install block/goose/goose",
-      "installPlatforms": [
-        "darwin"
-      ],
+      "installPlatforms": ["darwin"],
       "uninstall": "brew uninstall goose",
-      "uninstallPlatforms": [
-        "darwin"
-      ],
+      "uninstallPlatforms": ["darwin"],
       "note": "YAML config; MCP servers (extensions) under `extensions:` (keyed map, cmd/args/envs or uri). Env: GOOSE_PATH_ROOT."
     },
     {
@@ -466,45 +308,24 @@
       "name": "Zed",
       "icon": "Box",
       "description": "Zed — high-performance editor with a built-in AI agent.",
-      "apiTypes": [
-        "chat",
-        "anthropic"
-      ],
+      "apiTypes": ["chat", "anthropic"],
       "status": "stable",
       "source": "https://zed.dev/docs/ai/assistant",
       "addedAt": "2026-08-21",
       "settingsPaths": {
-        "darwin": [
-          "~/.config/zed/settings.json"
-        ],
-        "linux": [
-          "~/.config/zed/settings.json"
-        ],
-        "win32": [
-          "%APPDATA%\\Zed\\settings.json"
-        ]
+        "darwin": ["~/.config/zed/settings.json"],
+        "linux": ["~/.config/zed/settings.json"],
+        "win32": ["%APPDATA%\\Zed\\settings.json"]
       },
       "mcpPaths": {
-        "darwin": [
-          "~/.config/zed/settings.json"
-        ],
-        "linux": [
-          "~/.config/zed/settings.json"
-        ],
-        "win32": [
-          "%APPDATA%\\Zed\\settings.json"
-        ]
+        "darwin": ["~/.config/zed/settings.json"],
+        "linux": ["~/.config/zed/settings.json"],
+        "win32": ["%APPDATA%\\Zed\\settings.json"]
       },
       "modelCredentialPaths": {
-        "darwin": [
-          "~/.local/share/zed/auth.json"
-        ],
-        "linux": [
-          "~/.local/share/zed/auth.json"
-        ],
-        "win32": [
-          "%APPDATA%\\Zed\\auth.json"
-        ]
+        "darwin": ["~/.local/share/zed/auth.json"],
+        "linux": ["~/.local/share/zed/auth.json"],
+        "win32": ["%APPDATA%\\Zed\\auth.json"]
       },
       "note": "GUI editor (agent inside). MCP under `context_servers` in settings.json (keyed map, command/args/env or url/headers)."
     },
@@ -513,45 +334,24 @@
       "name": "Continue.dev",
       "icon": "Play",
       "description": "Continue — open-source AI code assistant (IDE extension + CLI).",
-      "apiTypes": [
-        "chat",
-        "anthropic"
-      ],
+      "apiTypes": ["chat", "anthropic"],
       "status": "stable",
       "source": "https://docs.continue.dev",
       "addedAt": "2026-08-21",
       "settingsPaths": {
-        "darwin": [
-          "~/.continue/config.yaml"
-        ],
-        "linux": [
-          "~/.continue/config.yaml"
-        ],
-        "win32": [
-          "%USERPROFILE%\\.continue\\config.yaml"
-        ]
+        "darwin": ["~/.continue/config.yaml"],
+        "linux": ["~/.continue/config.yaml"],
+        "win32": ["%USERPROFILE%\\.continue\\config.yaml"]
       },
       "mcpPaths": {
-        "darwin": [
-          "~/.continue/config.yaml"
-        ],
-        "linux": [
-          "~/.continue/config.yaml"
-        ],
-        "win32": [
-          "%USERPROFILE%\\.continue\\config.yaml"
-        ]
+        "darwin": ["~/.continue/config.yaml"],
+        "linux": ["~/.continue/config.yaml"],
+        "win32": ["%USERPROFILE%\\.continue\\config.yaml"]
       },
       "modelCredentialPaths": {
-        "darwin": [
-          "~/.continue/.env"
-        ],
-        "linux": [
-          "~/.continue/.env"
-        ],
-        "win32": [
-          "%USERPROFILE%\\.continue\\.env"
-        ]
+        "darwin": ["~/.continue/.env"],
+        "linux": ["~/.continue/.env"],
+        "win32": ["%USERPROFILE%\\.continue\\.env"]
       },
       "install": "npm install -g @continuedev/cli",
       "uninstall": "npm uninstall -g @continuedev/cli",
@@ -562,34 +362,19 @@
       "name": "GitHub Copilot CLI",
       "icon": "Github",
       "description": "GitHub Copilot CLI — agentic coding in the terminal.",
-      "apiTypes": [
-        "chat",
-        "anthropic"
-      ],
+      "apiTypes": ["chat", "anthropic"],
       "status": "stable",
       "source": "https://docs.github.com/en/copilot/reference/copilot-cli-reference",
       "addedAt": "2026-08-21",
       "settingsPaths": {
-        "darwin": [
-          "~/.copilot/settings.json"
-        ],
-        "linux": [
-          "~/.copilot/settings.json"
-        ],
-        "win32": [
-          "%USERPROFILE%\\.copilot\\settings.json"
-        ]
+        "darwin": ["~/.copilot/settings.json"],
+        "linux": ["~/.copilot/settings.json"],
+        "win32": ["%USERPROFILE%\\.copilot\\settings.json"]
       },
       "mcpPaths": {
-        "darwin": [
-          "~/.copilot/mcp-config.json"
-        ],
-        "linux": [
-          "~/.copilot/mcp-config.json"
-        ],
-        "win32": [
-          "%USERPROFILE%\\.copilot\\mcp-config.json"
-        ]
+        "darwin": ["~/.copilot/mcp-config.json"],
+        "linux": ["~/.copilot/mcp-config.json"],
+        "win32": ["%USERPROFILE%\\.copilot\\mcp-config.json"]
       },
       "note": "JSONC config; MCP in mcp-config.json (mcpServers). Env: COPILOT_HOME. Auth via gh / keyring."
     },
@@ -598,34 +383,19 @@
       "name": "Cursor CLI",
       "icon": "MousePointer",
       "description": "Cursor’s terminal coding agent (shares MCP config with the editor).",
-      "apiTypes": [
-        "chat",
-        "anthropic"
-      ],
+      "apiTypes": ["chat", "anthropic"],
       "status": "stable",
       "source": "https://cursor.com/docs/cli",
       "addedAt": "2026-08-21",
       "settingsPaths": {
-        "darwin": [
-          "~/.cursor/cli-config.json"
-        ],
-        "linux": [
-          "~/.cursor/cli-config.json"
-        ],
-        "win32": [
-          "%USERPROFILE%\\.cursor\\cli-config.json"
-        ]
+        "darwin": ["~/.cursor/cli-config.json"],
+        "linux": ["~/.cursor/cli-config.json"],
+        "win32": ["%USERPROFILE%\\.cursor\\cli-config.json"]
       },
       "mcpPaths": {
-        "darwin": [
-          "~/.cursor/mcp.json"
-        ],
-        "linux": [
-          "~/.cursor/mcp.json"
-        ],
-        "win32": [
-          "%USERPROFILE%\\.cursor\\mcp.json"
-        ]
+        "darwin": ["~/.cursor/mcp.json"],
+        "linux": ["~/.cursor/mcp.json"],
+        "win32": ["%USERPROFILE%\\.cursor\\mcp.json"]
       },
       "note": "MCP in ~/.cursor/mcp.json (mcpServers), shared with the editor. Env: CURSOR_CONFIG_DIR."
     },
@@ -634,34 +404,19 @@
       "name": "Windsurf",
       "icon": "Waves",
       "description": "Windsurf (Cascade) — AI IDE with terminal agent.",
-      "apiTypes": [
-        "chat",
-        "anthropic"
-      ],
+      "apiTypes": ["chat", "anthropic"],
       "status": "stable",
       "source": "https://windsurf.com",
       "addedAt": "2026-08-21",
       "settingsPaths": {
-        "darwin": [
-          "~/.codeium/windsurf/"
-        ],
-        "linux": [
-          "~/.codeium/windsurf/"
-        ],
-        "win32": [
-          "%APPDATA%\\Codeium\\windsurf\\"
-        ]
+        "darwin": ["~/.codeium/windsurf/"],
+        "linux": ["~/.codeium/windsurf/"],
+        "win32": ["%APPDATA%\\Codeium\\windsurf\\"]
       },
       "mcpPaths": {
-        "darwin": [
-          "~/.codeium/windsurf/mcp_config.json"
-        ],
-        "linux": [
-          "~/.codeium/windsurf/mcp_config.json"
-        ],
-        "win32": [
-          "%APPDATA%\\Codeium\\windsurf\\mcp_config.json"
-        ]
+        "darwin": ["~/.codeium/windsurf/mcp_config.json"],
+        "linux": ["~/.codeium/windsurf/mcp_config.json"],
+        "win32": ["%APPDATA%\\Codeium\\windsurf\\mcp_config.json"]
       },
       "note": "MCP in mcp_config.json (mcpServers, stdio command/args or serverUrl). Account-based auth."
     },
@@ -670,25 +425,15 @@
       "name": "Devin CLI (Devin Local)",
       "icon": "Terminal",
       "description": "Devin Local — Cognition’s terminal coding agent (bundled with Windsurf 2.0).",
-      "apiTypes": [
-        "chat"
-      ],
+      "apiTypes": ["chat"],
       "status": "beta",
       "source": "https://docs.devin.ai",
       "addedAt": "2026-08-21",
-      "binaries": [
-        "devin"
-      ],
+      "binaries": ["devin"],
       "settingsPaths": {
-        "darwin": [
-          "~/.config/devin/config.json"
-        ],
-        "linux": [
-          "~/.config/devin/config.json"
-        ],
-        "win32": [
-          "%APPDATA%\\devin\\config.json"
-        ]
+        "darwin": ["~/.config/devin/config.json"],
+        "linux": ["~/.config/devin/config.json"],
+        "win32": ["%APPDATA%\\devin\\config.json"]
       },
       "note": "JSONC config. MCP servers under mcpServers."
     },
@@ -697,36 +442,20 @@
       "name": "Jan.ai",
       "icon": "Brain",
       "description": "Jan — open-source local-model app (no API keys).",
-      "apiTypes": [
-        "chat"
-      ],
+      "apiTypes": ["chat"],
       "status": "stable",
       "source": "https://jan.ai",
       "addedAt": "2026-08-21",
-      "binaries": [
-        "jan"
-      ],
+      "binaries": ["jan"],
       "settingsPaths": {
-        "darwin": [
-          "~/Library/Application Support/Jan/data"
-        ],
-        "linux": [
-          "~/.config/jan"
-        ],
-        "win32": [
-          "%APPDATA%\\Jan\\data"
-        ]
+        "darwin": ["~/Library/Application Support/Jan/data"],
+        "linux": ["~/.config/jan"],
+        "win32": ["%APPDATA%\\Jan\\data"]
       },
       "modelCredentialPaths": {
-        "darwin": [
-          "~/Library/Application Support/Jan/data"
-        ],
-        "linux": [
-          "~/.config/jan"
-        ],
-        "win32": [
-          "%APPDATA%\\Jan\\data"
-        ]
+        "darwin": ["~/Library/Application Support/Jan/data"],
+        "linux": ["~/.config/jan"],
+        "win32": ["%APPDATA%\\Jan\\data"]
       },
       "note": "Local-model app (no API keys). Per-assistant config in the data dir."
     },
@@ -735,45 +464,25 @@
       "name": "Ollama",
       "icon": "Package",
       "description": "Ollama — run LLMs locally (model server, not a coding agent).",
-      "apiTypes": [
-        "chat"
-      ],
+      "apiTypes": ["chat"],
       "status": "stable",
       "source": "https://ollama.com",
       "addedAt": "2026-08-21",
-      "binaries": [
-        "ollama"
-      ],
+      "binaries": ["ollama"],
       "settingsPaths": {
-        "darwin": [
-          "~/.ollama"
-        ],
-        "linux": [
-          "~/.ollama"
-        ],
-        "win32": [
-          "%USERPROFILE%\\.ollama"
-        ]
+        "darwin": ["~/.ollama"],
+        "linux": ["~/.ollama"],
+        "win32": ["%USERPROFILE%\\.ollama"]
       },
       "modelCredentialPaths": {
-        "darwin": [
-          "~/.ollama"
-        ],
-        "linux": [
-          "~/.ollama"
-        ],
-        "win32": [
-          "%USERPROFILE%\\.ollama"
-        ]
+        "darwin": ["~/.ollama"],
+        "linux": ["~/.ollama"],
+        "win32": ["%USERPROFILE%\\.ollama"]
       },
       "install": "brew install ollama",
-      "installPlatforms": [
-        "darwin"
-      ],
+      "installPlatforms": ["darwin"],
       "uninstall": "brew uninstall ollama",
-      "uninstallPlatforms": [
-        "darwin"
-      ],
+      "uninstallPlatforms": ["darwin"],
       "note": "Local model server — no API key, no MCP of its own. Env: OLLAMA_HOST, OLLAMA_MODELS."
     },
     {
@@ -781,36 +490,20 @@
       "name": "LM Studio",
       "icon": "Box",
       "description": "LM Studio — desktop app for running local LLMs.",
-      "apiTypes": [
-        "chat"
-      ],
+      "apiTypes": ["chat"],
       "status": "stable",
       "source": "https://lmstudio.ai",
       "addedAt": "2026-08-21",
-      "binaries": [
-        "lms"
-      ],
+      "binaries": ["lms"],
       "settingsPaths": {
-        "darwin": [
-          "~/.lmstudio"
-        ],
-        "linux": [
-          "~/.lmstudio"
-        ],
-        "win32": [
-          "%USERPROFILE%\\.lmstudio"
-        ]
+        "darwin": ["~/.lmstudio"],
+        "linux": ["~/.lmstudio"],
+        "win32": ["%USERPROFILE%\\.lmstudio"]
       },
       "modelCredentialPaths": {
-        "darwin": [
-          "~/.lmstudio"
-        ],
-        "linux": [
-          "~/.lmstudio"
-        ],
-        "win32": [
-          "%USERPROFILE%\\.lmstudio"
-        ]
+        "darwin": ["~/.lmstudio"],
+        "linux": ["~/.lmstudio"],
+        "win32": ["%USERPROFILE%\\.lmstudio"]
       },
       "note": "Local model server — no API key, no MCP of its own."
     },
@@ -819,55 +512,29 @@
       "name": "Amazon Q Developer CLI",
       "icon": "Cloud",
       "description": "Amazon Q Developer CLI — AWS’s coding agent.",
-      "apiTypes": [
-        "anthropic"
-      ],
+      "apiTypes": ["anthropic"],
       "status": "stable",
       "source": "https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-interface.html",
       "addedAt": "2026-08-21",
       "settingsPaths": {
-        "darwin": [
-          "~/.aws/amazonq"
-        ],
-        "linux": [
-          "~/.aws/amazonq"
-        ],
-        "win32": [
-          "%USERPROFILE%\\.aws\\amazonq"
-        ]
+        "darwin": ["~/.aws/amazonq"],
+        "linux": ["~/.aws/amazonq"],
+        "win32": ["%USERPROFILE%\\.aws\\amazonq"]
       },
       "modelCredentialPaths": {
-        "darwin": [
-          "~/.aws/amazonq"
-        ],
-        "linux": [
-          "~/.aws/amazonq"
-        ],
-        "win32": [
-          "%USERPROFILE%\\.aws\\amazonq"
-        ]
+        "darwin": ["~/.aws/amazonq"],
+        "linux": ["~/.aws/amazonq"],
+        "win32": ["%USERPROFILE%\\.aws\\amazonq"]
       },
       "install": "curl -fsSL https://q.us-east-1.amazonaws.com/q-cli/install.sh | bash",
-      "installPlatforms": [
-        "darwin",
-        "linux"
-      ],
+      "installPlatforms": ["darwin", "linux"],
       "uninstall": "curl -fsSL https://q.us-east-1.amazonaws.com/q-cli/uninstall.sh | bash",
-      "uninstallPlatforms": [
-        "darwin",
-        "linux"
-      ],
+      "uninstallPlatforms": ["darwin", "linux"],
       "note": "AWS SSO/profile credentials (Env: AWS_PROFILE). MCP in ~/.aws/amazonq/mcp.json (keyed mcpServers).",
       "mcpPaths": {
-        "darwin": [
-          "~/.aws/amazonq/mcp.json"
-        ],
-        "linux": [
-          "~/.aws/amazonq/mcp.json"
-        ],
-        "win32": [
-          "%USERPROFILE%\\.aws\\amazonq\\mcp.json"
-        ]
+        "darwin": ["~/.aws/amazonq/mcp.json"],
+        "linux": ["~/.aws/amazonq/mcp.json"],
+        "win32": ["%USERPROFILE%\\.aws\\amazonq\\mcp.json"]
       }
     },
     {
@@ -875,44 +542,24 @@
       "name": "Kimi Code",
       "icon": "Sparkles",
       "description": "Kimi Code — Moonshot AI’s terminal coding agent.",
-      "apiTypes": [
-        "chat"
-      ],
+      "apiTypes": ["chat"],
       "status": "stable",
       "source": "https://moonshotai.github.io/kimi-cli/",
       "addedAt": "2026-08-21",
       "settingsPaths": {
-        "darwin": [
-          "~/.kimi/config.toml"
-        ],
-        "linux": [
-          "~/.kimi/config.toml"
-        ],
-        "win32": [
-          "%APPDATA%\\kimi\\config.toml"
-        ]
+        "darwin": ["~/.kimi/config.toml"],
+        "linux": ["~/.kimi/config.toml"],
+        "win32": ["%APPDATA%\\kimi\\config.toml"]
       },
       "mcpPaths": {
-        "darwin": [
-          "~/.kimi/mcp.json"
-        ],
-        "linux": [
-          "~/.kimi/mcp.json"
-        ],
-        "win32": [
-          "%APPDATA%\\kimi\\mcp.json"
-        ]
+        "darwin": ["~/.kimi/mcp.json"],
+        "linux": ["~/.kimi/mcp.json"],
+        "win32": ["%APPDATA%\\kimi\\mcp.json"]
       },
       "modelCredentialPaths": {
-        "darwin": [
-          "~/.kimi/credentials"
-        ],
-        "linux": [
-          "~/.kimi/credentials"
-        ],
-        "win32": [
-          "%APPDATA%\\kimi\\credentials"
-        ]
+        "darwin": ["~/.kimi/credentials"],
+        "linux": ["~/.kimi/credentials"],
+        "win32": ["%APPDATA%\\kimi\\credentials"]
       },
       "install": "npm install -g @moonshot-ai/kimi-cli",
       "uninstall": "npm uninstall -g @moonshot-ai/kimi-cli",
@@ -923,44 +570,24 @@
       "name": "Qwen Code",
       "icon": "FlaskConical",
       "description": "Qwen Code — Alibaba’s terminal coding agent.",
-      "apiTypes": [
-        "chat"
-      ],
+      "apiTypes": ["chat"],
       "status": "stable",
       "source": "https://github.com/QwenLM/qwen-code",
       "addedAt": "2026-08-21",
       "settingsPaths": {
-        "darwin": [
-          "~/.qwen/settings.json"
-        ],
-        "linux": [
-          "~/.qwen/settings.json"
-        ],
-        "win32": [
-          "%APPDATA%\\qwen\\settings.json"
-        ]
+        "darwin": ["~/.qwen/settings.json"],
+        "linux": ["~/.qwen/settings.json"],
+        "win32": ["%APPDATA%\\qwen\\settings.json"]
       },
       "mcpPaths": {
-        "darwin": [
-          "~/.qwen/settings.json"
-        ],
-        "linux": [
-          "~/.qwen/settings.json"
-        ],
-        "win32": [
-          "%APPDATA%\\qwen\\settings.json"
-        ]
+        "darwin": ["~/.qwen/settings.json"],
+        "linux": ["~/.qwen/settings.json"],
+        "win32": ["%APPDATA%\\qwen\\settings.json"]
       },
       "modelCredentialPaths": {
-        "darwin": [
-          "~/.qwen/mcp-oauth-tokens.json"
-        ],
-        "linux": [
-          "~/.qwen/mcp-oauth-tokens.json"
-        ],
-        "win32": [
-          "%APPDATA%\\qwen\\mcp-oauth-tokens.json"
-        ]
+        "darwin": ["~/.qwen/mcp-oauth-tokens.json"],
+        "linux": ["~/.qwen/mcp-oauth-tokens.json"],
+        "win32": ["%APPDATA%\\qwen\\mcp-oauth-tokens.json"]
       },
       "install": "npm install -g @qwen-code/qwen-code",
       "uninstall": "npm uninstall -g @qwen-code/qwen-code",
@@ -971,42 +598,24 @@
       "name": "Crush",
       "icon": "Hammer",
       "description": "Crush — Charmbracelet’s terminal coding agent.",
-      "apiTypes": [
-        "chat"
-      ],
+      "apiTypes": ["chat"],
       "status": "stable",
       "source": "https://github.com/charmbracelet/crush",
       "addedAt": "2026-08-21",
       "settingsPaths": {
-        "darwin": [
-          "~/.config/crush/crush.json"
-        ],
-        "linux": [
-          "~/.config/crush/crush.json"
-        ],
-        "win32": [
-          "%APPDATA%\\crush\\crush.json"
-        ]
+        "darwin": ["~/.config/crush/crush.json"],
+        "linux": ["~/.config/crush/crush.json"],
+        "win32": ["%APPDATA%\\crush\\crush.json"]
       },
       "mcpPaths": {
-        "darwin": [
-          "~/.config/crush/crush.json"
-        ],
-        "linux": [
-          "~/.config/crush/crush.json"
-        ],
-        "win32": [
-          "%APPDATA%\\crush\\crush.json"
-        ]
+        "darwin": ["~/.config/crush/crush.json"],
+        "linux": ["~/.config/crush/crush.json"],
+        "win32": ["%APPDATA%\\crush\\crush.json"]
       },
       "install": "brew install charmbracelet/crush/crush",
-      "installPlatforms": [
-        "darwin"
-      ],
+      "installPlatforms": ["darwin"],
       "uninstall": "brew uninstall crush",
-      "uninstallPlatforms": [
-        "darwin"
-      ],
+      "uninstallPlatforms": ["darwin"],
       "note": "JSON + Bash (crushrc). MCP declared inline in the config."
     },
     {
@@ -1014,33 +623,19 @@
       "name": "Droid",
       "icon": "Bot",
       "description": "Droid — Sourcegraph's terminal coding agent.",
-      "apiTypes": [
-        "chat"
-      ],
+      "apiTypes": ["chat"],
       "status": "stable",
       "source": "https://sourcegraph.com/droid",
       "addedAt": "2026-08-22",
       "settingsPaths": {
-        "darwin": [
-          "~/.factory/mcp.json"
-        ],
-        "linux": [
-          "~/.factory/mcp.json"
-        ],
-        "win32": [
-          "%APPDATA%\\factory\\mcp.json"
-        ]
+        "darwin": ["~/.factory/mcp.json"],
+        "linux": ["~/.factory/mcp.json"],
+        "win32": ["%APPDATA%\\factory\\mcp.json"]
       },
       "mcpPaths": {
-        "darwin": [
-          "~/.factory/mcp.json"
-        ],
-        "linux": [
-          "~/.factory/mcp.json"
-        ],
-        "win32": [
-          "%APPDATA%\\factory\\mcp.json"
-        ]
+        "darwin": ["~/.factory/mcp.json"],
+        "linux": ["~/.factory/mcp.json"],
+        "win32": ["%APPDATA%\\factory\\mcp.json"]
       },
       "note": "MCP in ~/.factory/mcp.json (mcpServers). OAuth tokens in OS keyring."
     },
@@ -1049,34 +644,19 @@
       "name": "Roo Code",
       "icon": "Hammer",
       "description": "Roo Code — open-source autonomous coding agent (VS Code extension + CLI).",
-      "apiTypes": [
-        "chat",
-        "anthropic"
-      ],
+      "apiTypes": ["chat", "anthropic"],
       "status": "stable",
       "source": "https://roocode.com",
       "addedAt": "2026-08-22",
       "settingsPaths": {
-        "darwin": [
-          "~/.vscode-mock/global-storage/mcp_settings.json"
-        ],
-        "linux": [
-          "~/.vscode-mock/global-storage/mcp_settings.json"
-        ],
-        "win32": [
-          "%USERPROFILE%\\.vscode-mock\\global-storage\\mcp_settings.json"
-        ]
+        "darwin": ["~/.vscode-mock/global-storage/mcp_settings.json"],
+        "linux": ["~/.vscode-mock/global-storage/mcp_settings.json"],
+        "win32": ["%USERPROFILE%\\.vscode-mock\\global-storage\\mcp_settings.json"]
       },
       "mcpPaths": {
-        "darwin": [
-          "~/.vscode-mock/global-storage/mcp_settings.json"
-        ],
-        "linux": [
-          "~/.vscode-mock/global-storage/mcp_settings.json"
-        ],
-        "win32": [
-          "%USERPROFILE%\\.vscode-mock\\global-storage\\mcp_settings.json"
-        ]
+        "darwin": ["~/.vscode-mock/global-storage/mcp_settings.json"],
+        "linux": ["~/.vscode-mock/global-storage/mcp_settings.json"],
+        "win32": ["%USERPROFILE%\\.vscode-mock\\global-storage\\mcp_settings.json"]
       },
       "install": "npm install -g roo-code",
       "uninstall": "npm uninstall -g roo-code",
@@ -1087,36 +667,20 @@
       "name": "Amp",
       "icon": "Bolt",
       "description": "Amp — Sourcegraph's AI coding agent for the terminal.",
-      "apiTypes": [
-        "chat"
-      ],
+      "apiTypes": ["chat"],
       "status": "stable",
       "source": "https://sourcegraph.com/amp",
       "addedAt": "2026-08-22",
-      "binaries": [
-        "amp"
-      ],
+      "binaries": ["amp"],
       "settingsPaths": {
-        "darwin": [
-          "~/.amp/config.json"
-        ],
-        "linux": [
-          "~/.amp/config.json"
-        ],
-        "win32": [
-          "%USERPROFILE%\\.amp\\config.json"
-        ]
+        "darwin": ["~/.amp/config.json"],
+        "linux": ["~/.amp/config.json"],
+        "win32": ["%USERPROFILE%\\.amp\\config.json"]
       },
       "modelCredentialPaths": {
-        "darwin": [
-          "~/.amp/credentials.json"
-        ],
-        "linux": [
-          "~/.amp/credentials.json"
-        ],
-        "win32": [
-          "%USERPROFILE%\\.amp\\credentials.json"
-        ]
+        "darwin": ["~/.amp/credentials.json"],
+        "linux": ["~/.amp/credentials.json"],
+        "win32": ["%USERPROFILE%\\.amp\\credentials.json"]
       },
       "install": "npm install -g @sourcegraph/amp",
       "uninstall": "npm uninstall -g @sourcegraph/amp",
@@ -1127,48 +691,25 @@
       "name": "Codex CLI",
       "icon": "SquareTerminal",
       "description": "OpenAI Codex CLI — the terminal agent (codex binary).",
-      "apiTypes": [
-        "responses",
-        "chat"
-      ],
+      "apiTypes": ["responses", "chat"],
       "status": "stable",
       "source": "https://github.com/openai/codex",
       "addedAt": "2026-08-22",
-      "binaries": [
-        "codex"
-      ],
+      "binaries": ["codex"],
       "settingsPaths": {
-        "darwin": [
-          "~/.codex/config.toml"
-        ],
-        "linux": [
-          "~/.codex/config.toml"
-        ],
-        "win32": [
-          "%USERPROFILE%\\.codex\\config.toml"
-        ]
+        "darwin": ["~/.codex/config.toml"],
+        "linux": ["~/.codex/config.toml"],
+        "win32": ["%USERPROFILE%\\.codex\\config.toml"]
       },
       "mcpPaths": {
-        "darwin": [
-          "~/.codex/config.toml"
-        ],
-        "linux": [
-          "~/.codex/config.toml"
-        ],
-        "win32": [
-          "%USERPROFILE%\\.codex\\config.toml"
-        ]
+        "darwin": ["~/.codex/config.toml"],
+        "linux": ["~/.codex/config.toml"],
+        "win32": ["%USERPROFILE%\\.codex\\config.toml"]
       },
       "modelCredentialPaths": {
-        "darwin": [
-          "~/.codex/auth.json"
-        ],
-        "linux": [
-          "~/.codex/auth.json"
-        ],
-        "win32": [
-          "%USERPROFILE%\\.codex\\auth.json"
-        ]
+        "darwin": ["~/.codex/auth.json"],
+        "linux": ["~/.codex/auth.json"],
+        "win32": ["%USERPROFILE%\\.codex\\auth.json"]
       },
       "install": "npm install -g @openai/codex",
       "uninstall": "npm uninstall -g @openai/codex",
@@ -1179,52 +720,28 @@
       "name": "Aion CLI",
       "icon": "Bot",
       "description": "AionUi's own AI CLI — the agent harness this config manager configures. Manages model providers, MCP servers and skills from a single on-disk config.",
-      "apiTypes": [
-        "chat",
-        "responses",
-        "anthropic"
-      ],
+      "apiTypes": ["chat", "responses", "anthropic"],
       "status": "stable",
       "source": "https://aionui.app",
       "addedAt": "2026-08-27",
-      "binaries": [
-        "aion"
-      ],
+      "binaries": ["aion"],
       "settingsPaths": {
-        "darwin": [
-          "~/.aionrs/config.json",
-          "~/Library/Application Support/aionrs/config.json"
-        ],
-        "linux": [
-          "~/.aionrs/config.json"
-        ],
-        "win32": [
-          "%APPDATA%\\aionrs\\config.json"
-        ]
+        "darwin": ["~/.aionrs/config.json", "~/Library/Application Support/aionrs/config.json"],
+        "linux": ["~/.aionrs/config.json"],
+        "win32": ["%APPDATA%\\aionrs\\config.json"]
       },
       "mcpPaths": {
-        "darwin": [
-          "~/.aionrs/mcp.json",
-          "~/Library/Application Support/aionrs/mcp.json"
-        ],
-        "linux": [
-          "~/.aionrs/mcp.json"
-        ],
-        "win32": [
-          "%APPDATA%\\aionrs\\mcp.json"
-        ]
+        "darwin": ["~/.aionrs/mcp.json", "~/Library/Application Support/aionrs/mcp.json"],
+        "linux": ["~/.aionrs/mcp.json"],
+        "win32": ["%APPDATA%\\aionrs\\mcp.json"]
       },
       "modelCredentialPaths": {
         "darwin": [
           "~/.aionrs/credentials.json",
           "~/Library/Application Support/aionrs/credentials.json"
         ],
-        "linux": [
-          "~/.aionrs/credentials.json"
-        ],
-        "win32": [
-          "%APPDATA%\\aionrs\\credentials.json"
-        ]
+        "linux": ["~/.aionrs/credentials.json"],
+        "win32": ["%APPDATA%\\aionrs\\credentials.json"]
       },
       "skillsPaths": {
         "darwin": "~/.aionui/skills",
@@ -1238,36 +755,20 @@
       "name": "Open Interpreter",
       "icon": "TerminalSquare",
       "description": "Open Interpreter — local/OpenAI-compatible models in your terminal (natural-language computer control).",
-      "apiTypes": [
-        "chat"
-      ],
+      "apiTypes": ["chat"],
       "status": "stable",
       "source": "https://github.com/openinterpreter/openinterpreter",
       "addedAt": "2026-08-27",
-      "binaries": [
-        "interpreter"
-      ],
+      "binaries": ["interpreter"],
       "settingsPaths": {
-        "darwin": [
-          "~/.openinterpreter/config.toml"
-        ],
-        "linux": [
-          "~/.openinterpreter/config.toml"
-        ],
-        "win32": [
-          "%USERPROFILE%\\.openinterpreter\\config.toml"
-        ]
+        "darwin": ["~/.openinterpreter/config.toml"],
+        "linux": ["~/.openinterpreter/config.toml"],
+        "win32": ["%USERPROFILE%\\.openinterpreter\\config.toml"]
       },
       "mcpPaths": {
-        "darwin": [
-          "~/.openinterpreter/config.toml"
-        ],
-        "linux": [
-          "~/.openinterpreter/config.toml"
-        ],
-        "win32": [
-          "%USERPROFILE%\\.openinterpreter\\config.toml"
-        ]
+        "darwin": ["~/.openinterpreter/config.toml"],
+        "linux": ["~/.openinterpreter/config.toml"],
+        "win32": ["%USERPROFILE%\\.openinterpreter\\config.toml"]
       },
       "install": "pip install open-interpreter",
       "uninstall": "pip uninstall open-interpreter",
@@ -1278,37 +779,20 @@
       "name": "J Code",
       "icon": "Bot",
       "description": "jcode — a Rust terminal coding agent CLI (multi-provider, MCP).",
-      "apiTypes": [
-        "chat",
-        "anthropic"
-      ],
+      "apiTypes": ["chat", "anthropic"],
       "status": "stable",
       "source": "https://github.com/1jehuang/jcode",
       "addedAt": "2026-08-27",
-      "binaries": [
-        "jcode"
-      ],
+      "binaries": ["jcode"],
       "settingsPaths": {
-        "darwin": [
-          "~/.config/jcode/config.json"
-        ],
-        "linux": [
-          "~/.config/jcode/config.json"
-        ],
-        "win32": [
-          "%USERPROFILE%\\.config\\jcode\\config.json"
-        ]
+        "darwin": ["~/.config/jcode/config.json"],
+        "linux": ["~/.config/jcode/config.json"],
+        "win32": ["%USERPROFILE%\\.config\\jcode\\config.json"]
       },
       "mcpPaths": {
-        "darwin": [
-          "~/.config/jcode/mcp.json"
-        ],
-        "linux": [
-          "~/.config/jcode/mcp.json"
-        ],
-        "win32": [
-          "%USERPROFILE%\\.config\\jcode\\mcp.json"
-        ]
+        "darwin": ["~/.config/jcode/mcp.json"],
+        "linux": ["~/.config/jcode/mcp.json"],
+        "win32": ["%USERPROFILE%\\.config\\jcode\\mcp.json"]
       },
       "note": "Multi-provider Rust CLI. Research marked P2 — verify exact config path/format before relying on it."
     },
@@ -1317,37 +801,20 @@
       "name": "Claw Code Agent",
       "icon": "Bot",
       "description": "claw-code-agent — Python reimplementation of the Claude Code architecture (MCP).",
-      "apiTypes": [
-        "anthropic",
-        "chat"
-      ],
+      "apiTypes": ["anthropic", "chat"],
       "status": "stable",
       "source": "https://github.com/HarnessLab/claw-code-agent",
       "addedAt": "2026-08-27",
-      "binaries": [
-        "claw"
-      ],
+      "binaries": ["claw"],
       "settingsPaths": {
-        "darwin": [
-          "~/.config/claw/settings.json"
-        ],
-        "linux": [
-          "~/.config/claw/settings.json"
-        ],
-        "win32": [
-          "%USERPROFILE%\\.config\\claw\\settings.json"
-        ]
+        "darwin": ["~/.config/claw/settings.json"],
+        "linux": ["~/.config/claw/settings.json"],
+        "win32": ["%USERPROFILE%\\.config\\claw\\settings.json"]
       },
       "mcpPaths": {
-        "darwin": [
-          "~/.config/claw/mcp.json"
-        ],
-        "linux": [
-          "~/.config/claw/mcp.json"
-        ],
-        "win32": [
-          "%USERPROFILE%\\.config\\claw\\mcp.json"
-        ]
+        "darwin": ["~/.config/claw/mcp.json"],
+        "linux": ["~/.config/claw/mcp.json"],
+        "win32": ["%USERPROFILE%\\.config\\claw\\mcp.json"]
       },
       "note": "Claude Code architecture reimplementation; verify config path/format before relying on it."
     }
