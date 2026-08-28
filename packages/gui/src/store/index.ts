@@ -15,7 +15,16 @@ import type {
 // Types
 // ============================================================================
 
-export type View = 'overview' | 'providers' | 'mcp' | 'agents' | 'settings';
+export type View =
+  | 'overview'
+  | 'providers'
+  | 'provider-detail'
+  | 'mcp'
+  | 'agents'
+  | 'agent-detail'
+  | 'skills'
+  | 'tools'
+  | 'settings';
 
 export interface Toast {
   id: string;
@@ -36,11 +45,17 @@ interface GUIState {
 
   // UI state
   activeView: View;
+  /** Agent id currently shown in the agent-detail view (null = not on a detail page). */
+  selectedAgentId: string | null;
+  /** Provider id currently shown in the provider-detail view (null = not on a detail page). */
+  selectedProviderId: string | null;
   sidebarOpen: boolean;
   toasts: Toast[];
 
   // UI actions
   setActiveView: (view: View) => void;
+  openAgent: (id: string) => void;
+  openProvider: (id: string) => void;
   toggleSidebar: () => void;
   addToast: (toast: Omit<Toast, 'id'>) => void;
   removeToast: (id: string) => void;
@@ -52,13 +67,13 @@ interface GUIState {
     provider: ModelProvider,
     models: ModelConfig[],
     agentIds: string[],
-    apiCapabilities?: ProviderApiCapabilities,
+    apiCapabilities?: ProviderApiCapabilities
   ) => Promise<boolean>;
   updateProvider: (
     id: string,
     provider: Partial<ModelProvider>,
     apiCapabilities?: ProviderApiCapabilities,
-    models?: ModelConfig[],
+    models?: ModelConfig[]
   ) => Promise<boolean>;
   toggleProviderAgent: (id: string, agentId: string) => Promise<boolean>;
   deleteProvider: (id: string) => Promise<boolean>;
@@ -71,11 +86,13 @@ interface GUIState {
   addCustomAgent: (def: CustomAgentDef) => Promise<boolean>;
   updateCustomAgent: (
     id: string,
-    updates: Partial<Pick<CustomAgentDef, 'name' | 'description' | 'configPath' | 'mcpPath' | 'format'>>,
+    updates: Partial<
+      Pick<CustomAgentDef, 'name' | 'description' | 'configPath' | 'mcpPath' | 'format'>
+    >
   ) => Promise<boolean>;
   deleteCustomAgent: (id: string) => Promise<boolean>;
 
-  revealAgent: (id: string) => Promise<boolean>;
+  revealAgent: (id: string, kind?: 'config' | 'mcp' | 'model') => Promise<boolean>;
 }
 
 // ============================================================================
@@ -97,7 +114,7 @@ function notify(type: Toast['type'], title: string, message: string): void {
 async function run(
   task: () => Promise<{ ok: boolean; error?: string; warnings?: string[] }>,
   successTitle: string,
-  successMessage: string,
+  successMessage: string
 ): Promise<boolean> {
   try {
     const result = await task();
@@ -131,14 +148,16 @@ export const useStore = create<GUIState>()(
       error: null,
       authError: false,
       activeView: 'overview',
-      sidebarOpen: true,
+      selectedAgentId: null,
+      selectedProviderId: null,
+      sidebarOpen: typeof window !== 'undefined' ? window.innerWidth > 768 : true,
       toasts: [],
 
       setActiveView: (view) => set({ activeView: view }),
+      openAgent: (id) => set({ activeView: 'agent-detail', selectedAgentId: id }),
+      openProvider: (id) => set({ activeView: 'provider-detail', selectedProviderId: id }),
       toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
-
-      addToast: (toast) =>
-        set((s) => ({ toasts: [...s.toasts, { ...toast, id: toastId() }] })),
+      addToast: (toast) => set((s) => ({ toasts: [...s.toasts, { ...toast, id: toastId() }] })),
       removeToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
 
       refreshAll: async () => {
@@ -176,13 +195,13 @@ export const useStore = create<GUIState>()(
         run(
           () => api.addProvider(provider, models, agentIds, apiCapabilities),
           'Provider Added',
-          `"${provider.name}" registered and installed into ${agentIds.length} agent(s)`,
+          `"${provider.name}" registered and installed into ${agentIds.length} agent(s)`
         ),
       updateProvider: (id, provider, apiCapabilities, models) =>
         run(
           () => api.updateProvider(id, { provider, apiCapabilities, models }),
           'Provider Updated',
-          `"${provider.name || id}" updated`,
+          `"${provider.name || id}" updated`
         ),
       toggleProviderAgent: async (id, agentId) => {
         const registry = get().registry;
@@ -195,7 +214,7 @@ export const useStore = create<GUIState>()(
               ? api.addProviderAgents(id, [agentId])
               : api.removeProviderAgent(id, agentId),
           installing ? 'Installed' : 'Removed',
-          `Provider "${entry.provider.name}" ${installing ? 'installed into' : 'removed from'} ${agentId}`,
+          `Provider "${entry.provider.name}" ${installing ? 'installed into' : 'removed from'} ${agentId}`
         );
       },
       deleteProvider: (id) => {
@@ -203,7 +222,7 @@ export const useStore = create<GUIState>()(
         return run(
           () => api.deleteProvider(id),
           'Provider Deleted',
-          `"${entry?.provider.name || id}" removed from the registry`,
+          `"${entry?.provider.name || id}" removed from the registry`
         );
       },
 
@@ -212,21 +231,23 @@ export const useStore = create<GUIState>()(
         run(
           () => api.addMCP(server, agentIds),
           'MCP Server Added',
-          `"${server.name}" registered and installed into ${agentIds.length} agent(s)`,
+          `"${server.name}" registered and installed into ${agentIds.length} agent(s)`
         ),
       updateMCP: (name, server) =>
-        run(() => api.updateMCP(name, server), 'MCP Server Updated', `"${server.name || name}" updated`),
+        run(
+          () => api.updateMCP(name, server),
+          'MCP Server Updated',
+          `"${server.name || name}" updated`
+        ),
       toggleMCPAgent: async (name, agentId) => {
         const entry = get().registry?.mcpServers.find((m) => m.server.name === name);
         if (!entry) return false;
         const installing = !entry.agentIds.includes(agentId);
         return run(
           () =>
-            installing
-              ? api.addMCPAgents(name, [agentId])
-              : api.removeMCPAgent(name, agentId),
+            installing ? api.addMCPAgents(name, [agentId]) : api.removeMCPAgent(name, agentId),
           installing ? 'Installed' : 'Removed',
-          `MCP server "${entry.server.name}" ${installing ? 'installed into' : 'removed from'} ${agentId}`,
+          `MCP server "${entry.server.name}" ${installing ? 'installed into' : 'removed from'} ${agentId}`
         );
       },
       deleteMCP: (name) => {
@@ -234,7 +255,7 @@ export const useStore = create<GUIState>()(
         return run(
           () => api.deleteMCP(name),
           'MCP Server Deleted',
-          `"${entry?.server.name || name}" removed from the registry`,
+          `"${entry?.server.name || name}" removed from the registry`
         );
       },
 
@@ -243,25 +264,29 @@ export const useStore = create<GUIState>()(
         run(
           () => api.addCustomAgent(def),
           'Custom Agent Added',
-          `"${def.name || def.id}" registered with config path ${def.configPath}`,
+          `"${def.name || def.id}" registered with config path ${def.configPath}`
         ),
       updateCustomAgent: (id, updates) =>
-        run(
-          () => api.updateCustomAgent(id, updates),
-          'Custom Agent Updated',
-          `"${id}" updated`,
-        ),
+        run(() => api.updateCustomAgent(id, updates), 'Custom Agent Updated', `"${id}" updated`),
       deleteCustomAgent: (id) =>
-        run(() => api.deleteCustomAgent(id), 'Custom Agent Removed', `"${id}" removed from the registry`),
+        run(
+          () => api.deleteCustomAgent(id),
+          'Custom Agent Removed',
+          `"${id}" removed from the registry`
+        ),
 
       // ---- Folder reveal ----
-      revealAgent: async (id) => {
-        const res = await api.revealAgent(id);
+      revealAgent: async (id, kind) => {
+        const res = await api.revealAgent(id, kind);
         if (!res.ok) {
           notify('error', 'Reveal Failed', res.error || 'Unknown error');
           return false;
         }
-        notify('success', 'Revealed', `Opened ${res.data?.dir || 'config folder'}`);
+        notify(
+          'success',
+          'Revealed',
+          `Opened ${res.data?.path || res.data?.dir || 'config folder'}`
+        );
         return true;
       },
     }),
@@ -271,8 +296,8 @@ export const useStore = create<GUIState>()(
         activeView: state.activeView,
         sidebarOpen: state.sidebarOpen,
       }),
-    },
-  ),
+    }
+  )
 );
 
 // Re-export for existing call sites that imported addToast from the store

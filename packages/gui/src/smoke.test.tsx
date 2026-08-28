@@ -397,12 +397,43 @@ describe('CommandPalette', () => {
   beforeEach(() => {
     useStore.setState({
       agents: [
-        { id: 'claude-code', name: 'Claude Code', description: '', configFormat: 'json' as never, configPaths: {} as never, supports: {} as never, binaries: ['claude'], detection: { installed: true, configExists: true, method: 'command' as never } },
-        { id: 'codex', name: 'Codex', description: '', configFormat: 'toml' as never, configPaths: {} as never, supports: {} as never, binaries: ['codex'], detection: { installed: true, configExists: true, method: 'command' as never } },
+        {
+          id: 'claude-code',
+          name: 'Claude Code',
+          description: '',
+          configFormat: 'json' as never,
+          configPaths: {} as never,
+          supports: {} as never,
+          binaries: ['claude'],
+          detection: { installed: true, configExists: true, method: 'command' as never },
+        },
+        {
+          id: 'codex',
+          name: 'Codex',
+          description: '',
+          configFormat: 'toml' as never,
+          configPaths: {} as never,
+          supports: {} as never,
+          binaries: ['codex'],
+          detection: { installed: true, configExists: true, method: 'command' as never },
+        },
       ],
       registry: {
         path: '/tmp/r.json',
-        providers: [{ provider: { id: 'anthropic', name: 'Anthropic', type: 'anthropic' as never, config: {} as never, enabled: true, priority: 1 }, models: [], agentIds: [] }],
+        providers: [
+          {
+            provider: {
+              id: 'anthropic',
+              name: 'Anthropic',
+              type: 'anthropic' as never,
+              config: {} as never,
+              enabled: true,
+              priority: 1,
+            },
+            models: [],
+            agentIds: [],
+          },
+        ],
         mcpServers: [],
         customAgents: [],
         updatedAt: 0,
@@ -442,10 +473,13 @@ describe('CommandPalette', () => {
     const input = screen.getByRole('combobox');
     await user.type(input, 'settings');
 
-    await waitFor(() => {
-      // "Settings" nav item should be visible in the palette
-      expect(dialog.textContent).toContain('Settings');
-    }, { timeout: 2000 });
+    await waitFor(
+      () => {
+        // "Settings" nav item should be visible in the palette
+        expect(dialog.textContent).toContain('Settings');
+      },
+      { timeout: 2000 }
+    );
     // "Overview" should be filtered out from the palette
     expect(dialog.textContent).not.toContain('Overview');
   });
@@ -493,5 +527,204 @@ describe('CommandPalette', () => {
     // aria-live announcement
     const live = screen.getByText(/result/);
     expect(live).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ProviderDetailView (E4)
+// ---------------------------------------------------------------------------
+describe('ProviderDetailView', () => {
+  beforeEach(() => {
+    // Override the getState mock to include our test provider
+    apiMock.getState.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        agents: [
+          { id: 'claude-code', name: 'Claude Code', description: '', configFormat: 'json' as never, configPaths: {} as never, supports: {} as never, binaries: ['claude'], detection: { installed: true, configExists: true, method: 'command' as never } },
+          { id: 'codex', name: 'Codex', description: '', configFormat: 'toml' as never, configPaths: {} as never, supports: {} as never, binaries: ['codex'], detection: { installed: true, configExists: true, method: 'command' as never } },
+        ],
+        registry: {
+          path: '/tmp/r.json',
+          providers: [
+            {
+              provider: {
+                id: 'anthropic',
+                name: 'Anthropic',
+                type: 'anthropic' as never,
+                config: { baseUrl: 'https://api.anthropic.com', apiKey: 'sk-ant-test123456789' },
+                enabled: true,
+                priority: 1,
+              },
+              models: [
+                { id: 'claude-sonnet-4-20250514', providerId: 'anthropic', name: 'Claude Sonnet 4', displayName: 'Claude Sonnet 4', roles: ['chat'] as never },
+                { id: 'claude-opus-4-20250514', providerId: 'anthropic', name: 'Claude Opus 4', displayName: 'Claude Opus 4', roles: ['chat'] as never },
+              ],
+              agentIds: ['claude-code'],
+            },
+          ],
+          mcpServers: [],
+          customAgents: [],
+          updatedAt: 0,
+        },
+        platform: 'darwin',
+      },
+    });
+
+    useStore.setState({
+      agents: [
+        { id: 'claude-code', name: 'Claude Code', description: '', configFormat: 'json' as never, configPaths: {} as never, supports: {} as never, binaries: ['claude'], detection: { installed: true, configExists: true, method: 'command' as never } },
+        { id: 'codex', name: 'Codex', description: '', configFormat: 'toml' as never, configPaths: {} as never, supports: {} as never, binaries: ['codex'], detection: { installed: true, configExists: true, method: 'command' as never } },
+      ],
+      registry: {
+        path: '/tmp/r.json',
+        providers: [
+          {
+            provider: {
+              id: 'anthropic',
+              name: 'Anthropic',
+              type: 'anthropic' as never,
+              config: { baseUrl: 'https://api.anthropic.com', apiKey: 'sk-ant-test123456789' },
+              enabled: true,
+              priority: 1,
+            },
+            models: [
+              { id: 'claude-sonnet-4-20250514', providerId: 'anthropic', name: 'Claude Sonnet 4', displayName: 'Claude Sonnet 4', roles: ['chat'] as never },
+              { id: 'claude-opus-4-20250514', providerId: 'anthropic', name: 'Claude Opus 4', displayName: 'Claude Opus 4', roles: ['chat'] as never },
+            ],
+            agentIds: ['claude-code'],
+          },
+        ],
+        mcpServers: [],
+        customAgents: [],
+        updatedAt: 0,
+      },
+      activeView: 'provider-detail',
+      selectedProviderId: 'anthropic',
+      loading: false,
+      error: null,
+    });
+  });
+
+  it('renders the provider detail page with tabs', async () => {
+    render(<App />);
+    await screen.findByRole('link', { name: 'Skip to content' });
+
+    // Provider name is visible
+    expect(screen.getByText('Anthropic')).toBeInTheDocument();
+
+    // All four tabs are present
+    expect(screen.getByRole('tab', { name: /Overview/ })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Models/ })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Agents/ })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /API Configuration/ })).toBeInTheDocument();
+  });
+
+  it('shows Overview tab content by default', async () => {
+    render(<App />);
+    await screen.findByRole('link', { name: 'Skip to content' });
+
+    // Overview content: connection, capabilities, models
+    expect(screen.getByText('Connection')).toBeInTheDocument();
+    expect(screen.getByText('API Capabilities')).toBeInTheDocument();
+    expect(screen.getByText(/Models \(2\)/)).toBeInTheDocument();
+  });
+
+  it('switches to Models tab on click', async () => {
+    render(<App />);
+    await screen.findByRole('link', { name: 'Skip to content' });
+
+    const modelsTab = screen.getByRole('tab', { name: /Models/ });
+    fireEvent.click(modelsTab);
+
+    await waitFor(() => {
+      // Models table should be visible
+      expect(screen.getByText('claude-sonnet-4-20250514')).toBeInTheDocument();
+    });
+  });
+
+  it('navigates tabs with arrow keys', async () => {
+    render(<App />);
+    await screen.findByRole('link', { name: 'Skip to content' });
+
+    // Focus the first tab (Overview)
+    const overviewTab = screen.getByRole('tab', { name: /Overview/ });
+    overviewTab.focus();
+
+    // Arrow right → Models
+    fireEvent.keyDown(overviewTab, { key: 'ArrowRight' });
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: /Models/ })).toHaveFocus();
+    });
+
+    // Arrow right → Agents
+    fireEvent.keyDown(screen.getByRole('tab', { name: /Models/ }), { key: 'ArrowRight' });
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: /Agents/ })).toHaveFocus();
+    });
+  });
+
+  it('masks API key by default in API Configuration tab', async () => {
+    render(<App />);
+    await screen.findByRole('link', { name: 'Skip to content' });
+
+    // Navigate to API tab
+    const apiTab = screen.getByRole('tab', { name: /API Configuration/ });
+    fireEvent.click(apiTab);
+
+    await waitFor(() => {
+      // Key should be masked (showing ••••••••)
+      expect(screen.getByText(/••••••••/)).toBeInTheDocument();
+    });
+
+    // Full key should NOT be visible
+    expect(screen.queryByText('sk-ant-test123456789')).not.toBeInTheDocument();
+  });
+
+  it('reveals API key on explicit action', async () => {
+    render(<App />);
+    await screen.findByRole('link', { name: 'Skip to content' });
+
+    // Navigate to API tab
+    const apiTab = screen.getByRole('tab', { name: /API Configuration/ });
+    fireEvent.click(apiTab);
+
+    await waitFor(() => {
+      expect(screen.getByText(/••••••••/)).toBeInTheDocument();
+    });
+
+    // Click reveal button
+    const revealBtn = screen.getByTitle('Reveal API key');
+    fireEvent.click(revealBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText('sk-ant-test123456789')).toBeInTheDocument();
+    });
+  });
+
+  it('deep-links to a specific tab via hash', async () => {
+    // Simulate deep-link to the API tab
+    window.location.hash = '#/providers/anthropic/api';
+
+    render(<App />);
+    await screen.findByRole('link', { name: 'Skip to content' });
+
+    // API Configuration tab should be active
+    await waitFor(() => {
+      const apiTab = screen.getByRole('tab', { name: /API Configuration/ });
+      expect(apiTab).toHaveAttribute('aria-selected', 'true');
+    });
+  });
+
+  it('shows not-found state for unknown provider', async () => {
+    useStore.setState({
+      activeView: 'provider-detail',
+      selectedProviderId: 'nonexistent',
+    });
+
+    render(<App />);
+    await screen.findByRole('link', { name: 'Skip to content' });
+
+    expect(screen.getByText(/Provider not found/)).toBeInTheDocument();
   });
 });

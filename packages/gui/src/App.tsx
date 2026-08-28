@@ -3,6 +3,7 @@ import { useStore, type View } from './store';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
 import { ProvidersView } from './components/ProvidersView';
+import { ProviderDetailView } from './components/ProviderDetailView';
 import { MCPView } from './components/MCPView';
 import { AgentsView } from './components/AgentsView';
 import { AgentDetailView } from './components/AgentDetailView';
@@ -19,6 +20,7 @@ import { Menu, X, RefreshCw, AlertTriangle, Search } from 'lucide-react';
 const VALID_VIEWS: View[] = [
   'overview',
   'providers',
+  'provider-detail',
   'mcp',
   'agents',
   'agent-detail',
@@ -27,12 +29,22 @@ const VALID_VIEWS: View[] = [
   'settings',
 ];
 
-/** Parse the hash into a view + optional agent id (e.g. #/agents/claude-code). */
-function parseHash(): { view: View; agentId?: string } | null {
+/** Parse the hash into a view + optional id (e.g. #/agents/claude-code, #/providers/anthropic/models). */
+function parseHash(): { view: View; agentId?: string; providerId?: string; providerTab?: string } | null {
   const hash = window.location.hash.replace(/^#\/?/, '');
-  const [viewPart, idPart] = hash.split('/');
+  const parts = hash.split('/');
+  const viewPart = parts[0];
+  const idPart = parts[1];
+  const tabPart = parts[2];
   if (viewPart === 'agents' && idPart) {
     return { view: 'agent-detail', agentId: decodeURIComponent(idPart) };
+  }
+  if (viewPart === 'providers' && idPart) {
+    return {
+      view: 'provider-detail',
+      providerId: decodeURIComponent(idPart),
+      providerTab: tabPart ? decodeURIComponent(tabPart) : undefined,
+    };
   }
   if ((VALID_VIEWS as string[]).includes(viewPart)) {
     return { view: viewPart as View };
@@ -55,6 +67,7 @@ function App() {
   const {
     activeView,
     selectedAgentId,
+    selectedProviderId,
     sidebarOpen,
     loading,
     error,
@@ -63,6 +76,7 @@ function App() {
     toggleSidebar,
     setActiveView,
     openAgent,
+    openProvider,
   } = useStore();
 
   // Initial load: pull the registry + detected agents from the server
@@ -70,7 +84,7 @@ function App() {
     refreshAll();
   }, [refreshAll]);
 
-  // URL <-> view sync: the active view (and selected agent) are mirrored into
+  // URL <-> view sync: the active view (and selected agent/provider) are mirrored into
   // the hash so the address bar doubles as a breadcrumb, and a bookmarked or
   // shared URL — plus browser back/forward — restores the exact screen.
   useEffect(() => {
@@ -78,6 +92,8 @@ function App() {
     if (!parsed) return;
     if (parsed.view === 'agent-detail' && parsed.agentId) {
       if (parsed.agentId !== selectedAgentId) openAgent(parsed.agentId);
+    } else if (parsed.view === 'provider-detail' && parsed.providerId) {
+      if (parsed.providerId !== selectedProviderId) openProvider(parsed.providerId);
     } else if (parsed.view !== activeView) {
       setActiveView(parsed.view);
     }
@@ -87,11 +103,13 @@ function App() {
     const desired =
       activeView === 'agent-detail' && selectedAgentId
         ? `#/agents/${encodeURIComponent(selectedAgentId)}`
-        : `#/${activeView}`;
+        : activeView === 'provider-detail' && selectedProviderId
+          ? `#/providers/${encodeURIComponent(selectedProviderId)}`
+          : `#/${activeView}`;
     if (window.location.hash !== desired) {
       window.history.replaceState(null, '', desired);
     }
-  }, [activeView, selectedAgentId]);
+  }, [activeView, selectedAgentId, selectedProviderId]);
 
   useEffect(() => {
     const onHashChange = () => {
@@ -100,6 +118,8 @@ function App() {
       const s = useStore.getState();
       if (parsed.view === 'agent-detail' && parsed.agentId) {
         if (parsed.agentId !== s.selectedAgentId) s.openAgent(parsed.agentId);
+      } else if (parsed.view === 'provider-detail' && parsed.providerId) {
+        if (parsed.providerId !== s.selectedProviderId) s.openProvider(parsed.providerId);
       } else if (parsed.view !== s.activeView) {
         s.setActiveView(parsed.view);
       }
@@ -128,6 +148,8 @@ function App() {
     switch (activeView) {
       case 'providers':
         return <ProvidersView />;
+      case 'provider-detail':
+        return <ProviderDetailView providerId={selectedProviderId} />;
       case 'mcp':
         return <MCPView />;
       case 'agents':
