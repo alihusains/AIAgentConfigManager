@@ -521,7 +521,7 @@ export function AgentsView() {
             Refresh
           </button>
           <button
-            className="btn-primary"
+            className="btn btn-primary"
             onClick={() => setShowAdd(true)}
             disabled={loading}
           >
@@ -984,11 +984,11 @@ export function AgentsView() {
               )}
             </div>
             <div className="modal-footer">
-              <button className="btn-secondary" onClick={closeFileEditor}>
+              <button className="btn btn-secondary" onClick={closeFileEditor}>
                 Close
               </button>
               <button
-                className="btn-primary"
+                className="btn btn-primary"
                 disabled={!fileState || savingFile}
                 onClick={saveFileEditor}
               >
@@ -1239,7 +1239,7 @@ function AgentJobModal({
         <div className="modal-footer">
           {phase === 'confirm' && (
             <>
-              <button className="btn-secondary" onClick={onClose}>
+              <button className="btn btn-secondary" onClick={onClose}>
                 Cancel
               </button>
               <button
@@ -1253,7 +1253,7 @@ function AgentJobModal({
             </>
           )}
           {(phase === 'running' || phase === 'done') && (
-            <button className="btn-secondary" onClick={onClose}>
+            <button className="btn btn-secondary" onClick={onClose}>
               Close
             </button>
           )}
@@ -1423,10 +1423,10 @@ function CustomAgentModal({ onClose, initial }: CustomAgentModalProps) {
             </p>
           </div>
           <div className="modal-footer">
-            <button type="button" className="btn-secondary" onClick={onClose}>
+            <button type="button" className="btn btn-secondary" onClick={onClose}>
               Cancel
             </button>
-            <button type="submit" className="btn-primary" disabled={submitting}>
+            <button type="submit" className="btn btn-primary" disabled={submitting}>
               <Plus size={16} />
               {isEdit ? 'Save Changes' : 'Add Agent'}
             </button>

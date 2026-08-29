@@ -451,7 +451,7 @@ export function AgentDetailView({ agentId }: { agentId: string | null }) {
               )}
             </div>
             <div className="modal-footer">
-              <button className="btn-secondary" onClick={() => setViewingConfig(false)}>Close</button>
+              <button className="btn btn-secondary" onClick={() => setViewingConfig(false)}>Close</button>
             </div>
           </div>
         </div>
@@ -619,7 +619,7 @@ function InstallJobModal({
         <div className="modal-footer">
           {phase === 'confirm' && (
             <>
-              <button className="btn-secondary" onClick={onClose}>Cancel</button>
+              <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
               <button
                 className={isUninstall ? 'btn-danger' : 'btn-primary'}
                 onClick={start}
@@ -631,7 +631,7 @@ function InstallJobModal({
             </>
           )}
           {(phase === 'running' || phase === 'done') && (
-            <button className="btn-secondary" onClick={onClose}>Close</button>
+            <button className="btn btn-secondary" onClick={onClose}>Close</button>
           )}
         </div>
       </div>

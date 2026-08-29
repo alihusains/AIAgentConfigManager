@@ -252,7 +252,7 @@ export function Dashboard() {
                 local API and cannot be shown without it.
               </p>
               <div className="mt-4">
-                <button className="btn-primary" onClick={() => refreshAll()}>
+                <button className="btn btn-primary" onClick={() => refreshAll()}>
                   Try Again
                 </button>
               </div>

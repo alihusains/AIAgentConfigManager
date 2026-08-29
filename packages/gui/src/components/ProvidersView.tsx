@@ -91,7 +91,7 @@ export function ProvidersView() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button className="btn-primary" onClick={() => setShowAdd(true)} disabled={loading}>
+          <button className="btn btn-primary" onClick={() => setShowAdd(true)} disabled={loading}>
             <Plus size={16} />
             Add Provider
           </button>
@@ -621,10 +621,10 @@ export function AddProviderModal({ onClose, agents, existingIds }: AddProviderMo
             </div>
           </div>
           <div className="modal-footer">
-            <button type="button" className="btn-secondary" onClick={onClose}>
+            <button type="button" className="btn btn-secondary" onClick={onClose}>
               Cancel
             </button>
-            <button type="submit" className="btn-primary" disabled={submitting}>
+            <button type="submit" className="btn btn-primary" disabled={submitting}>
               <Plus size={16} />
               Add Provider
             </button>
@@ -866,10 +866,10 @@ export function EditProviderModal({ provider, onClose }: EditProviderModalProps)
             </div>
           </div>
           <div className="modal-footer">
-            <button type="button" className="btn-secondary" onClick={onClose}>
+            <button type="button" className="btn btn-secondary" onClick={onClose}>
               Cancel
             </button>
-            <button type="submit" className="btn-primary" disabled={submitting || freeFilterEmpty}>
+            <button type="submit" className="btn btn-primary" disabled={submitting || freeFilterEmpty}>
               Save
             </button>
           </div>
@@ -1073,7 +1073,7 @@ export function ProviderDetailsModal({ entry, onClose }: ProviderDetailsModalPro
           />
         </div>
         <div className="modal-footer">
-          <button type="button" className="btn-secondary" onClick={onClose}>
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
             Close
           </button>
         </div>
