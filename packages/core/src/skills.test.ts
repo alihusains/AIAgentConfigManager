@@ -158,7 +158,7 @@ describe('catalog skill capability (real machine, read-only)', () => {
     junie: path.join(os.homedir(), '.junie', 'skills'),
   };
 
-  it('reads real skills from each agent\'s directory on this machine', async () => {
+  it("reads real skills from each agent's directory on this machine", async () => {
     const results = new Map<string, string[]>();
     for (const [agentId, dir] of Object.entries(realDirs)) {
       let entries: import('node:fs').Dirent[] = [];
@@ -185,7 +185,9 @@ describe('catalog skill capability (real machine, read-only)', () => {
     expect(results.has('pi')).toBe(true);
     expect(results.get('pi')!.length).toBeGreaterThan(0);
     for (const [agentId, names] of results) {
-      console.log(`  ${agentId}: ${names.length} skills parsed (sample: ${names.slice(0, 3).join(', ')})`);
+      console.log(
+        `  ${agentId}: ${names.length} skills parsed (sample: ${names.slice(0, 3).join(', ')})`
+      );
     }
   });
 });
