@@ -26,6 +26,7 @@ import {
   checkToolUpdates,
   getToolUpdateCommand,
   getSkillsSnapshot,
+  getAllKnownSkills,
   assignSkillToAgent,
   removeSkillFromAgent,
   copySkillBetweenAgents,
@@ -456,6 +457,13 @@ export async function startGuiServer(
         // GET /api/skills — library + skill-capable agents + assignments in one shot.
         if (method === 'GET' && parts.length === 2) {
           return handle(async () => ({ data: await getSkillsSnapshot() }));
+        }
+        // GET /api/skills/all — aggregated cross-agent view: every skill id
+        // known anywhere (shared library + every skill-capable agent's own
+        // directory), each with `foundOn` listing where it exists. Consumed by
+        // the M045 Skills view rework to browse/copy agent-installed skills.
+        if (method === 'GET' && parts.length === 3 && parts[2] === 'all') {
+          return handle(async () => ({ data: { allSkills: await getAllKnownSkills() } }));
         }
         // POST /api/skills { name, description?, body? } — create a skill in the library.
         if (method === 'POST' && parts.length === 2) {

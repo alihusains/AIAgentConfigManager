@@ -56,6 +56,36 @@ describe('skills routes through the gui-server', () => {
     expect(json.data.skills.map((s: any) => s.id)).toContain('demo-skill');
   });
 
+  it('GET /api/skills/all returns the aggregated cross-agent view', async () => {
+    // demo-skill is in the library; assign it to claude-code and seed one
+    // agent-only skill there to prove agent-installed skills surface without a
+    // library copy (independent of other tests' ordering).
+    const claudeSkills = path.join(process.env.HOME!, '.claude', 'skills');
+    fs.mkdirSync(path.join(claudeSkills, 'claude-only-skill'), { recursive: true });
+    fs.writeFileSync(
+      path.join(claudeSkills, 'claude-only-skill', 'SKILL.md'),
+      '---\nname: Claude Only Skill\n---\nBody\n',
+      'utf8'
+    );
+    const assign = await api('POST', '/api/skills/demo-skill/assign', { agentId: 'claude-code' });
+    expect(assign.status).toBe(200);
+
+    const { status, json } = await api('GET', '/api/skills/all');
+    expect(status).toBe(200);
+    expect(json.ok).toBe(true);
+    expect(Array.isArray(json.data.allSkills)).toBe(true);
+
+    const demo = json.data.allSkills.find((s: any) => s.id === 'demo-skill');
+    expect(demo).toBeDefined();
+    expect(demo.foundOn).toContain('library');
+    expect(demo.foundOn).toContain('claude-code'); // assigned above
+
+    const claudeOnly = json.data.allSkills.find((s: any) => s.id === 'claude-only-skill');
+    expect(claudeOnly).toBeDefined();
+    expect(claudeOnly.foundOn).toEqual(['claude-code']);
+    expect(claudeOnly.name).toBe('Claude Only Skill');
+  });
+
   it('POST /api/skills/:id/copy copies an installed skill between agents', async () => {
     // Assign the library skill to claude-code first so it is installed.
     const assign = await api('POST', '/api/skills/demo-skill/assign', { agentId: 'claude-code' });
