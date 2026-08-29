@@ -492,7 +492,9 @@ describe('SkillsView', () => {
     ).not.toBeInTheDocument();
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Copy Agent Only Skill to another agent' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Copy Agent Only Skill to another agent' })
+    );
     expect(screen.getByRole('menuitem', { name: /Codex/ })).toBeInTheDocument();
     await user.click(screen.getByRole('menuitem', { name: /Codex/ }));
 

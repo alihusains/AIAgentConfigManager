@@ -485,8 +485,7 @@ export async function startGuiServer(
             try {
               const skill = await createSkill({
                 name: String(body.name ?? ''),
-                description:
-                  typeof body.description === 'string' ? body.description : undefined,
+                description: typeof body.description === 'string' ? body.description : undefined,
                 body: typeof body.body === 'string' ? body.body : undefined,
               });
               return { data: { skill } };
@@ -571,7 +570,8 @@ export async function startGuiServer(
         return handle(async () => {
           const name = decodeURIComponent(parts[2]);
           const value = await revealEnvVar(name);
-          if (value === null) return { error: `Environment variable "${name}" not found`, status: 404 };
+          if (value === null)
+            return { error: `Environment variable "${name}" not found`, status: 404 };
           return { data: { name, value } };
         });
       }
