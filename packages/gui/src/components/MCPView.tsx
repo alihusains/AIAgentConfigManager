@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useStore } from '../store';
 import { AgentPicker } from './AgentPicker';
+import { AgentIconTile } from './AgentIcon';
+import { useAgentCatalog } from '../hooks/useAgentCatalog';
 import type { MCPServerConfig, DetectedAgent } from '@ai-agent-config/core';
 import { Plus, Edit, Trash2, Server, Terminal, Globe, Link } from 'lucide-react';
 
@@ -17,13 +19,16 @@ export function MCPView() {
   const [editing, setEditing] = useState<MCPServerConfig | null>(null);
 
   const servers = registry?.mcpServers || [];
+  const catalog = useAgentCatalog();
   const agentName = (id: string) => agents.find((a) => a.id === id)?.name || id;
+  const agentIcon = (id: string) => catalog.find((c) => c.id === id)?.icon;
 
   const handleDelete = async (server: MCPServerConfig) => {
-    const installed = registry?.mcpServers.find((m) => m.server.name === server.name)?.agentIds.length || 0;
+    const installed =
+      registry?.mcpServers.find((m) => m.server.name === server.name)?.agentIds.length || 0;
     if (
       !confirm(
-        `Delete MCP server "${server.name}" from the registry?\n\nIt is currently installed on ${installed} agent(s) — those configs will be cleaned up.`,
+        `Delete MCP server "${server.name}" from the registry?\n\nIt is currently installed on ${installed} agent(s) — those configs will be cleaned up.`
       )
     ) {
       return;
@@ -63,7 +68,7 @@ export function MCPView() {
       ) : (
         <div className="card">
           <div className="table-container">
-            <table className="table">
+            <table className="table mcp-table">
               <thead>
                 <tr>
                   <th>Server</th>
@@ -74,91 +79,121 @@ export function MCPView() {
                 </tr>
               </thead>
               <tbody>
-                {servers.map(({ server, agentIds, agentOverrides }) => (
-                  <tr key={server.name}>
-                    <td>
-                      <div className="flex items-center gap-2">
-                        <div className="p-2 rounded-lg bg-bg-tertiary flex-shrink-0">
-                          {TYPE_ICONS[server.type] || <Server size={18} />}
+                {servers.map(({ server, agentIds, agentOverrides }) => {
+                  const envCount = server.env ? Object.keys(server.env).length : 0;
+                  const visible = agentIds.slice(0, 4);
+                  const overflow = agentIds.length - visible.length;
+                  return (
+                    <tr key={server.name}>
+                      <td>
+                        <div className="mcp-row-identity flex items-center gap-3">
+                          <div className="mcp-type-icon flex-shrink-0">
+                            {TYPE_ICONS[server.type] || <Server size={18} />}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="mcp-server-name">{server.name}</p>
+                              <span
+                                className={`mcp-status ${server.enabled ? 'mcp-status-on' : 'mcp-status-off'}`}
+                              >
+                                {server.enabled ? 'active' : 'disabled'}
+                              </span>
+                            </div>
+                            <p className="mcp-meta">
+                              {server.type}
+                              {server.approvalMode ? ` · ${server.approvalMode}` : ''}
+                              {agentOverrides && Object.keys(agentOverrides).length > 0
+                                ? ` · ${Object.keys(agentOverrides).length} override(s)`
+                                : ''}
+                            </p>
+                          </div>
                         </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="font-medium">{server.name}</p>
-                            <span className={`badge ${server.enabled ? 'badge-success' : 'badge-neutral'}`}>
-                              {server.enabled ? 'active' : 'disabled'}
-                            </span>
-                            <span className="badge badge-primary">{server.type}</span>
-                            {server.approvalMode && (
-                              <span className="badge badge-neutral">{server.approvalMode}</span>
+                      </td>
+                      <td>
+                        <p className="font-mono text-xs break-all mcp-meta">
+                          {server.type === 'stdio'
+                            ? `${server.command || ''} ${(server.args || []).join(' ')}`
+                            : server.url || '—'}
+                        </p>
+                      </td>
+                      <td>
+                        {envCount > 0 ? (
+                          <span className="mcp-meta">{envCount} var(s)</span>
+                        ) : (
+                          <span className="mcp-meta">—</span>
+                        )}
+                      </td>
+                      <td>
+                        <div className="flex items-center gap-2 mcp-agent-stack-wrap">
+                          <div className="mcp-agent-stack">
+                            {visible.length === 0 && <span className="mcp-meta">—</span>}
+                            {visible.map((id) => (
+                              <span key={id} className="mcp-agent-avatar" title={agentName(id)}>
+                                <AgentIconTile
+                                  id={id}
+                                  icon={agentIcon(id)}
+                                  size={26}
+                                  iconSize={14}
+                                />
+                                <button
+                                  className="mcp-avatar-remove"
+                                  title={`Remove from ${agentName(id)}`}
+                                  onClick={() => toggleMCPAgent(server.name, id)}
+                                >
+                                  ×
+                                </button>
+                              </span>
+                            ))}
+                            {overflow > 0 && (
+                              <span
+                                className="mcp-avatar-more"
+                                title={agentIds.slice(4).map(agentName).join(', ')}
+                              >
+                                +{overflow}
+                              </span>
                             )}
                           </div>
-                          {agentOverrides && Object.keys(agentOverrides).length > 0 && (
-                            <p className="text-xs text-tertiary mt-1">
-                              {Object.keys(agentOverrides).length} agent override(s)
-                            </p>
-                          )}
+                          <div className="mcp-agent-list">
+                            {agentIds.map((id) => (
+                              <span key={id} className="mcp-agent-list-item" title={agentName(id)}>
+                                <AgentIconTile
+                                  id={id}
+                                  icon={agentIcon(id)}
+                                  size={22}
+                                  iconSize={13}
+                                />
+                                {agentName(id)}
+                              </span>
+                            ))}
+                          </div>
+                          <AgentPicker
+                            targets={agentIds}
+                            agents={agents}
+                            onToggle={(agentId) => toggleMCPAgent(server.name, agentId)}
+                          />
                         </div>
-                      </div>
-                    </td>
-                    <td>
-                      <p className="font-mono text-xs break-all">
-                        {server.type === 'stdio'
-                          ? `${server.command || ''} ${(server.args || []).join(' ')}`
-                          : server.url || '—'}
-                      </p>
-                      {server.tools && server.tools.length > 0 && (
-                        <p className="text-xs text-tertiary mt-1">
-                          tools: {server.tools.length} allowed
-                        </p>
-                      )}
-                    </td>
-                    <td>
-                      {server.env && Object.keys(server.env).length > 0 ? (
-                        <span className="badge badge-neutral">{Object.keys(server.env).length} var(s)</span>
-                      ) : (
-                        <span className="text-xs text-tertiary">—</span>
-                      )}
-                    </td>
-                    <td>
-                      <div className="flex items-center gap-1 flex-wrap">
-                        {agentIds.map((id) => (
-                          <span key={id} className="chip">
-                            {agentName(id)}
-                            <button
-                              title={`Remove from ${agentName(id)}`}
-                              onClick={() => toggleMCPAgent(server.name, id)}
-                            >
-                              ×
-                            </button>
-                          </span>
-                        ))}
-                        <AgentPicker
-                          targets={agentIds}
-                          agents={agents}
-                          onToggle={(agentId) => toggleMCPAgent(server.name, agentId)}
-                        />
-                      </div>
-                    </td>
-                    <td>
-                      <div className="flex items-center gap-1">
-                        <button
-                          className="btn-ghost btn-icon btn-sm"
-                          title="Edit"
-                          onClick={() => setEditing(server)}
-                        >
-                          <Edit size={14} />
-                        </button>
-                        <button
-                          className="btn-ghost btn-icon btn-sm text-error"
-                          title="Delete"
-                          onClick={() => handleDelete(server)}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td>
+                        <div className="mcp-row-actions flex items-center gap-1">
+                          <button
+                            className="btn-ghost btn-icon btn-sm"
+                            title="Edit"
+                            onClick={() => setEditing(server)}
+                          >
+                            <Edit size={14} />
+                          </button>
+                          <button
+                            className="btn-ghost btn-icon btn-sm text-error"
+                            title="Delete"
+                            onClick={() => handleDelete(server)}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -167,11 +202,7 @@ export function MCPView() {
 
       {showAdd && <MCPServerModal onClose={() => setShowAdd(false)} agents={agents} />}
       {editing && (
-        <MCPServerModal
-          onClose={() => setEditing(null)}
-          agents={agents}
-          initial={editing}
-        />
+        <MCPServerModal onClose={() => setEditing(null)} agents={agents} initial={editing} />
       )}
     </div>
   );
@@ -196,9 +227,13 @@ function MCPServerModal({ onClose, agents, initial }: MCPServerModalProps) {
     type: initial?.type || 'stdio',
     command: initial?.command || '',
     args: (initial?.args || []).join(' '),
-    env: Object.entries(initial?.env || {}).map(([k, v]) => `${k}=${v}`).join(','),
+    env: Object.entries(initial?.env || {})
+      .map(([k, v]) => `${k}=${v}`)
+      .join(','),
     url: initial?.url || '',
-    headers: Object.entries(initial?.headers || {}).map(([k, v]) => `${k}=${v}`).join(','),
+    headers: Object.entries(initial?.headers || {})
+      .map(([k, v]) => `${k}=${v}`)
+      .join(','),
     cwd: initial?.cwd || '',
     timeout: initial?.timeout ?? 30000,
     approvalMode: initial?.approvalMode || 'prompt',
@@ -253,7 +288,12 @@ function MCPServerModal({ onClose, agents, initial }: MCPServerModalProps) {
     timeout: form.timeout || undefined,
     approvalMode: form.approvalMode as MCPServerConfig['approvalMode'],
     enabled: form.enabled,
-    tools: form.tools ? form.tools.split(',').map((s) => s.trim()).filter(Boolean) : undefined,
+    tools: form.tools
+      ? form.tools
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : undefined,
   });
 
   const handleSubmit = async (ev: React.FormEvent) => {
@@ -272,8 +312,12 @@ function MCPServerModal({ onClose, agents, initial }: MCPServerModalProps) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal max-w-lg" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h2 className="modal-title">{isEdit ? `Edit MCP Server — ${initial!.name}` : 'Add MCP Server'}</h2>
-          <button className="modal-close" onClick={onClose}>✕</button>
+          <h2 className="modal-title">
+            {isEdit ? `Edit MCP Server — ${initial!.name}` : 'Add MCP Server'}
+          </h2>
+          <button className="modal-close" onClick={onClose}>
+            ✕
+          </button>
         </div>
         <form onSubmit={handleSubmit}>
           <div className="modal-body" style={{ maxHeight: '65vh' }}>
@@ -387,7 +431,9 @@ function MCPServerModal({ onClose, agents, initial }: MCPServerModalProps) {
                 <select
                   className="input select"
                   value={form.approvalMode}
-                  onChange={(e) => set({ approvalMode: e.target.value as MCPServerConfig['approvalMode'] })}
+                  onChange={(e) =>
+                    set({ approvalMode: e.target.value as MCPServerConfig['approvalMode'] })
+                  }
                 >
                   <option value="prompt">Prompt for each tool call</option>
                   <option value="auto">Auto-approve</option>
@@ -418,8 +464,8 @@ function MCPServerModal({ onClose, agents, initial }: MCPServerModalProps) {
                   <span className="checkbox-label">Server enabled</span>
                 </label>
                 <p className="form-help">
-                  Edits update the shared definition and are written into every agent.
-                  Use per-agent overrides in the registry file for one-off tweaks.
+                  Edits update the shared definition and are written into every agent. Use per-agent
+                  overrides in the registry file for one-off tweaks.
                 </p>
               </div>
             ) : (
@@ -445,19 +491,25 @@ function MCPServerModal({ onClose, agents, initial }: MCPServerModalProps) {
                       />
                       <span className="flex-1 text-sm">{agent.name}</span>
                       {agent.detection.installed ? (
-                        <span className="badge badge-success">{agent.detection.version || 'installed'}</span>
+                        <span className="badge badge-success">
+                          {agent.detection.version || 'installed'}
+                        </span>
                       ) : (
                         <span className="text-xs text-tertiary">path-based</span>
                       )}
                     </label>
                   ))}
                 </div>
-                {errors.targetAgentIds && <p className="form-help text-error">{errors.targetAgentIds}</p>}
+                {errors.targetAgentIds && (
+                  <p className="form-help text-error">{errors.targetAgentIds}</p>
+                )}
               </div>
             )}
           </div>
           <div className="modal-footer">
-            <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+            <button type="button" className="btn-secondary" onClick={onClose}>
+              Cancel
+            </button>
             <button type="submit" className="btn-primary" disabled={submitting}>
               <Plus size={16} />
               {isEdit ? 'Save Changes' : 'Add Server'}
