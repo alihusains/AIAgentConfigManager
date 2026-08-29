@@ -1839,12 +1839,29 @@ select.input {
   margin: 0;
   padding: 0;
   font-size: 13px;
+  /* Flex items are auto-sized (min-width: auto), so without this the trail
+     overflows its slot on narrow viewports (e.g. agent-detail at 1024px with
+     long agent names) and the leading crumbs get cut off. min-width: 0 lets
+     the trail shrink; each crumb truncates below. */
+  min-width: 0;
+  overflow: hidden;
 }
 
 .breadcrumbs-item {
   display: flex;
   align-items: center;
   min-width: 0;
+}
+
+/* Longest crumb last: the current page (agent name) truncates first, the
+   leading navigable crumbs stay readable. */
+.breadcrumbs-item .breadcrumbs-link,
+.breadcrumbs-item .breadcrumbs-current {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .breadcrumbs-item + .breadcrumbs-item::before {
