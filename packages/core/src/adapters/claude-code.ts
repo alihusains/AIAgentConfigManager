@@ -88,6 +88,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
   private rawSettingsCache: ClaudeCodeSettings | null = null;
   private configCache: AgentConfig | null = null;
   private configPath = '';
+  private preservedMCPEntries: { key: string; name: string }[] = [];
 
   constructor() {
     this.configPath = this.getConfigPath();
@@ -242,6 +243,12 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     // Extract MCP servers
     if (settings.mcpServers) {
       for (const [name, server] of Object.entries(settings.mcpServers)) {
+        if (!server || typeof server !== 'object' || Array.isArray(server)) {
+          // Unrecognized entry shape — preserved on disk as-is and reported
+          // via getPreservedRawEntries so materialization can warn (QA H4).
+          this.preservedMCPEntries.push({ key: 'mcpServers', name });
+          continue;
+        }
         mcpServers.push({
           ...server,
           name,
@@ -308,6 +315,15 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     };
   }
 
+  /**
+   * Raw mcpServers entries the unified model cannot express, preserved on
+   * disk as-is (QA H4). Reported so materialization can warn instead of
+   * returning a bare ok that leaves the file unverifiable.
+   */
+  getPreservedRawEntries(): { key: string; name: string }[] {
+    return [...this.preservedMCPEntries];
+  }
+
   private transformToClaudeCode(config: AgentConfig): ClaudeCodeSettings {
     // Start from the previously-read raw settings so unknown keys survive
     // (inputNeededNotifEnabled, agentPushNotifEnabled, etc.) and existing
@@ -315,6 +331,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     const settings: ClaudeCodeSettings = this.rawSettingsCache
       ? (JSON.parse(JSON.stringify(this.rawSettingsCache)) as ClaudeCodeSettings)
       : { env: {} };
+    this.preservedMCPEntries = [];
 
     // Build env from model providers (merge with existing, don't wipe)
     for (const provider of config.modelProviders) {
@@ -347,14 +364,23 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       }
     }
 
-    // Build MCP servers (merge with existing, don't wipe unknown keys)
-    const mcpServers: Record<string, unknown> = {
-      ...(settings.mcpServers || {}),
-    };
+    // Build MCP servers. The unified list is authoritative: names absent
+    // from it are removed from the raw file too, so a deleted server is
+    // actually cleaned up (QA H4) instead of surviving the merge. Only
+    // entries the unified model couldn't express (malformed shapes) are
+    // preserved and surfaced via a warning.
+    const managedNames = new Set(config.mcpServers.map((s) => s.name));
+    const mcpServers: Record<string, unknown> = {};
+    if (settings.mcpServers) {
+      for (const [name, entry] of Object.entries(settings.mcpServers)) {
+        if (managedNames.has(name)) continue;
+        if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+          mcpServers[name] = entry;
+        }
+      }
+    }
     for (const server of config.mcpServers) {
-      const existing = mcpServers[server.name] as Record<string, unknown> | undefined;
       mcpServers[server.name] = {
-        ...existing,
         ...server,
         name: server.name,
       };

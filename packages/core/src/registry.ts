@@ -260,6 +260,7 @@ export function aggregateMaterialize(
     agentId: string;
     ok: boolean;
     error?: string;
+    warning?: string;
   }[]
 ): MaterializeResult {
   const written: string[] = [];
@@ -268,6 +269,7 @@ export function aggregateMaterialize(
   for (const r of results) {
     if (r.ok) written.push(r.agentId);
     else errors.push(`${r.agentId}: ${r.error || 'unknown error'}`);
+    if (r.warning) warnings.push(r.warning);
   }
   return {
     ok: errors.length === 0,
