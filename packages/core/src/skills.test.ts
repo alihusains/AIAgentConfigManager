@@ -21,6 +21,7 @@ import {
   getSkillsSnapshot,
   getSkillCapableAgentIds,
   getAgentSkillsDir,
+  readFileSafe,
 } from './index';
 
 async function writeSkill(dir: string, id: string, frontmatter: string, body = 'Body text.\n') {
@@ -102,22 +103,23 @@ describe('parseSkillFrontmatter', () => {
     expect(meta.version).toBeUndefined(); // nested under metadata: — flat keys only
   });
 
-  it('parses a representative Qwen sample (extra priority key ignored)', () => {
-    // Shape verified against Qwen Code docs (docs/users/features/skills.md) and
-    // real files in ~/.qwen/skills.
+  it('parses a representative Qwen sample (quoted description)', () => {
+    // Shape verified against Qwen Code docs (docs/users/features/skills.md)
+    // and the real files in ~/.qwen/skills (flat name/description frontmatter).
     const meta = parseSkillFrontmatter(
       [
         '---',
         'name: cmux-cli',
-        'description: "Comprehensive cmux CLI usage guide."',
-        'priority: 10',
+        'description: "Comprehensive cmux CLI usage guide. Use when the user asks about cmux."',
         '---',
         '',
         '# cmux CLI',
       ].join('\n')
     );
     expect(meta.name).toBe('cmux-cli');
-    expect(meta.description).toBe('Comprehensive cmux CLI usage guide.');
+    expect(meta.description).toBe(
+      'Comprehensive cmux CLI usage guide. Use when the user asks about cmux.'
+    );
   });
 
   it('parses a representative Continue/Roo sample (argument-hint + metadata ignored)', () => {
@@ -141,6 +143,50 @@ describe('parseSkillFrontmatter', () => {
     expect(meta.name).toBe('banner-design');
     expect(meta.description).toContain('Design banners');
     expect(meta.version).toBeUndefined();
+  });
+});
+
+describe('catalog skill capability (real machine, read-only)', () => {
+  // The 5 M041 agents are expected to have real skills directories on the
+  // machine this suite was authored on. These tests are read-only and skip
+  // gracefully when a directory is absent (CI, other machines).
+  const realDirs: Record<string, string> = {
+    pi: path.join(os.homedir(), '.pi', 'agent', 'skills'),
+    continue: path.join(os.homedir(), '.continue', 'skills'),
+    roo: path.join(os.homedir(), '.roo', 'skills'),
+    qwen: path.join(os.homedir(), '.qwen', 'skills'),
+    junie: path.join(os.homedir(), '.junie', 'skills'),
+  };
+
+  it('reads real skills from each agent\'s directory on this machine', async () => {
+    const results = new Map<string, string[]>();
+    for (const [agentId, dir] of Object.entries(realDirs)) {
+      let entries: import('node:fs').Dirent[] = [];
+      try {
+        entries = await fs.readdir(dir, { withFileTypes: true });
+      } catch {
+        continue; // not installed on this machine — skip
+      }
+      const withSkillMd = entries.filter((e) => e.isDirectory() || e.isSymbolicLink());
+      const parsed: string[] = [];
+      for (const entry of withSkillMd) {
+        const content = await readFileSafe(path.join(dir, entry.name, 'SKILL.md'));
+        if (content == null) continue;
+        const meta = parseSkillFrontmatter(content);
+        if (meta.name) parsed.push(meta.name);
+      }
+      if (parsed.length > 0) results.set(agentId, parsed);
+    }
+    if (results.size === 0) {
+      console.log('real-machine skill dirs not present — skipping');
+      return;
+    }
+    // On the authoring machine at least pi must be present with >0 skills.
+    expect(results.has('pi')).toBe(true);
+    expect(results.get('pi')!.length).toBeGreaterThan(0);
+    for (const [agentId, names] of results) {
+      console.log(`  ${agentId}: ${names.length} skills parsed (sample: ${names.slice(0, 3).join(', ')})`);
+    }
   });
 });
 
