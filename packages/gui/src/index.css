@@ -2009,6 +2009,74 @@ body {
   min-height: 2.5em;
 }
 
+/* Split the assigned-agent chip into a label + small icon buttons (remove /
+   copy) so a chip stays one pill while exposing two actions. */
+.badge-chip-remove-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.badge-chip-remove,
+.badge-chip-copy {
+  all: unset;
+  cursor: pointer;
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  line-height: 0;
+}
+.badge-chip-remove:hover:not(:disabled),
+.badge-chip-copy:hover:not(:disabled) {
+  color: var(--text-primary);
+}
+.badge-chip-remove:disabled,
+.badge-chip-copy:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+/* Copy-to target menu: an inline popover anchored to the chip. */
+.copy-menu {
+  position: absolute;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 160px;
+  padding: 4px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-primary);
+  background: var(--bg-secondary);
+  box-shadow: 0 8px 24px color-mix(in srgb, #000 30%, transparent);
+}
+.copy-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+  border: none;
+  border-radius: var(--radius-sm, 6px);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+.copy-menu-item:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+.copy-menu-item:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.copy-menu-empty {
+  padding: 6px 8px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
 /* Inline error banner (tinted so it reads without relying on border alone). */
 .error-banner {
   padding: 12px 16px;

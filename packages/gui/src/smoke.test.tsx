@@ -18,6 +18,7 @@ import { Dashboard } from './components/Dashboard';
 import { ProvidersView } from './components/ProvidersView';
 import { AgentsView } from './components/AgentsView';
 import { SettingsView } from './components/SettingsView';
+import { SkillsView } from './components/SkillsView';
 import { useStore } from './store';
 
 // ---------------------------------------------------------------------------
@@ -37,6 +38,7 @@ const { apiMock } = vi.hoisted(() => {
     createSkill: vi.fn(),
     assignSkill: vi.fn(),
     unassignSkill: vi.fn(),
+    copySkillToAgent: vi.fn(),
     importRegistry: vi.fn(),
     addProvider: vi.fn(),
     updateProvider: vi.fn(),
@@ -375,6 +377,79 @@ describe('AgentsView', () => {
     render(<AgentsView />);
     await screen.findByRole('heading', { name: 'Agents' });
     expect(screen.getByRole('button', { name: /Add Custom Agent/ })).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SkillsView (cross-agent copy affordance)
+// ---------------------------------------------------------------------------
+describe('SkillsView', () => {
+  const skillsSnapshot = {
+    libraryDir: '/tmp/skills',
+    skills: [
+      {
+        id: 'test-skill',
+        name: 'Test Skill',
+        description: 'A test skill',
+        path: '/tmp/skills/test-skill',
+        fileCount: 1,
+      },
+    ],
+    agents: [
+      {
+        agentId: 'claude-code',
+        name: 'Claude Code',
+        skillsDir: '/tmp/claude/skills',
+        installed: true,
+        skillIds: ['test-skill'],
+      },
+      {
+        agentId: 'codex',
+        name: 'Codex',
+        skillsDir: '/tmp/codex/skills',
+        installed: true,
+        skillIds: [],
+      },
+    ],
+    assignments: { 'test-skill': ['claude-code'] },
+  } as never;
+
+  beforeEach(() => {
+    apiMock.getSkills.mockResolvedValue({ ok: true, status: 200, data: skillsSnapshot });
+  });
+
+  it('renders a copy affordance per assigned agent and offers other agents as targets', async () => {
+    render(<SkillsView />);
+    await screen.findByText('Test Skill');
+
+    // The assigned-agent chip exposes a copy action.
+    const copyBtn = screen.getByRole('button', {
+      name: 'Copy Test Skill to another agent',
+    });
+    expect(copyBtn).toBeInTheDocument();
+
+    // Opening it offers the other agent as a target (self-copy is excluded).
+    const user = userEvent.setup();
+    await user.click(copyBtn);
+    expect(screen.getByRole('menuitem', { name: /Codex/ })).toBeInTheDocument();
+  });
+
+  it('calls copySkillToAgent with source and target when a target is picked', async () => {
+    apiMock.copySkillToAgent.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { targetPath: '/tmp/codex/skills/test-skill' },
+    });
+    render(<SkillsView />);
+    await screen.findByText('Test Skill');
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Copy Test Skill to another agent' }));
+    await user.click(screen.getByRole('menuitem', { name: /Codex/ }));
+
+    await waitFor(() => {
+      expect(apiMock.copySkillToAgent).toHaveBeenCalledWith('test-skill', 'claude-code', 'codex');
+    });
   });
 });
 

@@ -224,6 +224,12 @@ export const api = {
     request<{ ok: boolean }>('POST', `/api/skills/${encodeURIComponent(skillId)}/unassign`, {
       agentId,
     }),
+  /** Copy an installed skill from one agent's skills dir to another's. */
+  copySkillToAgent: (skillId: string, sourceAgentId: string, targetAgentId: string) =>
+    request<{ targetPath: string }>('POST', `/api/skills/${encodeURIComponent(skillId)}/copy`, {
+      sourceAgentId,
+      targetAgentId,
+    }),
 
   // --- Registry import ---
   importRegistry: (registry: unknown) =>
