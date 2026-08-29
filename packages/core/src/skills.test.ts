@@ -17,6 +17,7 @@ import {
   createSkill,
   assignSkillToAgent,
   removeSkillFromAgent,
+  removeSkillFromLibrary,
   copySkillBetweenAgents,
   getSkillsSnapshot,
   getAllKnownSkills,
@@ -294,6 +295,32 @@ describe('skill library (temp dir)', () => {
     await expect(
       removeSkillFromAgent('temp', 'any-agent', { libraryDir, skillsDir: agentDir })
     ).rejects.toThrow(/not assigned/i);
+  });
+
+  it('removeSkillFromLibrary deletes only the library copy (no cascade to agents)', async () => {
+    await writeSkill(libraryDir, 'doomed', '---\nname: Doomed\n---', 'lib body\n');
+    await assignSkillToAgent('doomed', 'any-agent', { libraryDir, skillsDir: agentDir });
+
+    await removeSkillFromLibrary('doomed', { libraryDir });
+    // Library copy is gone.
+    await expect(fs.access(path.join(libraryDir, 'doomed'))).rejects.toThrow();
+    expect((await listSkills({ libraryDir })).map((s) => s.id)).not.toContain('doomed');
+    // The agent's own copy is untouched — no silent cascade.
+    expect(await fs.readFile(path.join(agentDir, 'doomed', 'SKILL.md'), 'utf8')).toContain(
+      'lib body'
+    );
+  });
+
+  it('removeSkillFromLibrary rejects when the skill is not in the library', async () => {
+    await expect(removeSkillFromLibrary('missing', { libraryDir })).rejects.toThrow(
+      /not found in library/i
+    );
+  });
+
+  it('removeSkillFromLibrary rejects unsafe ids', async () => {
+    await expect(removeSkillFromLibrary('../escape', { libraryDir })).rejects.toThrow(
+      /invalid skill id/i
+    );
   });
 
   it('snapshot reports library, agents and assignments together', async () => {

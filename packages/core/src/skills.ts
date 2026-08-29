@@ -402,6 +402,28 @@ export async function removeSkillFromAgent(
   await fs.rm(targetPath, { recursive: true, force: true });
 }
 
+/**
+ * Delete a skill's folder from the shared library.
+ *
+ * This only removes the library copy. Agents that already had the skill
+ * assigned keep their own copies — assignment is a copy, and agent dirs are
+ * generated output (see the file header), so deleting the source of truth
+ * must not silently cascade into every agent. Use removeSkillFromAgent to
+ * clean up individual agent copies.
+ */
+export async function removeSkillFromLibrary(
+  skillId: string,
+  opts: SkillsDirOptions = {}
+): Promise<void> {
+  assertSafeId(skillId, 'skill id');
+  const libraryDir = opts.libraryDir ?? getSkillsLibraryDir();
+  const skillDir = path.join(libraryDir, skillId);
+  if (!(await fileExists(path.join(skillDir, 'SKILL.md')))) {
+    throw new Error(`Skill not found in library: ${skillId}`);
+  }
+  await fs.rm(skillDir, { recursive: true, force: true });
+}
+
 /** Escape a scalar for double-quoted YAML output. */
 function yamlScalar(value: string): string {
   return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;

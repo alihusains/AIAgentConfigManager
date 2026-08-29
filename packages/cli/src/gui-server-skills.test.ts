@@ -171,6 +171,48 @@ describe('skills routes through the gui-server', () => {
     expect(String(json.error)).toContain('does not support skills: nonexistent');
   });
 
+  // QA finding H1: DELETE /api/skills/:id removes the library copy only.
+  it('QA H1: DELETE /api/skills/:id deletes the library skill without touching agent copies (exact QA repro)', async () => {
+    // Create a throwaway skill via the API and assign it to an agent first.
+    const create = await api('POST', '/api/skills', { name: 'qa-delete-skill' });
+    expect(create.status).toBe(200);
+    const assign = await api('POST', '/api/skills/qa-delete-skill/assign', {
+      agentId: 'claude-code',
+    });
+    expect(assign.status).toBe(200);
+
+    const { status, json } = await api('DELETE', '/api/skills/qa-delete-skill');
+    expect(status).toBe(200);
+    expect(json.ok).toBe(true);
+
+    // Gone from disk and from the library listing…
+    expect(fs.existsSync(path.join(getSkillsLibraryDir(), 'qa-delete-skill', 'SKILL.md'))).toBe(
+      false
+    );
+    const list = await api('GET', '/api/skills');
+    expect(list.json.data.skills.map((s: any) => s.id)).not.toContain('qa-delete-skill');
+    // …but the agent's own copy is untouched (no cascade).
+    expect(
+      fs.existsSync(
+        path.join(process.env.HOME!, '.claude', 'skills', 'qa-delete-skill', 'SKILL.md')
+      )
+    ).toBe(true);
+  });
+
+  it('QA H1: DELETE /api/skills/:id returns 404 for a skill not in the library', async () => {
+    const { status, json } = await api('DELETE', '/api/skills/never-created-skill');
+    expect(status).toBe(404);
+    expect(json.ok).toBe(false);
+    expect(String(json.error)).toContain('not found in library');
+  });
+
+  it('QA H1: DELETE /api/skills/:id returns 400 for an unsafe id', async () => {
+    const { status, json } = await api('DELETE', `/api/skills/${encodeURIComponent('../escape')}`);
+    expect(status).toBe(400);
+    expect(json.ok).toBe(false);
+    expect(String(json.error)).toContain('Invalid skill id');
+  });
+
   // QA finding H3: the top-level envelope `ok` means "the request succeeded",
   // which read as "provider is fine" when every probe failed. The data payload
   // now carries `completed` (checks ran) and `reachable` (any API answered).

@@ -40,6 +40,7 @@ const { apiMock } = vi.hoisted(() => {
     assignSkill: vi.fn(),
     unassignSkill: vi.fn(),
     copySkillToAgent: vi.fn(),
+    deleteSkill: vi.fn(),
     exportRegistry: vi.fn(),
     importRegistry: vi.fn(),
     addProvider: vi.fn(),
@@ -505,6 +506,42 @@ describe('SkillsView', () => {
         'codex'
       );
     });
+  });
+
+  it('deletes a library skill after confirmation (agent copies untouched, list refreshed)', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    apiMock.deleteSkill.mockResolvedValue({ ok: true, status: 200, data: { ok: true } });
+    render(<SkillsView />);
+    await screen.findByText('Test Skill');
+
+    // Only library skills offer the delete action…
+    expect(
+      screen.queryByRole('button', { name: 'Delete Agent Only Skill from the library' })
+    ).not.toBeInTheDocument();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Delete Test Skill from the library' }));
+
+    // Confirmation is required before the destructive call…
+    expect(confirmSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Delete skill "test-skill" from the shared library?')
+    );
+    await waitFor(() => {
+      expect(apiMock.deleteSkill).toHaveBeenCalledWith('test-skill');
+    });
+    // …and the list refreshes on success.
+    await waitFor(() => expect(apiMock.getSkills).toHaveBeenCalledTimes(2));
+  });
+
+  it('does not call deleteSkill when the confirmation is dismissed', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    render(<SkillsView />);
+    await screen.findByText('Test Skill');
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Delete Test Skill from the library' }));
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(apiMock.deleteSkill).not.toHaveBeenCalled();
   });
 
   it('search narrows the visible skill list', async () => {
