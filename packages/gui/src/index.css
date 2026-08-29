@@ -1419,35 +1419,31 @@ body {
   overflow-y: auto;
 }
 
+/* v2 active nav: pill-shaped (radius-full) low-opacity accent fill with a soft
+   accent glow (box-shadow), not a hard fill. Text stays on the text-safe token
+   (--text-primary: 15.19:1 dark / 15.71:1 light on --bg-secondary, per the v2
+   spec's measured table in §4). */
 .nav-item {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  font-size: 13px;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  font-size: var(--text-size-sm);
   font-weight: 500;
   color: var(--text-secondary);
   background: transparent;
   border: none;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-full);
   cursor: pointer;
   transition: all var(--transition-fast);
   width: 100%;
   text-align: left;
 }
 
-.nav-item::before {
-  content: "";
-  position: absolute;
-  left: 2px;
-  top: 20%;
-  bottom: 20%;
-  width: 3px;
-  border-radius: var(--radius-full);
-  background: var(--accent-primary);
-  opacity: 0;
-  transition: opacity var(--transition-fast);
+.nav-item:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
 }
 
 .nav-item:hover {
@@ -1456,13 +1452,12 @@ body {
 }
 
 .nav-item.active {
-  background: color-mix(in srgb, var(--accent-primary) 10%, transparent);
+  background: color-mix(in srgb, var(--accent-primary) 14%, transparent);
   color: var(--text-primary);
   font-weight: 600;
-}
-
-.nav-item.active::before {
-  opacity: 1;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent-primary) 25%, transparent),
+    0 0 14px 2px color-mix(in srgb, var(--accent-primary) 22%, transparent);
 }
 
 .nav-item-icon {
@@ -1481,7 +1476,12 @@ body {
   padding-left: 8px;
 }
 
-/* Tiny runtime-integration status dots for detected agents. Not pills. */
+/* Tiny runtime-integration status dots for detected agents. Not pills.
+   Decorative only — the agent name + title attribute (and aria-label) already
+   carry the installed/not-installed text, so the dot is an additive visual
+   signal, never the sole indicator (accessibility rule, see ui/Status.tsx).
+   Installed dots pulse like a live signal; the global
+   prefers-reduced-motion override disables the animation. */
 .status-dot {
   width: 8px;
   height: 8px;
@@ -1492,11 +1492,24 @@ body {
 .status-dot--on {
   color: var(--accent-success);
   background: var(--accent-success);
+  animation: status-dot-pulse 2.2s ease-in-out infinite;
 }
 .status-dot--off {
   color: var(--text-tertiary);
   background: transparent;
   box-shadow: inset 0 0 0 1px var(--text-tertiary);
+}
+
+@keyframes status-dot-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-success) 45%, transparent);
+  }
+  50% {
+    opacity: 0.7;
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent-success) 0%, transparent);
+  }
 }
 
 /* Shared status component — dot + text, never color-only (accessibility). */
@@ -1530,18 +1543,29 @@ body {
   }
 }
 
+/* Grouped nav sections (Registry / Detected Agents / System): clear visual
+   separation via spacing + a subtle divider above each group (except the
+   first). Restyle only — the grouping structure is unchanged. */
 .nav-section {
-  margin-top: 16px;
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-primary);
+}
+
+.nav-section:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
 }
 
 .nav-section-title {
-  font-size: 11px;
+  font-size: var(--text-size-xs);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-tertiary);
-  padding: 0 12px;
-  margin-bottom: 8px;
+  padding: 0 var(--space-3);
+  margin-bottom: var(--space-2);
 }
 
 /* Breadcrumbs */
