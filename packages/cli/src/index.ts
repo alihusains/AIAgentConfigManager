@@ -191,8 +191,11 @@ program
     if (catalog.length > 0) {
       console.log(chalk.bold('\nCatalog agents (binary-only detection)'));
       console.log(chalk.gray('─'.repeat(50)));
-      for (const entry of catalog) {
-        const probe = await detectCatalogEntry(entry);
+      // Probes are independent — run them in parallel, print in catalog order.
+      const probes = await Promise.all(catalog.map((entry) => detectCatalogEntry(entry)));
+      for (let i = 0; i < catalog.length; i++) {
+        const entry = catalog[i];
+        const probe = probes[i];
         const _detected = catalogEntryToDetected(entry, probe);
         const status = probe.installed ? chalk.green('INSTALLED') : chalk.gray('not found');
         console.log(`\n${status}  ${chalk.bold(entry.name)} (${entry.id})`);

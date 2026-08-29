@@ -21,7 +21,7 @@ import {
   parseConfig,
   readFileSafe,
 } from './utils';
-import { resolveBinary, type BinaryFoundBy } from './detect/binary';
+import { resolveBinary, type BinaryFoundBy, type ResolvedBinary } from './detect/binary';
 import { listAvailableAdapters } from './adapters';
 import type { Platform, ProviderApiKind } from './types';
 import type { DetectedAgent } from './index'; // eslint-disable-line import/no-cycle
@@ -256,22 +256,14 @@ async function countCatalogMcpServers(path: string, _entry: AgentCatalogEntry): 
 export async function detectCatalogEntry(entry: AgentCatalogEntry): Promise<CatalogEntryDetection> {
   const binaries = entry.binaries?.length ? entry.binaries : [entry.id];
 
-  let installed = false;
-  let binaryPath: string | undefined;
-  let detectedBy: BinaryFoundBy | undefined;
-  for (const binary of binaries) {
-    try {
-      const found = await resolveBinary(binary);
-      if (found) {
-        installed = true;
-        binaryPath = found.path;
-        detectedBy = found.foundBy;
-        break;
-      }
-    } catch {
-      // Probe the next binary — an uncooperative PATH lookup shouldn't fail the whole entry.
-    }
-  }
+  // Probe all candidate binaries in parallel (independent lookups); the
+  // first name that resolves wins, same as the sequential order before.
+  const found = (await Promise.all(binaries.map((b) => resolveBinary(b).catch(() => null)))).find(
+    (f): f is ResolvedBinary => f !== null
+  );
+  const installed = found !== undefined;
+  const binaryPath = found?.path;
+  const detectedBy = found?.foundBy;
 
   let version: string | undefined;
   if (installed) {

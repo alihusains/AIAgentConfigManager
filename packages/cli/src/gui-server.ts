@@ -696,6 +696,10 @@ export async function startGuiServer(
         if (method === 'POST' && parts.length === 3) {
           const body = await readBody();
           return handle(async () => {
+            // SAFETY: body is the raw JSON POST body; addCustomAgent validates
+            // every required field (id, configPath) and returns an error result
+            // on shape mismatch instead of throwing, so the cast cannot hide
+            // a malformed request.
             const result = await manager.addCustomAgent(body as unknown as CustomAgentDef);
             if (!result.success) return { error: result.error, status: 400 };
             return { data: result.data };
@@ -724,10 +728,21 @@ export async function startGuiServer(
       // NOTE: must be checked before the `:id` raw-config route below.
       if (method === 'GET' && parts.length === 3 && parts[2] === 'catalog') {
         return handle(async () => {
-          const detected = await manager.detectAgents();
+          // Detection and the catalog-only probes are mutually independent —
+          // run them as one parallel batch instead of a sequential loop.
+          const catalog = getAgentCatalog();
+          const [detected, probes] = await Promise.all([
+            manager.detectAgents(),
+            Promise.all(
+              catalog
+                .filter((e) => !manager.getAgent(e.id))
+                .map((entry) => detectCatalogEntry(entry))
+            ),
+          ]);
           const byId = new Map(detected.map((d) => [d.id, d]));
+          let probeIndex = 0;
           const agents = [];
-          for (const entry of getAgentCatalog()) {
+          for (const entry of catalog) {
             const det = byId.get(entry.id);
             if (det) {
               // Adapter-backed: use the full detection (binary + config paths).
@@ -739,10 +754,9 @@ export async function startGuiServer(
               });
               continue;
             }
-            // No core adapter (e.g. reasonix, freebuff): probe the entry's own
-            // binaries + settingsPaths so installed CLIs are not offered as
-            // "Available to Install".
-            const probe = await detectCatalogEntry(entry);
+            // No core adapter (e.g. reasonix, freebuff): use the pre-computed
+            // probe so installed CLIs are not offered as "Available to Install".
+            const probe = probes[probeIndex++];
             agents.push({
               ...entry,
               known: true,
