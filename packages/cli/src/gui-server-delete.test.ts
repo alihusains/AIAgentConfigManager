@@ -93,25 +93,21 @@ afterAll(async () => {
 });
 
 describe('provider delete through the gui-server', () => {
-  it(
-    'control: delete of a clean-id provider in two agents cascades everywhere',
-    async () => {
-      const reg = await manager.registerProvider(
-        makeProvider('clean-provider'),
-        [makeModel('clean-provider')],
-        ['agent-a', 'agent-b']
-      );
-      expect(reg.success).toBe(true);
+  it('control: delete of a clean-id provider in two agents cascades everywhere', async () => {
+    const reg = await manager.registerProvider(
+      makeProvider('clean-provider'),
+      [makeModel('clean-provider')],
+      ['agent-a', 'agent-b']
+    );
+    expect(reg.success).toBe(true);
 
-      const { status, json } = await api('DELETE', '/api/providers/clean-provider');
-      expect(status).toBe(200);
-      expect(json.ok).toBe(true);
+    const { status, json } = await api('DELETE', '/api/providers/clean-provider');
+    expect(status).toBe(200);
+    expect(json.ok).toBe(true);
 
-      const providers = await dashboardProviders();
-      expect(providers.find((p) => p.provider.id === 'clean-provider')).toBeUndefined();
-    },
-    15000
-  );
+    const providers = await dashboardProviders();
+    expect(providers.find((p) => p.provider.id === 'clean-provider')).toBeUndefined();
+  }, 15000);
 
   it('SYMPTOM 2: remove-from-agent with a spaced id (GUI-encoded URL) actually removes', async () => {
     const id = 'icm llm router';
