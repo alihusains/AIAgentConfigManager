@@ -2330,11 +2330,7 @@ textarea {
 }
 
 .protocol-bar-fill.is-chat {
-  background: linear-gradient(
-    90deg,
-    var(--accent-primary),
-    var(--accent-primary-text)
-  );
+  background: linear-gradient(90deg, var(--accent-primary), var(--accent-primary-text));
 }
 
 .protocol-bar-fill.is-responses {
@@ -2342,7 +2338,11 @@ textarea {
 }
 
 .protocol-bar-fill.is-anthropic {
-  background: linear-gradient(90deg, var(--anthropic-accent), color-mix(in srgb, var(--anthropic-accent) 70%, var(--text-primary)));
+  background: linear-gradient(
+    90deg,
+    var(--anthropic-accent),
+    color-mix(in srgb, var(--anthropic-accent) 70%, var(--text-primary))
+  );
 }
 
 /* Combined distribution — one segmented bar of the same three real counts. */
@@ -2371,7 +2371,11 @@ textarea {
 }
 
 .protocol-segment.is-anthropic {
-  background: linear-gradient(90deg, var(--anthropic-accent), color-mix(in srgb, var(--anthropic-accent) 70%, var(--text-primary)));
+  background: linear-gradient(
+    90deg,
+    var(--anthropic-accent),
+    color-mix(in srgb, var(--anthropic-accent) 70%, var(--text-primary))
+  );
 }
 
 /* ============================================================================
@@ -2625,22 +2629,18 @@ textarea {
   padding: 18px 20px;
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-lg);
-  background:
-    radial-gradient(
+  background: radial-gradient(
       130% 130% at 100% 0%,
       color-mix(in srgb, var(--bento-tint) 15%, transparent) 0%,
       color-mix(in srgb, var(--bento-tint) 4%, transparent) 42%,
       transparent 72%
-    ),
-    var(--bg-secondary);
+    ), var(--bg-secondary);
   text-align: left;
   font: inherit;
   color: inherit;
   appearance: none;
   cursor: pointer;
-  transition:
-    border-color var(--transition-fast),
-    box-shadow var(--transition-normal);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-normal);
 }
 
 .bento-card:hover {

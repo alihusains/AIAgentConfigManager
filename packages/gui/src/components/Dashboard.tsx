@@ -5,14 +5,7 @@ import { ApiTypeBadges } from './ApiTypeBadges';
 import { AgentIconTile } from './AgentIcon';
 import { providerApiLabel } from './ProviderVerify';
 import { Skeleton } from '../ui';
-import {
-  Database,
-  Server,
-  Bot,
-  UserPlus,
-  AlertTriangle,
-  ArrowRight,
-} from 'lucide-react';
+import { Database, Server, Bot, UserPlus, AlertTriangle, ArrowRight } from 'lucide-react';
 import type { ProviderApiKind } from '@ai-agent-config/core';
 
 /**
@@ -45,8 +38,7 @@ const PROTOCOL_ORDER: ProviderApiKind[] = ['chat', 'responses', 'anthropic'];
 function usePrefersReducedMotion(): boolean {
   const [reduced, setReduced] = useState(
     () =>
-      typeof window !== 'undefined' &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+      typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
   );
   useEffect(() => {
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -189,11 +181,7 @@ const BentoCard = memo(function BentoCard({
         </span>
       </span>
       {ring ? (
-        <Ring
-          ratio={ring.ratio}
-          trackClass={ring.trackClass}
-          fillClass={ring.fillClass}
-        />
+        <Ring ratio={ring.ratio} trackClass={ring.trackClass} fillClass={ring.fillClass} />
       ) : null}
     </button>
   );
@@ -234,10 +222,7 @@ const ProtocolCoverage = memo(function ProtocolCoverage({
                 aria-valuemax={total}
                 aria-label={`${providerApiLabel(kind)}: ${n} of ${total} agents`}
               >
-                <div
-                  className={`protocol-bar-fill is-${kind}`}
-                  style={{ width: `${pct}%` }}
-                />
+                <div className={`protocol-bar-fill is-${kind}`} style={{ width: `${pct}%` }} />
               </div>
               <span className="protocol-row-count">{n}</span>
             </div>
@@ -248,7 +233,7 @@ const ProtocolCoverage = memo(function ProtocolCoverage({
           className="protocol-segments"
           role="img"
           aria-label={`Protocol distribution: ${PROTOCOL_ORDER.map(
-            (k) => `${providerApiLabel(k)} ${counts[k]}`,
+            (k) => `${providerApiLabel(k)} ${counts[k]}`
           ).join(', ')}`}
         >
           {PROTOCOL_ORDER.map((kind) => {
@@ -266,9 +251,8 @@ const ProtocolCoverage = memo(function ProtocolCoverage({
         </div>
       </div>
       <p className="text-tertiary text-xs mt-3">
-        Share of catalog agents declaring each wire protocol: chat (OpenAI Chat
-        Completions), responses (OpenAI Responses), anthropic (Anthropic
-        Messages).
+        Share of catalog agents declaring each wire protocol: chat (OpenAI Chat Completions),
+        responses (OpenAI Responses), anthropic (Anthropic Messages).
       </p>
     </div>
   );
@@ -310,12 +294,7 @@ const DetectedStrip = memo(function DetectedStrip({
       </div>
       <div className="detected-strip">
         {agents.map((a) => (
-          <button
-            key={a.id}
-            type="button"
-            className="detected-chip"
-            onClick={() => onSelect(a.id)}
-          >
+          <button key={a.id} type="button" className="detected-chip" onClick={() => onSelect(a.id)}>
             <AgentIconTile icon={a.icon} id={a.id} size={24} iconSize={14} />
             <span className="detected-chip-name">{a.name}</span>
             <ApiTypeBadges kinds={a.kinds} compact />
@@ -409,8 +388,8 @@ export function Dashboard() {
               <h3 className="empty-state-title">Dashboard access token missing or expired</h3>
               <p className="empty-state-message">
                 The page loads, but this browser no longer holds the per-session token of the
-                running dashboard (401 Unauthorized). The agents and registry live behind the
-                local API and cannot be shown without it.
+                running dashboard (401 Unauthorized). The agents and registry live behind the local
+                API and cannot be shown without it.
               </p>
               <div className="mt-4">
                 <button type="button" className="btn-primary" onClick={() => refreshAll()}>
@@ -493,9 +472,7 @@ export function Dashboard() {
           label="Custom Agents"
           icon={<UserPlus size={16} />}
           value={customAgents.length}
-          caption={
-            customAgents.length > 0 ? 'user-defined config paths' : 'Register custom tools'
-          }
+          caption={customAgents.length > 0 ? 'user-defined config paths' : 'Register custom tools'}
           tint="var(--accent-warning)"
           onClick={goAgents}
         />
@@ -520,9 +497,8 @@ export function Dashboard() {
             <p className="text-tertiary text-xs">Location</p>
             <p className="font-mono text-sm break-all mt-1">{registry?.path}</p>
             <p className="text-tertiary text-xs mt-2 mb-1">
-              One definition per provider / MCP server; each entry lists the agents it is
-              installed on. Agent files are generated from this registry — never edit them by
-              hand.
+              One definition per provider / MCP server; each entry lists the agents it is installed
+              on. Agent files are generated from this registry — never edit them by hand.
             </p>
           </div>
           <div className="flex-shrink-0">
