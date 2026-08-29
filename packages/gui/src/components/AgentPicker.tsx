@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Plus, Bot } from 'lucide-react';
 import type { DetectedAgent } from '@ai-agent-config/core';
+import { AgentIconTile } from './AgentIcon';
 
 export interface AgentPickerProps {
   /** Agent ids currently installed for this provider / server */
@@ -9,13 +10,20 @@ export interface AgentPickerProps {
   agents: DetectedAgent[];
   /** Called immediately when a checkbox is toggled (add or remove) */
   onToggle: (agentId: string) => void;
+  /**
+   * What is being installed. Providers need agents whose config format can
+   * store model providers; MCP servers need MCP support. Agents without the
+   * matching capability are shown but disabled — selecting them would record
+   * them in the registry while nothing is ever written to their config.
+   */
+  kind?: 'provider' | 'mcp';
 }
 
 /**
  * "+" button that opens a popover listing every agent with a checkbox.
  * Toggling a checkbox installs/removes the registry entry immediately.
  */
-export function AgentPicker({ targets, agents, onToggle }: AgentPickerProps) {
+export function AgentPicker({ targets, agents, onToggle, kind = 'mcp' }: AgentPickerProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -27,6 +35,9 @@ export function AgentPicker({ targets, agents, onToggle }: AgentPickerProps) {
     document.addEventListener('mousedown', onDocClick);
     return () => document.removeEventListener('mousedown', onDocClick);
   }, [open]);
+
+  const canTake = (agent: DetectedAgent) =>
+    kind === 'provider' ? agent.supports.modelProviders : agent.supports.mcpServers;
 
   return (
     <div className="relative" ref={ref}>
@@ -48,19 +59,35 @@ export function AgentPicker({ targets, agents, onToggle }: AgentPickerProps) {
           )}
           {agents.map((agent) => {
             const checked = targets.includes(agent.id);
+            const supported = canTake(agent);
             return (
               <label
                 key={agent.id}
-                className="flex items-center gap-2 cursor-pointer px-2 py-1 rounded hover:bg-bg-hover"
+                className={`flex items-center gap-2 px-2 py-1 rounded hover:bg-bg-hover ${
+                  supported ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'
+                }`}
+                title={
+                  supported
+                    ? undefined
+                    : `${agent.name}'s config format cannot store ${
+                        kind === 'provider' ? 'model providers' : 'MCP servers'
+                      } — nothing would be written to its config file`
+                }
               >
                 <input
                   type="checkbox"
                   className="checkbox"
                   checked={checked}
-                  onChange={() => onToggle(agent.id)}
+                  disabled={!supported && !checked}
+                  onChange={() => supported && onToggle(agent.id)}
                 />
+                <AgentIconTile id={agent.id} size={22} iconSize={15} />
                 <span className="flex-1 text-sm truncate">{agent.name}</span>
-                {agent.detection.installed ? (
+                {!supported ? (
+                  <span className="badge badge-neutral">
+                    {kind === 'provider' ? 'no model support' : 'no MCP support'}
+                  </span>
+                ) : agent.detection.installed ? (
                   <span className="badge badge-success">on</span>
                 ) : (
                   <span className="text-xs text-tertiary">path-based</span>

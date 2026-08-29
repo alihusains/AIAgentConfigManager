@@ -16,7 +16,7 @@
 
   /* Text */
   --text-primary: #171a1f;
-  --text-secondary: #5e6670;
+  --text-secondary: #4a525c;
   --text-tertiary: #8a929c;
   --text-inverse: #f7f8fa;
 
@@ -1382,7 +1382,7 @@ body {
 
 .nav-item.active {
   background: color-mix(in srgb, var(--accent-primary) 10%, transparent);
-  color: var(--accent-primary);
+  color: var(--text-primary);
   font-weight: 600;
 }
 

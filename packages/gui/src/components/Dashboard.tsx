@@ -4,6 +4,7 @@ import { useAgentCatalog } from '../hooks/useAgentCatalog';
 import { ApiTypeBadges } from './ApiTypeBadges';
 import { AgentIconTile } from './AgentIcon';
 import { providerApiLabel } from './ProviderVerify';
+import { Skeleton } from '../ui';
 import {
   Database,
   Server,
@@ -224,9 +225,15 @@ export function Dashboard() {
 
   if (loading && !registry) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-4 p-8">
-        <div className="spinner" style={{ width: 40, height: 40 }} />
-        <p className="text-secondary">Loading registry state…</p>
+      <div className="p-4" role="status" aria-label="Loading registry state">
+        <Skeleton className="mb-6" width="240px" height={28} />
+        <div className="flex gap-4 flex-wrap mb-6">
+          <Skeleton className="flex-1 min-w-[160px]" height={72} />
+          <Skeleton className="flex-1 min-w-[160px]" height={72} />
+          <Skeleton className="flex-1 min-w-[160px]" height={72} />
+          <Skeleton className="flex-1 min-w-[160px]" height={72} />
+        </div>
+        <Skeleton width="100%" height={200} />
       </div>
     );
   }

@@ -12,14 +12,7 @@
  * - Respects prefers-reduced-motion for the open/close transition.
  * - Results grouped by entity type (Views / Providers / Agents / Actions).
  */
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type KeyboardEvent,
-} from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useStore, type View } from '../store';
 import { toggleTheme } from './ThemeToggle';
 import { Search, CornerDownLeft } from 'lucide-react';
@@ -204,7 +197,9 @@ export function CommandPalette() {
       setActiveIndex((i) => (i + 1) % Math.max(flatItems.length, 1));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setActiveIndex((i) => (i - 1 + Math.max(flatItems.length, 1)) % Math.max(flatItems.length, 1));
+      setActiveIndex(
+        (i) => (i - 1 + Math.max(flatItems.length, 1)) % Math.max(flatItems.length, 1)
+      );
     } else if (e.key === 'Enter') {
       e.preventDefault();
       const item = flatItems[activeIndex];
@@ -225,12 +220,7 @@ export function CommandPalette() {
         if (e.target === e.currentTarget) closePalette();
       }}
     >
-      <div
-        className="palette"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Command palette"
-      >
+      <div className="palette" role="dialog" aria-modal="true" aria-label="Command palette">
         {/* Search input */}
         <div className="palette-input-row">
           <Search size={16} className="palette-input-icon" aria-hidden="true" />
@@ -241,7 +231,9 @@ export function CommandPalette() {
             role="combobox"
             aria-expanded="true"
             aria-controls="palette-listbox"
-            aria-activedescendant={flatItems[activeIndex] ? `palette-item-${activeIndex}` : undefined}
+            aria-activedescendant={
+              flatItems[activeIndex] ? `palette-item-${activeIndex}` : undefined
+            }
             aria-label="Search commands"
             placeholder="Search providers, agents, actions…"
             value={query}
@@ -269,7 +261,9 @@ export function CommandPalette() {
             <ul ref={listRef} id="palette-listbox" role="listbox" className="palette-list">
               {groups.map((group) => (
                 <li key={group.group} role="presentation" className="palette-group">
-                  <div className="palette-group-label" role="presentation">{group.group}</div>
+                  <div className="palette-group-label" role="presentation">
+                    {group.group}
+                  </div>
                   <ul role="presentation" className="palette-group-items">
                     {group.items.map((item) => {
                       const globalIdx = flatItems.indexOf(item);

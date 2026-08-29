@@ -117,10 +117,7 @@ export function ProviderDetailView({ providerId }: ProviderDetailViewProps) {
   if (!providerId || !entry || !provider) {
     return (
       <div className="p-8">
-        <button
-          className="btn-ghost btn-sm mb-4"
-          onClick={() => setActiveView('providers')}
-        >
+        <button className="btn-ghost btn-sm mb-4" onClick={() => setActiveView('providers')}>
           <ArrowLeft size={14} /> Back to Providers
         </button>
         <div className="empty-state">
@@ -138,10 +135,7 @@ export function ProviderDetailView({ providerId }: ProviderDetailViewProps) {
     <div className="p-6">
       {/* Header */}
       <div className="mb-6">
-        <button
-          className="btn-ghost btn-sm mb-4"
-          onClick={() => setActiveView('providers')}
-        >
+        <button className="btn-ghost btn-sm mb-4" onClick={() => setActiveView('providers')}>
           <ArrowLeft size={14} /> Back to Providers
         </button>
 
@@ -185,11 +179,7 @@ export function ProviderDetailView({ providerId }: ProviderDetailViewProps) {
       </div>
 
       {/* Tab Panels */}
-      <div
-        role="tabpanel"
-        id={`tabpanel-${activeTab}`}
-        aria-labelledby={`tab-${activeTab}`}
-      >
+      <div role="tabpanel" id={`tabpanel-${activeTab}`} aria-labelledby={`tab-${activeTab}`}>
         {activeTab === 'overview' && (
           <OverviewTab
             provider={provider}
@@ -259,9 +249,7 @@ function OverviewTab({
           {caps?.verifiedAt && (
             <div className="flex items-center justify-between">
               <span className="text-sm text-secondary">Last Verified</span>
-              <span className="text-sm">
-                {new Date(caps.verifiedAt).toLocaleString()}
-              </span>
+              <span className="text-sm">{new Date(caps.verifiedAt).toLocaleString()}</span>
             </div>
           )}
         </div>
@@ -271,7 +259,9 @@ function OverviewTab({
       <section className="card">
         <h3 className="card-title">API Capabilities</h3>
         {!caps ? (
-          <p className="text-xs text-tertiary">Not verified yet — run a test in the API Configuration tab.</p>
+          <p className="text-xs text-tertiary">
+            Not verified yet — run a test in the API Configuration tab.
+          </p>
         ) : caps.supported.length === 0 ? (
           <p className="text-xs text-error">No OpenAI-style API confirmed at the last test.</p>
         ) : (
@@ -391,10 +381,18 @@ function AgentsTab({
       const isInstalled = entry.agentIds.includes(agentId);
       if (isInstalled) {
         await api.removeProviderAgent(entry.provider.id, agentId);
-        addToast({ type: 'success', title: 'Agent removed', message: `${agentId} no longer uses ${entry.provider.name}` });
+        addToast({
+          type: 'success',
+          title: 'Agent removed',
+          message: `${agentId} no longer uses ${entry.provider.name}`,
+        });
       } else {
         await api.addProviderAgents(entry.provider.id, [agentId]);
-        addToast({ type: 'success', title: 'Agent added', message: `${agentId} now uses ${entry.provider.name}` });
+        addToast({
+          type: 'success',
+          title: 'Agent added',
+          message: `${agentId} now uses ${entry.provider.name}`,
+        });
       }
       await onRefresh();
     } catch (e) {
@@ -462,7 +460,11 @@ function ApiConfigTab({
   caps?: ProviderApiCapabilities;
   providerId: string;
   onVerified: () => Promise<void>;
-  addToast: (t: { type: 'success' | 'error' | 'warning' | 'info'; title: string; message: string }) => void;
+  addToast: (t: {
+    type: 'success' | 'error' | 'warning' | 'info';
+    title: string;
+    message: string;
+  }) => void;
 }) {
   const [revealed, setRevealed] = useState(false);
   const [copied, setCopied] = useState<'key' | 'url' | null>(null);

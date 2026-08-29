@@ -541,8 +541,26 @@ describe('ProviderDetailView', () => {
       status: 200,
       data: {
         agents: [
-          { id: 'claude-code', name: 'Claude Code', description: '', configFormat: 'json' as never, configPaths: {} as never, supports: {} as never, binaries: ['claude'], detection: { installed: true, configExists: true, method: 'command' as never } },
-          { id: 'codex', name: 'Codex', description: '', configFormat: 'toml' as never, configPaths: {} as never, supports: {} as never, binaries: ['codex'], detection: { installed: true, configExists: true, method: 'command' as never } },
+          {
+            id: 'claude-code',
+            name: 'Claude Code',
+            description: '',
+            configFormat: 'json' as never,
+            configPaths: {} as never,
+            supports: {} as never,
+            binaries: ['claude'],
+            detection: { installed: true, configExists: true, method: 'command' as never },
+          },
+          {
+            id: 'codex',
+            name: 'Codex',
+            description: '',
+            configFormat: 'toml' as never,
+            configPaths: {} as never,
+            supports: {} as never,
+            binaries: ['codex'],
+            detection: { installed: true, configExists: true, method: 'command' as never },
+          },
         ],
         registry: {
           path: '/tmp/r.json',
@@ -557,8 +575,20 @@ describe('ProviderDetailView', () => {
                 priority: 1,
               },
               models: [
-                { id: 'claude-sonnet-4-20250514', providerId: 'anthropic', name: 'Claude Sonnet 4', displayName: 'Claude Sonnet 4', roles: ['chat'] as never },
-                { id: 'claude-opus-4-20250514', providerId: 'anthropic', name: 'Claude Opus 4', displayName: 'Claude Opus 4', roles: ['chat'] as never },
+                {
+                  id: 'claude-sonnet-4-20250514',
+                  providerId: 'anthropic',
+                  name: 'Claude Sonnet 4',
+                  displayName: 'Claude Sonnet 4',
+                  roles: ['chat'] as never,
+                },
+                {
+                  id: 'claude-opus-4-20250514',
+                  providerId: 'anthropic',
+                  name: 'Claude Opus 4',
+                  displayName: 'Claude Opus 4',
+                  roles: ['chat'] as never,
+                },
               ],
               agentIds: ['claude-code'],
             },
@@ -573,8 +603,26 @@ describe('ProviderDetailView', () => {
 
     useStore.setState({
       agents: [
-        { id: 'claude-code', name: 'Claude Code', description: '', configFormat: 'json' as never, configPaths: {} as never, supports: {} as never, binaries: ['claude'], detection: { installed: true, configExists: true, method: 'command' as never } },
-        { id: 'codex', name: 'Codex', description: '', configFormat: 'toml' as never, configPaths: {} as never, supports: {} as never, binaries: ['codex'], detection: { installed: true, configExists: true, method: 'command' as never } },
+        {
+          id: 'claude-code',
+          name: 'Claude Code',
+          description: '',
+          configFormat: 'json' as never,
+          configPaths: {} as never,
+          supports: {} as never,
+          binaries: ['claude'],
+          detection: { installed: true, configExists: true, method: 'command' as never },
+        },
+        {
+          id: 'codex',
+          name: 'Codex',
+          description: '',
+          configFormat: 'toml' as never,
+          configPaths: {} as never,
+          supports: {} as never,
+          binaries: ['codex'],
+          detection: { installed: true, configExists: true, method: 'command' as never },
+        },
       ],
       registry: {
         path: '/tmp/r.json',
@@ -589,8 +637,20 @@ describe('ProviderDetailView', () => {
               priority: 1,
             },
             models: [
-              { id: 'claude-sonnet-4-20250514', providerId: 'anthropic', name: 'Claude Sonnet 4', displayName: 'Claude Sonnet 4', roles: ['chat'] as never },
-              { id: 'claude-opus-4-20250514', providerId: 'anthropic', name: 'Claude Opus 4', displayName: 'Claude Opus 4', roles: ['chat'] as never },
+              {
+                id: 'claude-sonnet-4-20250514',
+                providerId: 'anthropic',
+                name: 'Claude Sonnet 4',
+                displayName: 'Claude Sonnet 4',
+                roles: ['chat'] as never,
+              },
+              {
+                id: 'claude-opus-4-20250514',
+                providerId: 'anthropic',
+                name: 'Claude Opus 4',
+                displayName: 'Claude Opus 4',
+                roles: ['chat'] as never,
+              },
             ],
             agentIds: ['claude-code'],
           },

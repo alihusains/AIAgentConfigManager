@@ -1,8 +1,11 @@
 export { Sidebar } from './Sidebar';
+export { Breadcrumbs } from './Breadcrumbs';
+export { AgentIconTile, iconFor } from './AgentIcon';
 export { Dashboard } from './Dashboard';
 export { ProvidersView } from './ProvidersView';
 export { MCPView } from './MCPView';
 export { AgentsView } from './AgentsView';
+export { AgentDetailView } from './AgentDetailView';
 export { SettingsView } from './SettingsView';
 export { AgentPicker } from './AgentPicker';
 export { ToastContainer } from './Toast';

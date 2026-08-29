@@ -30,7 +30,12 @@ const VALID_VIEWS: View[] = [
 ];
 
 /** Parse the hash into a view + optional id (e.g. #/agents/claude-code, #/providers/anthropic/models). */
-function parseHash(): { view: View; agentId?: string; providerId?: string; providerTab?: string } | null {
+function parseHash(): {
+  view: View;
+  agentId?: string;
+  providerId?: string;
+  providerTab?: string;
+} | null {
   const hash = window.location.hash.replace(/^#\/?/, '');
   const parts = hash.split('/');
   const viewPart = parts[0];

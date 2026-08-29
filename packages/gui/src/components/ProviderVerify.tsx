@@ -15,6 +15,7 @@
 import { useState } from 'react';
 import { api } from '../api';
 import type {
+  ProviderApiKind,
   ProviderVerificationResult,
   ProviderProbeDetail,
   ProviderApiCapabilities,
@@ -22,27 +23,145 @@ import type {
 import { Zap, RefreshCw, Loader2, Copy, Check } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
+// API-kind display helpers (shared with ProvidersView)
+// ---------------------------------------------------------------------------
+
+export function providerApiLabel(kind: ProviderApiKind): string {
+  switch (kind) {
+    case 'chat':
+      return 'Chat Completions';
+    case 'responses':
+      return 'Responses';
+    case 'anthropic':
+      return 'Anthropic Messages';
+  }
+}
+
+export function providerApiBadgeClass(kind: ProviderApiKind): string {
+  switch (kind) {
+    case 'chat':
+      return 'badge-chat';
+    case 'responses':
+      return 'badge-responses';
+    case 'anthropic':
+      return 'badge-anthropic';
+  }
+}
+
+/**
+ * Compact per-protocol ✓/✗ ticks.
+ *
+ * Unlike the supported-only badge row, this renders all three wire protocols
+ * and marks each as verified (✓) or not confirmed (✗), so a reader can tell at
+ * a glance which protocols a provider definitely does *not* speak. Only render
+ * it when a verification result exists — an unverified provider is "unknown",
+ * not "failed".
+ */
+const ALL_KINDS: ProviderApiKind[] = ['chat', 'responses', 'anthropic'];
+
+export function ProtocolTicks({
+  supported,
+}: {
+  supported: ProviderApiKind[];
+}) {
+  const set = new Set(supported);
+  return (
+    <span className="proto-ticks">
+      {ALL_KINDS.map((k) => {
+        const ok = set.has(k);
+        return (
+          <span
+            key={k}
+            className={`proto-tick ${ok ? 'is-ok' : 'is-fail'}`}
+            title={`${providerApiLabel(k)}: ${ok ? 'verified' : 'not confirmed'}`}
+          >
+            {ok ? '✓' : '✗'} {k}
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Probe card
 // ---------------------------------------------------------------------------
 
+/**
+ * Mirror of core's probeConfirmsApi (this package imports only types from
+ * core — the core barrel pulls in Node built-ins). A 4xx validation rejection
+ * proves the route exists; a structured 403 while /models authenticated the
+ * key is an entitlement denial, not an auth failure.
+ */
+function probeConfirmed(d: ProviderProbeDetail, credentialsProven: boolean): boolean {
+  if (d.ok) return true;
+  if (!d.reached || !d.endpoint) return false;
+  if (d.authenticated) {
+    return d.httpStatus !== undefined && d.httpStatus >= 400 && d.httpStatus < 500;
+  }
+  if (!credentialsProven || d.httpStatus !== 403 || !d.body) return false;
+  try {
+    const json = JSON.parse(d.body) as unknown;
+    return Boolean(
+      json && typeof json === 'object' && 'error' in (json as Record<string, unknown>)
+    );
+  } catch {
+    return false;
+  }
+}
+
 const TONES = {
-  success: { bg: 'color-mix(in srgb, var(--accent-success) 14%, transparent)', color: 'var(--accent-success)' },
-  warning: { bg: 'color-mix(in srgb, var(--accent-warning) 14%, transparent)', color: 'var(--accent-warning)' },
-  error: { bg: 'color-mix(in srgb, var(--accent-error) 14%, transparent)', color: 'var(--accent-error)' },
+  success: {
+    bg: 'color-mix(in srgb, var(--accent-success) 14%, transparent)',
+    color: 'var(--accent-success)',
+  },
+  warning: {
+    bg: 'color-mix(in srgb, var(--accent-warning) 14%, transparent)',
+    color: 'var(--accent-warning)',
+  },
+  error: {
+    bg: 'color-mix(in srgb, var(--accent-error) 14%, transparent)',
+    color: 'var(--accent-error)',
+  },
 } as const;
 
-function ProbeCard({ probe, label, endpoint }: { probe: ProviderProbeDetail; label: string; endpoint: string }) {
+function ProbeCard({
+  probe,
+  label,
+  endpoint,
+  credentialsProven,
+}: {
+  probe: ProviderProbeDetail;
+  label: string;
+  endpoint: string;
+  /** GET /models authenticated the key — lets structured 403s read as entitlement denials */
+  credentialsProven?: boolean;
+}) {
   const [copied, setCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
   const status = probe.ok
     ? { tone: 'success' as const, text: `OK · HTTP ${probe.httpStatus ?? '—'}` }
-    : !probe.reached
-      ? { tone: 'error' as const, text: 'Unreachable' }
-      : !probe.authenticated
-        ? { tone: 'warning' as const, text: `Auth rejected · HTTP ${probe.httpStatus}` }
-        : !probe.endpoint
-          ? { tone: 'error' as const, text: `API not offered · HTTP ${probe.httpStatus}` }
-          : { tone: 'warning' as const, text: `Request rejected · HTTP ${probe.httpStatus}` };
+    : probeConfirmed(probe, credentialsProven ?? false)
+      ? {
+          tone: 'success' as const,
+          text: `Confirmed · HTTP ${probe.httpStatus} · request rejected by API`,
+        }
+      : !probe.reached
+        ? { tone: 'error' as const, text: 'Unreachable' }
+        : !probe.authenticated
+          ? {
+              tone: 'warning' as const,
+              text: `Auth rejected · HTTP ${probe.httpStatus}`,
+            }
+          : !probe.endpoint
+            ? {
+                tone: 'error' as const,
+                text: `API not offered · HTTP ${probe.httpStatus}`,
+              }
+            : {
+                tone: 'warning' as const,
+                text: `Request rejected · HTTP ${probe.httpStatus}`,
+              };
 
   const copyOutput = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -84,7 +203,9 @@ function ProbeCard({ probe, label, endpoint }: { probe: ProviderProbeDetail; lab
         </summary>
         <pre className="code-block mt-2">{`${probe.curl}\n\n${probe.body ?? probe.error ?? '(no response body)'}`}</pre>
         {copyFailed && (
-          <p className="form-help text-error mt-1">Copy failed — clipboard is not available in this browser.</p>
+          <p className="form-help text-error mt-1">
+            Copy failed — clipboard is not available in this browser.
+          </p>
         )}
       </details>
     </div>
@@ -109,7 +230,14 @@ interface ApiVerifierProps {
   onModels?: (modelIds: string[]) => void;
 }
 
-export function ApiVerifier({ mode, baseUrl, apiKey, providerId, onVerified, onModels }: ApiVerifierProps) {
+export function ApiVerifier({
+  mode,
+  baseUrl,
+  apiKey,
+  providerId,
+  onVerified,
+  onModels,
+}: ApiVerifierProps) {
   const [keyOverride, setKeyOverride] = useState('');
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -172,7 +300,9 @@ export function ApiVerifier({ mode, baseUrl, apiKey, providerId, onVerified, onM
       )}
 
       {mode === 'probe' && !baseUrl && (
-        <p className="text-xs text-tertiary mt-2">Enter a base URL above to test the connection and list available models.</p>
+        <p className="text-xs text-tertiary mt-2">
+          Enter a base URL above to test the connection and list available models.
+        </p>
       )}
 
       {error && <p className="form-help text-error mt-2">{error}</p>}
@@ -185,21 +315,23 @@ export function ApiVerifier({ mode, baseUrl, apiKey, providerId, onVerified, onM
                 className="badge"
                 style={{ background: TONES.error.bg, color: TONES.error.color }}
               >
-                No OpenAI-style API confirmed
+                No compatible API confirmed
               </span>
             ) : (
               result.supported.map((k) => (
-                <span key={k} className={`badge ${k === 'chat' ? 'badge-chat' : 'badge-responses'}`}>
-                  {k === 'chat' ? 'Chat Completions' : 'Responses'}
+                <span key={k} className={`badge ${providerApiBadgeClass(k)}`}>
+                  {providerApiLabel(k)}
                 </span>
               ))
             )}
             <span className="text-xs text-secondary ml-1">
-              {result.modelIds.length} model{result.modelIds.length === 1 ? '' : 's'} available via API
+              {result.modelIds.length} model
+              {result.modelIds.length === 1 ? '' : 's'} available via API
             </span>
             {result.modelIds.length > 0 && (
               <button className="btn-ghost btn-sm" onClick={() => onModels?.(result.modelIds)}>
-                Use all {result.modelIds.length} model{result.modelIds.length === 1 ? '' : 's'}
+                Use all {result.modelIds.length} model
+                {result.modelIds.length === 1 ? '' : 's'}
               </button>
             )}
           </div>
@@ -210,13 +342,35 @@ export function ApiVerifier({ mode, baseUrl, apiKey, providerId, onVerified, onM
             </p>
           )}
           <div className="mt-2">
-            <ProbeCard probe={result.models} label="Models catalog" endpoint={`GET ${result.baseUrl}/models`} />
+            <ProbeCard
+              probe={result.models}
+              label="Models catalog"
+              endpoint={`GET ${result.baseUrl}/models`}
+            />
           </div>
           <div className="mt-2">
-            <ProbeCard probe={result.chat} label="Chat Completions API" endpoint={`POST ${result.baseUrl}/chat/completions`} />
+            <ProbeCard
+              probe={result.chat}
+              label="Chat Completions API (OpenAI)"
+              endpoint={`POST ${result.baseUrl}/chat/completions`}
+              credentialsProven={result.models.ok}
+            />
           </div>
           <div className="mt-2">
-            <ProbeCard probe={result.responses} label="Responses API" endpoint={`POST ${result.baseUrl}/responses`} />
+            <ProbeCard
+              probe={result.responses}
+              label="Responses API (OpenAI)"
+              endpoint={`POST ${result.baseUrl}/responses`}
+              credentialsProven={result.models.ok}
+            />
+          </div>
+          <div className="mt-2">
+            <ProbeCard
+              probe={result.anthropic}
+              label="Messages API (Anthropic-compatible)"
+              endpoint={`POST ${result.baseUrl}/messages`}
+              credentialsProven={result.models.ok}
+            />
           </div>
         </div>
       )}
