@@ -29,6 +29,7 @@ import {
   getAllKnownSkills,
   assignSkillToAgent,
   removeSkillFromAgent,
+  removeSkillFromLibrary,
   copySkillBetweenAgents,
   createSkill,
   listEnvVars,
@@ -519,6 +520,23 @@ export async function startGuiServer(
           const body = await readBody();
           return handle(async () => {
             await removeSkillFromAgent(decodeURIComponent(parts[2]), String(body.agentId ?? ''));
+            return { data: { ok: true } };
+          });
+        }
+        // DELETE /api/skills/:id — delete the skill's folder from the shared
+        // library. Agent copies are independent (assignment is a copy), so
+        // they are intentionally left untouched (QA finding H1).
+        if (method === 'DELETE' && parts.length === 3) {
+          return handle(async () => {
+            // QA finding H2: validation/state failures are client problems —
+            // 400 for an invalid id, 404 when there is no library copy.
+            try {
+              await removeSkillFromLibrary(decodeURIComponent(parts[2]));
+            } catch (error) {
+              const message = String(error);
+              const status = message.includes('not found in library') ? 404 : 400;
+              return { error: message.replace(/^Error: /, ''), status };
+            }
             return { data: { ok: true } };
           });
         }

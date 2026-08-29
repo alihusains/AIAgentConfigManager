@@ -232,6 +232,9 @@ export const api = {
       sourceAgentId,
       targetAgentId,
     }),
+  /** Delete a skill's folder from the shared library (agent copies are untouched). */
+  deleteSkill: (skillId: string) =>
+    request<{ ok: boolean }>('DELETE', `/api/skills/${encodeURIComponent(skillId)}`),
 
   // --- Registry import/export ---
   /**
