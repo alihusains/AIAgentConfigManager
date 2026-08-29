@@ -1,10 +1,9 @@
 <div align="center">
 
-# ⚙️ AgentSync
+# ⚙️ Agent Manager
 
 **One registry. Every agent. In sync.**
 
-![Repo name](https://img.shields.io/badge/repo%20name-TBD-orange)
 ![Version](https://img.shields.io/badge/version-v0.1.0-3b82f6)
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-0f172a)
 ![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)
@@ -14,10 +13,10 @@
 
 </div>
 
-> **Note on the name and repo URL:** `AgentSync` is a working title. `agentsync` is already
-> taken on GitHub, so the final name and repo path are still open — see
-> [ROADMAP.md → Open decisions](ROADMAP.md#open-decisions). Badges above will link to the
-> real repo once that's settled; don't copy a placeholder URL from this file.
+> **Name and availability:** the product is **Agent Manager** and the CLI binary is **`agm`**.
+> The npm package name is still being finalized (`agm` and `agent-manager` are taken on the
+> registry; `agent-manager-cli` is free and a scoped name is under consideration), so install
+> from source for now. The repo URL and npm badge land here at publish time.
 
 ---
 
@@ -34,7 +33,7 @@ agent, then TOML in another, then hope you didn't typo the fourth one. Nothing t
 you when the configs drift apart, so you find out when an agent fails silently or an
 old key still works somewhere it shouldn't.
 
-AgentSync replaces that with one rule: define a provider, model, or MCP server once in
+Agent Manager replaces that with one rule: define a provider, model, or MCP server once in
 a local registry, then install it into any agent you pick. The tool rewrites each
 agent's config file for you, in its native format, without touching the keys and
 structure it doesn't understand.
@@ -110,20 +109,20 @@ in [`ROADMAP.md`](ROADMAP.md), including the ready-to-paste backlog in
 ### 1. Detect agents
 
 ```bash
-ai-config detect                 # list every detected agent (binary, version, path)
-ai-config list-agents            # same info, table format
+agm detect                 # list every detected agent (binary, version, path)
+agm list-agents            # same info, table format
 ```
 
 ### 2. Manage providers
 
 ```bash
-ai-config provider add opencode   # interactive: add a provider to opencode
-ai-config provider list opencode  # what opencode has configured
-ai-config provider remove opencode anthropic-main
+agm provider add opencode   # interactive: add a provider to opencode
+agm provider list opencode  # what opencode has configured
+agm provider remove opencode anthropic-main
 ```
 
 > 💡 In the dashboard, adding a provider shows a **Verify APIs** button. Run it and
-> AgentSync reports:
+> Agent Manager reports:
 >
 > - ✓ / ✗ **Chat Completions** (`POST {base}/chat/completions`)
 > - ✓ / ✗ **Responses** (`POST {base}/responses`)
@@ -133,26 +132,26 @@ ai-config provider remove opencode anthropic-main
 ### 3. Manage models
 
 ```bash
-ai-config model add opencode        # attach a model to a provider
-ai-config model list opencode
-ai-config model remove opencode gpt-4o
+agm model add opencode        # attach a model to a provider
+agm model list opencode
+agm model remove opencode gpt-4o
 ```
 
 ### 4. Manage MCP servers
 
 ```bash
-ai-config mcp add opencode          # define a server once…
-ai-config mcp list opencode
-ai-config mcp remove opencode filesystem
+agm mcp add opencode          # define a server once…
+agm mcp list opencode
+agm mcp remove opencode filesystem
 ```
 
 ### 5. Permissions and backups
 
 ```bash
-ai-config permission add claude-code
-ai-config permission list claude-code
-ai-config backup opencode           # snapshot before big changes
-ai-config restore opencode ./backup.json
+agm permission add claude-code
+agm permission list claude-code
+agm backup opencode           # snapshot before big changes
+agm restore opencode ./backup.json
 ```
 
 ### 6. The registry, under the hood
@@ -184,7 +183,7 @@ Writes are shape-aware and merge-preserving: unknown keys in your config files
 survive untouched, new MCP entries get written without keys your agent wouldn't
 recognize, and server entries merge into your existing on-disk structures (your
 `directTools`, headers, and `imports` stay put). Every registry write is atomic
-(temp file plus rename), and `ai-config backup <agent>` snapshots files before you
+(temp file plus rename), and `agm backup <agent>` snapshots files before you
 do anything risky.
 
 </details>
@@ -206,7 +205,7 @@ open, and the token disappears from the address bar after load.
 OpenAI-style gateways expose two wire protocols: the older Chat Completions API
 (`POST /chat/completions`) and the newer Responses API (`POST /responses`).
 Providers differ. ChatGPT accounts, for example, dropped Chat Completions and only
-serve Responses. AgentSync verifies both when you add a provider, so you see
+serve Responses. Agent Manager verifies both when you add a provider, so you see
 immediately which of your agents can use it: opencode-style agents expect Chat
 Completions, and Responses-only providers target Responses-capable agents.
 

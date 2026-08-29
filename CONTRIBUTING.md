@@ -1,6 +1,6 @@
-# Contributing to AgentSync
+# Contributing to Agent Manager
 
-Thank you for wanting to help. AgentSync is a small, friendly project. The maintainer is
+Thank you for wanting to help. Agent Manager is a small, friendly project. The maintainer is
 non-technical by trade and relies on contributors (and an AI review assistant) to keep
 quality high, so your contribution is genuinely valued and will never sit unreviewed.
 
@@ -31,7 +31,7 @@ Workspace layout:
 ```
 packages/
 ├── core/   # adapters (per-agent read/write), registry, API-verification engine
-├── cli/    # `ai-config` command surface + the local GUI server (REST API)
+├── cli/    # `agm` command surface + the local GUI server (REST API)
 └── gui/    # React dashboard (Vite) — pure API client, never touches the filesystem
 ```
 

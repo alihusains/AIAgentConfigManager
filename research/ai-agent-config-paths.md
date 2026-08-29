@@ -8,7 +8,7 @@
 ## Summary Table
 
 | Agent | Config Format | Primary Config Path (macOS/Linux) | Primary Config Path (Windows) | MCP Config | Model Config |
-|-------|---------------|-----------------------------------|------------------------------|------------|--------------|
+| ------- | --------------- | ----------------------------------- | ------------------------------ | ------------ | -------------- |
 | **Claude Code** | JSON | `~/.claude/settings.json` | `%USERPROFILE%\.claude\settings.json` | In `settings.json` | In `settings.json` |
 | **Cursor** | JSON/MD | `~/.config/cursor/User/settings.json` | `%APPDATA%\Cursor\User\settings.json` | `~/.cursor/mcp.json` | In settings.json |
 | **GitHub Copilot CLI** | JSONC | `~/.copilot/settings.json` | `%USERPROFILE%\.copilot\settings.json` | `~/.copilot/mcp-config.json` | In `settings.json` |
@@ -21,7 +21,7 @@
 | **Gemini CLI** | JSON | `~/.gemini/settings.json` | `%USERPROFILE%\.gemini\settings.json` | In `settings.json` | In `settings.json` |
 | **Ollama** | Env/Modelfile | `~/.ollama/` (models) | `%USERPROFILE%\.ollama\` | N/A | Modelfiles |
 | **LM Studio** | JSON (hardcoded) | `~/.lmstudio` or `~/.cache/lm-studio` | `%USERPROFILE%\.lmstudio` | Via extensions | UI only |
-| **Jan.ai** | JSON | `~/Library/Application Support/Jan/data` | `%APPDATA%\Jan\data` | In assistant config | In assistant config |
+| **Jan.ai** | `jan` | `~/Library/Application Support/Jan/data` (macOS) | `%APPDATA%\Jandata` | JSON | per-assistant config in data dir | same | local models (GGUF) | — |
 
 ---
 
@@ -45,7 +45,7 @@
 
 **Source**: [mdskills.ai/learn/where-are-cursor-skills-stored](https://www.mdskills.ai/learn/where-are-cursor-skills-stored)
 
-- **User Config**: 
+- **User Config**:
   - macOS: `~/Library/Application Support/Cursor/User/settings.json`
   - Linux: `~/.config/cursor/User/settings.json` (respects `XDG_CONFIG_HOME`)
   - Windows: `%APPDATA%\Cursor\User\settings.json`
@@ -86,6 +86,7 @@
 - **Config File**: `~/.continue/config.yaml` (preferred) or `config.json` (deprecated)
 - **Format**: YAML (config.yaml)
 - **Structure**:
+
   ```yaml
   name: "My Config"
   version: "1.0.0"
@@ -100,6 +101,7 @@
       command: "docker"
       args: ["run", "-i", "--rm", "ghcr.io/github/github-mcp-server"]
   ```
+
 - **Roles**: chat, autocomplete, embed, rerank, edit, apply, summarize
 - **MCP Support**: Full MCP server configuration with stdio and HTTP transports
 
@@ -121,12 +123,14 @@
 - **Format**: TOML
 - **Precedence**: Built-in → System → User → Project → Profile → CLI overrides
 - **MCP Config**: Under `[mcp_servers]` section
+
   ```toml
   [mcp_servers.docs]
   command = "npx"
   args = ["-y", "@acme/docs-mcp"]
   env = { ACME_TOKEN = "env:ACME_TOKEN" }
   ```
+
 - **Profiles**: Named groups of settings under `[profiles.<name>]`
 - **Harness Modes**: `harness = "kimi-code"` etc. for compatibility
 
@@ -136,7 +140,7 @@
 
 - **Config File**: `~/.config/zed/settings.json` (macOS/Linux) / `%APPDATA%\Zed\settings.json` (Windows)
 - **Format**: JSON
-- **AI Settings**: 
+- **AI Settings**:
   - `edit_predictions.provider`: "zed" | "copilot" | "none"
   - `disable_ai`: boolean
   - LSP configuration for language servers
@@ -171,7 +175,7 @@
   - `OLLAMA_HOST`: Bind address
   - `OLLAMA_KEEP_ALIVE`: Model retention time
 - **Model Definitions**: Modelfiles (text-based, not a central config)
-- **Model Storage**: 
+- **Model Storage**:
   - macOS: `~/.ollama/models`
   - Linux: `/usr/share/ollama/.ollama/models`
   - Windows: `%USERPROFILE%\.ollama\models`
@@ -198,6 +202,7 @@
   - Windows: `%APPDATA%\Jan\data`
   - Linux: `~/.local/share/Jan/data` (XDG_DATA_HOME)
 - **Structure**:
+
   ```
   /assistants/jan/assistant.json    # AI personality config
   /extensions/extensions.json       # Extensions config
@@ -205,6 +210,7 @@
   /mlx/models/                      # MLX models
   /threads/                         # Chat history
   ```
+
 - **Assistant Config** (`assistant.json`): Model selection, tools, instructions
 - **MCP**: Via extensions (RAG, vector DB, etc.)
 
@@ -215,6 +221,7 @@
 ### Target Agent: **Claude Code** (simplest, JSON-based, widely used)
 
 **Rationale**:
+
 1. Single JSON file (`settings.json`)
 2. Well-documented schema
 3. Native MCP support in config
@@ -224,7 +231,7 @@
 ### Configuration Operations Needed
 
 | Operation | Implementation |
-|-----------|----------------|
+| ----------- | ---------------- |
 | **Add Provider/Model** | Add to `env` block (e.g., `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`) or third-party provider config |
 | **Remove Provider/Model** | Remove from `env` block |
 | **Add MCP Server** | Add to `mcpServers` object in `settings.json` |
@@ -280,7 +287,7 @@ interface AgentAdapter {
 ### Supported Operations Matrix
 
 | Feature | Claude Code | Cursor | Copilot CLI | Windsurf | Continue | Aider | OpenInterpreter | Zed | Amazon Q | Gemini | Ollama | LM Studio | Jan.ai |
-|---------|-------------|--------|-------------|----------|----------|-------|-----------------|-----|----------|--------|--------|-----------|--------|
+| --------- | ------------- | -------- | ------------- | ---------- | ---------- | ------- | ----------------- | ----- | ---------- | -------- | -------- | ----------- | -------- |
 | Add Model/Provider | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ❌ | ❌ | ✅ |
 | Remove Model/Provider | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ❌ | ❌ | ✅ |
 | Add MCP Server | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ | ⚠️ |
