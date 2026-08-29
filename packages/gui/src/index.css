@@ -1,40 +1,47 @@
-/* AI Agent Config Manager — Agentic Control Plane design tokens.
+/* AI Agent Config Manager — Agentic Control Plane design tokens (v2).
    Single source of truth for all color, type, spacing, radius, and motion.
-   Components consume tokens only — no hex literals in component code. */
+   Components consume tokens only — no hex literals in component code.
+   Canonical spec: docs/epics/agentic-control-plane-redesign-v2.md */
 
 :root {
   /* ── Light theme (default) ───────────────────────────────────────────── */
   color-scheme: light;
 
   /* Surfaces: canvas (page) → secondary (cards/sidebar) → tertiary (raised) */
-  --bg-canvas: #f7f8fa;
+  --bg-canvas: #f7f6fb;
   --bg-primary: #ffffff;
-  --bg-secondary: #f1f3f5;
+  --bg-secondary: #f0eef7;
   --bg-tertiary: #ffffff;
-  --bg-hover: #f1f3f5;
-  --bg-active: #e9ecef;
+  --bg-hover: #f0eef7;
+  --bg-active: #e3e0ec;
 
   /* Text */
-  --text-primary: #171a1f;
-  --text-secondary: #4a525c;
-  --text-tertiary: #8a929c;
-  --text-inverse: #f7f8fa;
+  --text-primary: #17151f;
+  --text-secondary: #4c4959;
+  --text-tertiary: #6b687a;
+  --text-inverse: #f7f6fb;
 
   /* Borders */
-  --border-primary: #e3e7eb;
-  --border-secondary: #d1d5db;
-  --border-focus: #5c6ef2;
+  --border-primary: #e3e0ec;
+  --border-secondary: #cfccdc;
+  --border-focus: #6a3ff0;
 
   /* Accents — primary (actions, active nav, focus) + secondary (links, info) */
-  --accent-primary: #159f84;
-  --accent-primary-hover: #128a73;
-  --accent-secondary: #5c6ef2;
+  --accent-primary: #6a3ff0; /* brand-only (fills, borders, dots, focus rings); use --accent-primary-text for readable text */
+  --accent-primary-hover: #5f34e0;
+  --accent-secondary: #2f68c9;
+  --accent-primary-text: #5326d1; /* text-safe variant of --accent-primary; brand hex fails AA at small sizes */
 
-  /* Status / semantic */
-  --accent-success: #16845f;
-  --accent-warning: #a66b00;
-  --accent-error: #d64559;
-  --accent-info: #3d73c9;
+  /* Status / semantic — brand hexes below are for fills/borders/dots only;
+     the -text variants are the WCAG AA-safe colors for readable text. */
+  --accent-success: #0f9d70; /* brand-only; use --accent-success-text for readable text */
+  --accent-warning: #b3690a; /* brand-only; use --accent-warning-text for readable text */
+  --accent-error: #d1364c; /* brand-only; use --accent-error-text for readable text */
+  --accent-info: #2f68c9; /* brand-only; use --accent-info-text for readable text */
+  --accent-success-text: #0b7a57; /* text-safe variant of --accent-success; brand hex fails AA at small sizes */
+  --accent-warning-text: #8f5407; /* text-safe variant of --accent-warning; brand hex fails AA at small sizes */
+  --accent-error-text: #ad2038; /* text-safe variant of --accent-error; brand hex fails AA at small sizes */
+  --accent-info-text: #2454a3; /* text-safe variant of --accent-info; brand hex fails AA at small sizes */
 
   /* Categorical — API type + agent identity tints */
   --anthropic-accent: #b3542e;
@@ -44,22 +51,29 @@
   --provider-bedrock: #9c5f22;
   --provider-vertex: #47598c;
 
-  /* Shadows */
-  --shadow-sm: 0 1px 2px 0 rgb(23 26 31 / 0.05);
-  --shadow-md: 0 4px 6px -1px rgb(23 26 31 / 0.08), 0 2px 4px -2px rgb(23 26 31 / 0.06);
-  --shadow-lg: 0 12px 24px -6px rgb(23 26 31 / 0.12), 0 4px 8px -4px rgb(23 26 31 / 0.08);
-  --shadow-elevated: 0 22px 44px -14px rgb(23 26 31 / 0.2), 0 8px 16px -8px rgb(23 26 31 / 0.1);
+  /* Shadows / elevation — soft, layered, not heavy drop-shadows.
+     --shadow-* are the legacy names components already consume; --elevation-*
+     are the v2 names they map onto. */
+  --elevation-1: 0 1px 2px 0 rgb(23 21 31 / 0.05);
+  --elevation-2: 0 4px 12px -2px rgb(23 21 31 / 0.07), 0 2px 4px -2px rgb(23 21 31 / 0.05);
+  --elevation-3: 0 16px 32px -8px rgb(23 21 31 / 0.14), 0 6px 12px -6px rgb(23 21 31 / 0.08);
+  --shadow-sm: var(--elevation-1);
+  --shadow-md: var(--elevation-2);
+  --shadow-lg: var(--elevation-3);
+  --shadow-elevated: var(--elevation-3);
 
-  /* Radius — buttons/inputs 8px, cards 10-12px */
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-full: 9999px;
+  /* Radius — buttons/inputs 8px, cards 12px, panels 16px */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-full: 999px;
 
-  /* Typography — Inter for UI, JetBrains Mono for identifiers */
+  /* Typography — Space Grotesk for display (headers/stat numbers),
+     Inter for body/UI, JetBrains Mono for identifiers */
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: "JetBrains Mono", "Fira Code", monospace;
-  --font-display: var(--font-sans);
+  --font-display: "Space Grotesk", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    sans-serif;
 
   /* Type scale */
   --text-size-xs: 12px;
@@ -71,7 +85,7 @@
   --text-size-2xl: 28px;
   --text-size-3xl: 32px;
 
-  /* Spacing — 8px scale */
+  /* Spacing — 4/8/12/16/24px scale (--space-5/7/8 kept for compatibility) */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -85,6 +99,11 @@
   --transition-fast: 150ms ease-out;
   --transition-normal: 200ms ease-out;
   --transition-slow: 220ms ease-out;
+
+  /* Glass / atmosphere — see .glass-surface / .ambient-glow / .grain-texture
+     utility classes below; not applied to components yet (downstream tasks). */
+  --surface-glass: rgba(255, 255, 255, 0.68);
+  --glass-blur: 20px;
 }
 
 /* ── Dark theme ──────────────────────────────────────────────────────────
@@ -97,30 +116,35 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --bg-canvas: #0b0d0f;
-    --bg-primary: #111418;
-    --bg-secondary: #161a1f;
-    --bg-tertiary: #1b2026;
-    --bg-hover: #1b2026;
-    --bg-active: #252b32;
+    --bg-canvas: #0e0e13;
+    --bg-primary: #16161d;
+    --bg-secondary: #1c1c25;
+    --bg-tertiary: #22222d;
+    --bg-hover: #22222d;
+    --bg-active: #2b2b37;
 
-    --text-primary: #f5f7fa;
-    --text-secondary: #9ba4ae;
-    --text-tertiary: #69727d;
-    --text-inverse: #0b0d0f;
+    --text-primary: #f3f2f8;
+    --text-secondary: #b7b4c4;
+    --text-tertiary: #8b899b;
+    --text-inverse: #0e0e13;
 
-    --border-primary: #252b32;
-    --border-secondary: #2f363e;
-    --border-focus: #5ee6c0;
+    --border-primary: #2b2b37;
+    --border-secondary: #3a3a4a;
+    --border-focus: #b6a3ff;
 
-    --accent-primary: #5ee6c0;
-    --accent-primary-hover: #7ce8d0;
-    --accent-secondary: #7c8cff;
+    --accent-primary: #7c5cff; /* brand-only (fills, borders, dots, focus rings); use --accent-primary-text for readable text */
+    --accent-primary-hover: #8d70ff;
+    --accent-secondary: #8ab8ff;
+    --accent-primary-text: #b6a3ff; /* text-safe variant of --accent-primary; brand hex fails AA at small sizes */
 
-    --accent-success: #48d597;
-    --accent-warning: #f5c76a;
-    --accent-error: #ff6b7a;
-    --accent-info: #6cb7ff;
+    --accent-success: #22e6a0; /* brand-only; use --accent-success-text for readable text */
+    --accent-warning: #ffb020; /* brand-only; use --accent-warning-text for readable text */
+    --accent-error: #ff5c72; /* brand-only; use --accent-error-text for readable text */
+    --accent-info: #5b9dff; /* brand-only; use --accent-info-text for readable text */
+    --accent-success-text: #5eeab8; /* text-safe variant of --accent-success; brand hex fails AA at small sizes */
+    --accent-warning-text: #ffb020; /* text-safe variant of --accent-warning (passes AA on dark) */
+    --accent-error-text: #ff8a9a; /* text-safe variant of --accent-error; brand hex fails AA at small sizes */
+    --accent-info-text: #8ab8ff; /* text-safe variant of --accent-info; brand hex fails AA at small sizes */
 
     --anthropic-accent: #e8927c;
     --cat-olive: #b3bd8a;
@@ -129,10 +153,15 @@
     --provider-bedrock: #e0a05c;
     --provider-vertex: #8fa3d9;
 
-    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.35);
-    --shadow-md: 0 6px 12px -2px rgb(0 0 0 / 0.4), 0 3px 6px -3px rgb(0 0 0 / 0.35);
-    --shadow-lg: 0 18px 36px -10px rgb(0 0 0 / 0.55), 0 6px 12px -6px rgb(0 0 0 / 0.45);
-    --shadow-elevated: 0 28px 56px -16px rgb(0 0 0 / 0.65), 0 10px 20px -10px rgb(0 0 0 / 0.55);
+    --elevation-1: 0 1px 2px 0 rgb(0 0 0 / 0.35);
+    --elevation-2: 0 6px 14px -3px rgb(0 0 0 / 0.42), 0 2px 4px -2px rgb(0 0 0 / 0.32);
+    --elevation-3: 0 20px 40px -10px rgb(0 0 0 / 0.55), 0 8px 16px -8px rgb(0 0 0 / 0.42);
+    --shadow-sm: var(--elevation-1);
+    --shadow-md: var(--elevation-2);
+    --shadow-lg: var(--elevation-3);
+    --shadow-elevated: var(--elevation-3);
+
+    --surface-glass: rgba(28, 28, 37, 0.62);
   }
 }
 
@@ -140,30 +169,35 @@
    Values MUST mirror the prefers-color-scheme block above. */
 html[data-theme="dark"] {
   color-scheme: dark;
-  --bg-canvas: #0b0d0f;
-  --bg-primary: #111418;
-  --bg-secondary: #161a1f;
-  --bg-tertiary: #1b2026;
-  --bg-hover: #1b2026;
-  --bg-active: #252b32;
+  --bg-canvas: #0e0e13;
+  --bg-primary: #16161d;
+  --bg-secondary: #1c1c25;
+  --bg-tertiary: #22222d;
+  --bg-hover: #22222d;
+  --bg-active: #2b2b37;
 
-  --text-primary: #f5f7fa;
-  --text-secondary: #9ba4ae;
-  --text-tertiary: #69727d;
-  --text-inverse: #0b0d0f;
+  --text-primary: #f3f2f8;
+  --text-secondary: #b7b4c4;
+  --text-tertiary: #8b899b;
+  --text-inverse: #0e0e13;
 
-  --border-primary: #252b32;
-  --border-secondary: #2f363e;
-  --border-focus: #5ee6c0;
+  --border-primary: #2b2b37;
+  --border-secondary: #3a3a4a;
+  --border-focus: #b6a3ff;
 
-  --accent-primary: #5ee6c0;
-  --accent-primary-hover: #7ce8d0;
-  --accent-secondary: #7c8cff;
+  --accent-primary: #7c5cff; /* brand-only (fills, borders, dots, focus rings); use --accent-primary-text for readable text */
+  --accent-primary-hover: #8d70ff;
+  --accent-secondary: #8ab8ff;
+  --accent-primary-text: #b6a3ff; /* text-safe variant of --accent-primary; brand hex fails AA at small sizes */
 
-  --accent-success: #48d597;
-  --accent-warning: #f5c76a;
-  --accent-error: #ff6b7a;
-  --accent-info: #6cb7ff;
+  --accent-success: #22e6a0; /* brand-only; use --accent-success-text for readable text */
+  --accent-warning: #ffb020; /* brand-only; use --accent-warning-text for readable text */
+  --accent-error: #ff5c72; /* brand-only; use --accent-error-text for readable text */
+  --accent-info: #5b9dff; /* brand-only; use --accent-info-text for readable text */
+  --accent-success-text: #5eeab8; /* text-safe variant of --accent-success; brand hex fails AA at small sizes */
+  --accent-warning-text: #ffb020; /* text-safe variant of --accent-warning (passes AA on dark) */
+  --accent-error-text: #ff8a9a; /* text-safe variant of --accent-error; brand hex fails AA at small sizes */
+  --accent-info-text: #8ab8ff; /* text-safe variant of --accent-info; brand hex fails AA at small sizes */
 
   --anthropic-accent: #e8927c;
   --cat-olive: #b3bd8a;
@@ -172,10 +206,15 @@ html[data-theme="dark"] {
   --provider-bedrock: #e0a05c;
   --provider-vertex: #8fa3d9;
 
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.35);
-  --shadow-md: 0 6px 12px -2px rgb(0 0 0 / 0.4), 0 3px 6px -3px rgb(0 0 0 / 0.35);
-  --shadow-lg: 0 18px 36px -10px rgb(0 0 0 / 0.55), 0 6px 12px -6px rgb(0 0 0 / 0.45);
-  --shadow-elevated: 0 28px 56px -16px rgb(0 0 0 / 0.65), 0 10px 20px -10px rgb(0 0 0 / 0.55);
+  --elevation-1: 0 1px 2px 0 rgb(0 0 0 / 0.35);
+  --elevation-2: 0 6px 14px -3px rgb(0 0 0 / 0.42), 0 2px 4px -2px rgb(0 0 0 / 0.32);
+  --elevation-3: 0 20px 40px -10px rgb(0 0 0 / 0.55), 0 8px 16px -8px rgb(0 0 0 / 0.42);
+  --shadow-sm: var(--elevation-1);
+  --shadow-md: var(--elevation-2);
+  --shadow-lg: var(--elevation-3);
+  --shadow-elevated: var(--elevation-3);
+
+  --surface-glass: rgba(28, 28, 37, 0.62);
 }
 
 * {
@@ -397,6 +436,42 @@ body {
 }
 .shadow-lg {
   box-shadow: var(--shadow-lg);
+}
+
+/* ── Numeric display — Space Grotesk with tabular figures for stat numbers.
+     Defined for downstream tasks (M032 dashboard); not applied yet. */
+.numeric-display,
+.stat-figure {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* ── Glass surface — frosted panel over --surface-glass with a subtle border.
+     Defined for downstream tasks; not applied yet. */
+.glass-surface {
+  background: var(--surface-glass);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--border-primary);
+}
+
+/* ── Ambient glow — soft radial accent glow for use behind key panels
+     (position absolute, behind content). Defined for downstream tasks. */
+.ambient-glow {
+  background: radial-gradient(
+    ellipse at center,
+    color-mix(in srgb, var(--accent-primary) 16%, transparent) 0%,
+    color-mix(in srgb, var(--accent-primary) 6%, transparent) 45%,
+    transparent 75%
+  );
+}
+
+/* ── Grain texture — inline SVG feTurbulence noise at ~3% opacity.
+     Defined for downstream tasks; not applied yet. */
+.grain-texture {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+  background-repeat: repeat;
 }
 .shadow-elevated {
   box-shadow: var(--shadow-elevated);
