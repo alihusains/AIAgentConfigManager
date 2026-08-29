@@ -296,9 +296,7 @@ export async function getSkillsSnapshot(opts: SkillsDirOptions = {}): Promise<Sk
  * first agent copy read. Known limitation: same id with different content on
  * two agents is merged as one entry (no content diffing).
  */
-export async function getAllKnownSkills(
-  opts: SkillsDirOptions = {}
-): Promise<AggregatedSkill[]> {
+export async function getAllKnownSkills(opts: SkillsDirOptions = {}): Promise<AggregatedSkill[]> {
   const platform = opts.platform ?? getCurrentPlatform();
   const libraryDir = opts.libraryDir ?? getSkillsLibraryDir();
 

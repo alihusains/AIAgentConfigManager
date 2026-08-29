@@ -316,8 +316,9 @@ describe('skill library (temp dir)', () => {
   it('createSkill rejects path-traversal names (QA finding C2 regression)', async () => {
     // Exact repro from docs/audits/qa-pass.md C2: name "../escape-test" used to
     // create <library-parent>/escape-test/ instead of <library>/escape-test/.
-    await expect(createSkill({ name: '../escape-test', description: 'traversal' }, { libraryDir }))
-      .rejects.toThrow(/invalid skill name/i);
+    await expect(
+      createSkill({ name: '../escape-test', description: 'traversal' }, { libraryDir })
+    ).rejects.toThrow(/invalid skill name/i);
     // Nothing escaped outside the library.
     await expect(fs.access(path.join(libraryDir, '..', 'escape-test'))).rejects.toThrow();
     // No skill dir was created inside the library either.
