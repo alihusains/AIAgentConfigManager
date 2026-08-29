@@ -208,4 +208,59 @@ describe('custom agent delete with percent-encoded ids (QA finding C1)', () => {
     const state = await manager.getRegistryState();
     expect(state.customAgents.some((a) => a.id === id)).toBe(false);
   });
+
+  // QA finding M1: missing `name`/`id` must be a clean 400, not a 500 TypeError.
+  it('QA M1: POST /api/agents/custom without an id returns 400 with a clean error (exact QA repro)', async () => {
+    const { status, json } = await api('POST', '/api/agents/custom', {
+      configPath: path.join(tmpHome, 'x.json'),
+      mcpPath: path.join(tmpHome, 'x-mcp.json'),
+      format: 'yaml',
+    });
+    expect(status).toBe(400);
+    expect(json.ok).toBe(false);
+    expect(String(json.error)).toBe('Agent id is required');
+    expect(String(json.error)).not.toContain('TypeError');
+  });
+
+  // QA finding M4: a no-op PUT must say so explicitly (`changed: false`).
+  it('QA M4: PUT /api/agents/custom/:id with an empty body reports changed:false', async () => {
+    const { status, json } = await api('PUT', '/api/agents/custom/agent-a', {});
+    expect(status).toBe(200);
+    expect(json.ok).toBe(true);
+    expect(json.data.changed).toBe(false);
+  });
+
+  it('QA M4: PUT /api/agents/custom/:id with a real field reports changed:true', async () => {
+    const { status, json } = await api('PUT', '/api/agents/custom/agent-a', {
+      name: 'Agent A (renamed)',
+    });
+    expect(status).toBe(200);
+    expect(json.ok).toBe(true);
+    expect(json.data.changed).toBe(true);
+
+    const state = await manager.getRegistryState();
+    expect(state.customAgents.find((a) => a.id === 'agent-a')?.name).toBe('Agent A (renamed)');
+  });
+
+  // QA finding M2: the export endpoint must return the server's authoritative
+  // registry, including entries the GUI has not seen.
+  it('QA M2: GET /api/registry/export returns the server-side registry', async () => {
+    // Mutate the registry through the API (the "server state") ...
+    const added = await api('POST', '/api/agents/custom', {
+      id: 'export-check',
+      name: 'Export Check',
+      configPath: path.join(tmpHome, 'export-check.json'),
+    });
+    expect(added.status).toBe(200);
+
+    const { status, json } = await api('GET', '/api/registry/export');
+    expect(status).toBe(200);
+    expect(json.ok).toBe(true);
+    expect(Array.isArray(json.data.providers)).toBe(true);
+    expect(Array.isArray(json.data.mcpServers)).toBe(true);
+    expect(json.data.customAgents.some((a: any) => a.id === 'export-check')).toBe(true);
+    // Must match the manager's own view of the authoritative state.
+    const expected = await manager.getRegistryState();
+    expect(json.data.customAgents).toEqual(expected.customAgents);
+  });
 });

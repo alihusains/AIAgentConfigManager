@@ -177,6 +177,12 @@ function resolveDistDir(override?: string): string {
 
 const MAX_JOB_OUTPUT = 16 * 1024;
 const JOB_TTL_MS = 10 * 60_000; // finished jobs are evicted after 10 min
+/**
+ * Default kill switch for install/uninstall jobs (QA finding M3). A hung
+ * install (stalled npm download, …) must not hold a child-process slot
+ * forever. The tool-update job passes its own shorter 120s explicitly.
+ */
+const AGENT_JOB_TIMEOUT_MS = 5 * 60_000;
 const agentJobs = new Map<string, AgentJob>();
 
 /** Evict finished jobs older than JOB_TTL_MS. Called on each new job. */
@@ -236,11 +242,11 @@ function startAgentJob(
   child.stdout?.on('data', append);
   child.stderr?.on('data', append);
 
-  const timeoutMs = options?.timeoutMs ?? (action === 'install' ? 10 * 60_000 : 5 * 60_000);
+  const timeoutMs = options?.timeoutMs ?? AGENT_JOB_TIMEOUT_MS;
   const timer = setTimeout(() => {
     if (job.status !== 'running') return;
     job.status = 'failed';
-    job.error = `Killed after ${Math.round(timeoutMs / 60_000)} min (timeout)`;
+    job.error = `Killed after ${Math.round(timeoutMs / 1000)}s (timeout)`;
     job.finishedAt = new Date().toISOString();
     child.kill('SIGTERM');
     setTimeout(() => child.kill('SIGKILL'), 5000);
@@ -473,22 +479,38 @@ export async function startGuiServer(
         if (method === 'POST' && parts.length === 2) {
           const body = await readBody();
           return handle(async () => {
-            const skill = await createSkill({
-              name: String(body.name ?? ''),
-              description: typeof body.description === 'string' ? body.description : undefined,
-              body: typeof body.body === 'string' ? body.body : undefined,
-            });
-            return { data: { skill } };
+            // QA finding H2: creation failures are client-input problems
+            // (bad name, duplicate skill) — 400, or 409 when the skill already
+            // exists. Genuine server errors still 500 via the handle() catch.
+            try {
+              const skill = await createSkill({
+                name: String(body.name ?? ''),
+                description: typeof body.description === 'string' ? body.description : undefined,
+                body: typeof body.body === 'string' ? body.body : undefined,
+              });
+              return { data: { skill } };
+            } catch (error) {
+              const message = String(error);
+              const status = message.includes('already exists') ? 409 : 400;
+              return { error: message.replace(/^Error: /, ''), status };
+            }
           });
         }
         // POST /api/skills/:id/assign { agentId } — copy a library skill to an agent.
         if (method === 'POST' && parts.length === 4 && parts[3] === 'assign') {
           const body = await readBody();
           return handle(async () => {
-            const result = await assignSkillToAgent(
-              decodeURIComponent(parts[2]),
-              String(body.agentId ?? '')
-            );
+            // QA finding H2: invalid/unknown agent ids are client-input
+            // problems — 400, not 500.
+            let result: Awaited<ReturnType<typeof assignSkillToAgent>>;
+            try {
+              result = await assignSkillToAgent(
+                decodeURIComponent(parts[2]),
+                String(body.agentId ?? '')
+              );
+            } catch (error) {
+              return { error: String(error).replace(/^Error: /, ''), status: 400 };
+            }
             return { data: result };
           });
         }
@@ -505,11 +527,20 @@ export async function startGuiServer(
         if (method === 'POST' && parts.length === 4 && parts[3] === 'copy') {
           const body = await readBody();
           return handle(async () => {
-            const result = await copySkillBetweenAgents(
-              decodeURIComponent(parts[2]),
-              String(body.sourceAgentId ?? ''),
-              String(body.targetAgentId ?? '')
-            );
+            // QA finding H2: validation failures are client-input problems —
+            // 400. "Not assigned" is a state conflict — 409.
+            let result: Awaited<ReturnType<typeof copySkillBetweenAgents>>;
+            try {
+              result = await copySkillBetweenAgents(
+                decodeURIComponent(parts[2]),
+                String(body.sourceAgentId ?? ''),
+                String(body.targetAgentId ?? '')
+              );
+            } catch (error) {
+              const message = String(error);
+              const status = message.includes('not assigned') ? 409 : 400;
+              return { error: message.replace(/^Error: /, ''), status };
+            }
             return { data: result };
           });
         }
@@ -539,7 +570,8 @@ export async function startGuiServer(
         return handle(async () => {
           const name = decodeURIComponent(parts[2]);
           const value = await revealEnvVar(name);
-          if (value === null) return { error: `Environment variable "${name}" not found`, status: 404 };
+          if (value === null)
+            return { error: `Environment variable "${name}" not found`, status: 404 };
           return { data: { name, value } };
         });
       }
@@ -553,6 +585,20 @@ export async function startGuiServer(
       }
 
       // ---- Registry import/export ----
+      // GET /api/registry/export — the server's authoritative registry (QA
+      // finding M2): the GUI's export button downloads this instead of
+      // serializing its possibly-stale in-memory copy.
+      if (
+        method === 'GET' &&
+        parts.length === 3 &&
+        parts[1] === 'registry' &&
+        parts[2] === 'export'
+      ) {
+        return handle(async () => {
+          const registry = await manager.getRegistryState();
+          return { data: registry };
+        });
+      }
       if (
         method === 'POST' &&
         parts.length === 3 &&
@@ -580,7 +626,18 @@ export async function startGuiServer(
               baseUrl: String(body.baseUrl),
               apiKey: body.apiKey ? String(body.apiKey) : undefined,
             });
-            return { data: result };
+            // QA finding H3: the envelope's top-level `ok` means "this request
+            // succeeded" — it reads as "provider is fine" when every probe
+            // failed. The data payload carries the real reachability signal:
+            // `completed` = the checks ran, `reachable` = at least one API
+            // answered.
+            return {
+              data: {
+                ...result,
+                completed: true,
+                reachable: result.models.ok || result.chat.ok,
+              },
+            };
           });
         }
         // POST /api/providers/:id/test  { apiKey? } — re-verify a registered
@@ -619,7 +676,14 @@ export async function startGuiServer(
             };
             const saved = await manager.recordProviderCapabilities(parts[2], capabilities);
             if (!saved.success) return { error: saved.error, status: 500 };
-            return { data: result };
+            // Same H3 clarification as /api/providers/verify.
+            return {
+              data: {
+                ...result,
+                completed: true,
+                reachable: result.models.ok || result.chat.ok,
+              },
+            };
           });
         }
         if (method === 'POST' && parts.length === 2) {
@@ -759,7 +823,13 @@ export async function startGuiServer(
           return handle(async () => {
             const result = await manager.updateCustomAgent(decodeURIComponent(parts[3]), body);
             if (!result.success) return { error: result.error, status: 400 };
-            return { data: result.data };
+            // QA finding M4: an empty body `{}` is a no-op — say so explicitly
+            // (`changed: false`) instead of a bare ok:true that is
+            // indistinguishable from a real update. We return 200 (not 400)
+            // because the request itself was well-formed; the client should
+            // not treat a no-op as an error.
+            const changed = Object.values(body).some((v) => v !== undefined);
+            return { data: { ...result.data, changed } };
           });
         }
         if (method === 'DELETE' && parts.length === 4) {

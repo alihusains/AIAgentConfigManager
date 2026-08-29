@@ -140,3 +140,48 @@ describe('provider / MCP delete cascade', () => {
     expect(after.mcpServers?.map((s: any) => s.name)).not.toContain('mcp-files');
   });
 });
+
+describe('QA finding M1: addCustomAgent input guards', () => {
+  let manager: AgentConfigManager;
+
+  beforeEach(async () => {
+    tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'aion-cascade-'));
+    process.env.HOME = tmpHome;
+    process.env.AI_CONFIG_HOME = path.join(tmpHome, '.ai-agent-config');
+    manager = new AgentConfigManager();
+    await manager.initRegistry();
+  });
+
+  afterEach(() => {
+    delete process.env.HOME;
+    delete process.env.AI_CONFIG_HOME;
+    fs.rmSync(tmpHome, { recursive: true, force: true });
+  });
+
+  it('returns a clean error (not a TypeError) when the id is missing', async () => {
+    const result = await manager.addCustomAgent({
+      name: 'x',
+      configPath: path.join(tmpHome, 'x.json'),
+    } as never);
+    expect(result.success).toBe(false);
+    expect(result.error).toBe('Agent id is required');
+  });
+
+  it('returns a clean error when the id is blank', async () => {
+    const result = await manager.addCustomAgent({
+      id: '   ',
+      configPath: path.join(tmpHome, 'x.json'),
+    } as never);
+    expect(result.success).toBe(false);
+    expect(result.error).toBe('Agent id is required');
+  });
+
+  it('returns a clean error when the configPath is missing', async () => {
+    const result = await manager.addCustomAgent({
+      id: 'demo-m1',
+      name: 'Demo',
+    } as never);
+    expect(result.success).toBe(false);
+    expect(result.error).toBe('Config path is required');
+  });
+});

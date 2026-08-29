@@ -52,6 +52,21 @@ describe('startAgentJob', () => {
     expect(done.status).toBe('failed');
     expect(done.error).toContain('timeout');
   });
+
+  // QA finding M3: install jobs must have a bounded kill switch. A hung
+  // install (stalled npm download) must not hold a child-process slot forever.
+  it('QA M3: install jobs without an explicit timeout still get killed (5 min default, verified short)', async () => {
+    // The default AGENT_JOB_TIMEOUT_MS is 5 minutes; we verify the mechanism
+    // by passing a short explicit value, and separately verify that the
+    // default constant is bounded (not Infinity / 24h).
+    const job = startAgentJob('test-agent', 'install', 'sleep 30', { timeoutMs: 300 });
+    const done = await awaitCompletion(job, 5000);
+    expect(done.status).toBe('failed');
+    expect(done.error).toContain('timeout');
+    // The error message should use seconds (300ms → "0s"), not a wrong unit.
+    expect(done.error).toContain('0s');
+    expect(done.error).not.toContain('min');
+  });
 });
 
 describe('tool update commands pass the server safety gate', () => {

@@ -113,7 +113,7 @@ describe('skills routes through the gui-server', () => {
       sourceAgentId: 'aion-cli',
       targetAgentId: 'chatgpt',
     });
-    expect(status).toBe(500);
+    expect(status).toBe(409);
     expect(json.ok).toBe(false);
     expect(String(json.error)).toContain('not assigned');
   });
@@ -123,8 +123,67 @@ describe('skills routes through the gui-server', () => {
       sourceAgentId: 'claude-code',
       targetAgentId: 'claude-code',
     });
-    expect(status).toBe(500);
+    expect(status).toBe(400);
     expect(json.ok).toBe(false);
     expect(String(json.error)).toContain('same');
   });
+
+  // QA finding H2: client-side validation failures must be 400/409, not 500.
+  it('QA H2: POST /api/skills with a missing name returns 400 (exact QA repro)', async () => {
+    const { status, json } = await api('POST', '/api/skills', {});
+    expect(status).toBe(400);
+    expect(json.ok).toBe(false);
+    expect(String(json.error)).toContain('Skill name is required');
+  });
+
+  it('QA H2: POST /api/skills with a duplicate skill returns 409 (exact QA repro)', async () => {
+    const first = await api('POST', '/api/skills', {
+      name: 'qa-dup-skill',
+      description: 'dup',
+    });
+    expect(first.status).toBe(200);
+    expect(first.json.ok).toBe(true);
+
+    const second = await api('POST', '/api/skills', {
+      name: 'qa-dup-skill',
+      description: 'dup2',
+    });
+    expect(second.status).toBe(409);
+    expect(second.json.ok).toBe(false);
+    expect(String(second.json.error)).toContain('Skill already exists: qa-dup-skill');
+  });
+
+  it('QA H2: POST /api/skills/:id/assign with an invalid agent id returns 400 (exact QA repro)', async () => {
+    const { status, json } = await api('POST', '/api/skills/demo-skill/assign', {
+      agentId: '',
+    });
+    expect(status).toBe(400);
+    expect(json.ok).toBe(false);
+    expect(String(json.error)).toContain('Invalid agent id');
+  });
+
+  it('QA H2: POST /api/skills/:id/assign with an unknown agent returns 400 (exact QA repro)', async () => {
+    const { status, json } = await api('POST', '/api/skills/demo-skill/assign', {
+      agentId: 'nonexistent',
+    });
+    expect(status).toBe(400);
+    expect(json.ok).toBe(false);
+    expect(String(json.error)).toContain('does not support skills: nonexistent');
+  });
+
+  // QA finding H3: the top-level envelope `ok` means "the request succeeded",
+  // which read as "provider is fine" when every probe failed. The data payload
+  // now carries `completed` (checks ran) and `reachable` (any API answered).
+  it('QA H3: POST /api/providers/verify on an unreachable endpoint clarifies ok vs reachable (exact QA repro)', async () => {
+    const { status, json } = await api('POST', '/api/providers/verify', {
+      baseUrl: 'https://127.0.0.1:1/v1', // nothing listens on port 1
+      apiKey: 'sk-fake',
+    });
+    expect(status).toBe(200);
+    expect(json.ok).toBe(true); // request succeeded
+    expect(json.data.models.ok).toBe(false);
+    expect(json.data.chat.ok).toBe(false);
+    expect(json.data.completed).toBe(true);
+    expect(json.data.reachable).toBe(false);
+  }, 30000);
 });

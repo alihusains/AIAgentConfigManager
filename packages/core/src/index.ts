@@ -785,6 +785,14 @@ export class AgentConfigManager {
    */
   async addCustomAgent(def: CustomAgentDef): Promise<OperationResult<RegistryState>> {
     const registry = await this.requireRegistry();
+    // Guard before any .trim(): a missing id/configPath used to crash with an
+    // unhandled TypeError (QA finding M1) instead of a clean validation error.
+    if (!def || typeof def.id !== 'string' || !def.id.trim()) {
+      return { success: false, error: 'Agent id is required' };
+    }
+    if (typeof def.configPath !== 'string' || !def.configPath.trim()) {
+      return { success: false, error: 'Config path is required' };
+    }
     const id = def.id.trim();
     if (!id) return { success: false, error: 'Agent id is required' };
     // Reject path-traversal-style ids: they would be stored decoded in the
