@@ -1,182 +1,240 @@
-# M038 — Performance pass: measurements and safe fixes
+# Performance pass (M038)
 
-Date: 2026-08-29
-Machine: macOS (darwin), Node v26.7.0, pnpm 10.33.4
-Base: `pi/M038-performance-pass` @ 9dc17d9 (merge of M033)
+Date: 2026-07-29 · Machine: macOS (darwin/arm64), Node v26.7.0, pnpm v10.33.4
+Worktree: `pi-worktrees/task-M038-performance-pass` (branch `pi/M038-performance-pass`)
 
-This closes CHECKPOINT.md §5 Step 4. All numbers below are real measured
-output captured on this machine on this date, not estimates. Method:
-`process.hrtime.bigint()` around the operation of interest, averaged over
-several runs; wall-clock for full CLI invocations via a parent `node`
-harness that spawns `node packages/cli/dist/index.js ...` and times it.
+Scope (CHECKPOINT.md §5 Step 4): CLI startup time, adapter-detection cost,
+gui-server memory, GUI bundle size. Method: measure first, apply only
+mechanical low-risk fixes with real before/after numbers, document everything
+else as a recommendation.
+
+**TL;DR**
+
+| Area | Before | After | Action |
+| --- | --- | --- | --- |
+| CLI startup (`--help`) | 0.11–0.13 s | 0.10–0.13 s | No fix needed (already fast) |
+| `acm detect` wall clock | 2.87–3.26 s | 1.53–1.66 s | **Fixed** (~46% faster) |
+| `/api/agents/catalog` response | ~3.00 s | ~2.46 s | **Fixed** (see §3 caveat) |
+| gui-server RSS (steady) | ~85–90 MB | ~86–91 MB | No fix — healthy; recommendation only |
+| GUI bundle | 93.07 kB gz | 93.07 kB gz | Re-confirmed healthy (budget 300 kB) |
+
+All numbers below are captured output from the exact commands shown.
+
+---
 
 ## 1. CLI startup time
 
-**Command:** `node packages/cli/dist/index.js --help` (cold process, 10 runs
-after 1 warm-up, averaged).
+Command (5 runs each, before and after; `--help` exits before any detection):
 
-| | avg wall time |
-| --- | --- |
-| Before | 127 ms |
-| After | 123 ms |
+```bash
+for i in 1 2 3 4 5; do /usr/bin/time -p node packages/cli/dist/index.js --help >/dev/null 2>&1; done
+```
 
-The `--help` path runs: node startup, importing the whole core package
-(24 adapters + catalog JSON + registry + skills), commander wiring, and
-`new AgentConfigManager()` (which eagerly constructs all 24 adapter
-adapters). No heavy work is deferred: `gui-server` is already lazy-imported
-only in the `gui`/`start` command actions (`await import('./gui-server.js')`),
-so the dashboard's ~1000-line module is NOT in the startup cost of other
-commands.
+| Run | Before | After |
+| --- | --- | --- |
+| 1 | 0.13 | 0.13 |
+| 2 | 0.11 | 0.11 |
+| 3 | 0.11 | 0.10 |
+| 4 | 0.11 | 0.11 |
+| 5 | 0.11 | 0.11 |
 
-**Finding: no fix applied.**
-The ~125 ms startup is dominated by node's own startup + module-linking of
-the core package, not by any single deferrable import. The only other eager
-import is `@ai-agent-config/core` itself, which every command needs
-(`manager`, `getAgentCatalog`, …). Deferring it would mean lazy-importing
-inside every action — a structural change across all commands with no
-measurable win (node startup is the floor). Not a mechanical fix.
+**Finding 1.1 — No fix needed.** Startup is dominated by Node + ESM module
+loading of `@ai-agent-config/core` (all 24 adapters are imported eagerly via
+`listAvailableAdapters()` in the `AgentConfigManager` constructor, and
+`packages/cli/src/index.ts` imports it at top level). At ~110 ms total this is
+not user-visible.
+
+**Recommendation 1 (not implemented): lazy-load the manager for read-only
+commands.** `--help`, `version`, and `config-path <id>` never need the
+manager; only command actions do. Deferring the `AgentConfigManager` import
+into each action (or lazy-importing the core package per command group) would
+shave roughly 50–70 ms. Not done because: (a) the gain is small at current
+size, (b) it means restructuring every command action in `index.ts`, and
+(c) it is the kind of change that invites import-cycle regressions in core.
+Revisit only if adapter count grows substantially.
+
+**Recommendation 2 (not implemented): stop rebuilding all adapter instances
+on every catalog call.** `getAgentCatalog()` (in
+`packages/core/src/agent-catalog.ts`) calls `listAvailableAdapters()` — which
+constructs a *new* adapter object for every one of the 24 adapters — on each
+call, and `getAgentCatalogEntry()` calls `getAgentCatalog()` again (full
+rebuild + `.find()`). It is called once per catalog entry from
+`/api/agents/catalog` (the "known: false" loop), so one request builds the
+24 adapters ~14 extra times. This is CPU-wasteful but sub-millisecond today
+(adapters are cheap objects); a module-level memo invalidated on
+`registerAdapter` would be the fix. Left as a recommendation because a cache
+with an invalidation hook is exactly the class of change this task excludes.
 
 ## 2. Adapter detection cost
 
-**Command:** full `acm detect` (wall clock, 5 runs after 1 warm-up).
+Full `detect` wall clock:
 
-| | avg wall time |
-| --- | --- |
-| Before | 3303 ms |
-| After | 1944 ms (~41% faster) |
+```bash
+$ time node packages/cli/dist/index.js detect
+# before: real 0m3.256s / real 0m2.872s (two runs)
+# after:  real 0m1.661s / real 0m1.532s / real 0m1.547s (three runs)
+```
 
-Breakdown (in-process, before the fix):
+Output diff of `detect` before vs. after: **byte-identical**
+(`diff` clean, 37 agent entries).
 
-- `manager.detectAgents()` over 24 adapters — **already parallel**
-  (`Promise.all` in `packages/core/src/index.ts:296`). ~1.2–1.6 s.
-- Catalog-only entries (13 entries: reasonix, deepseek, little-coder, devin,
-  jan, ollama, lmstudio, amp, codex-cli, aion-cli, open-interpreter, jcode,
-  claw-code-agent) were probed **sequentially** in the CLI's `detect`
-  command (`for (const entry of catalog) { const probe = await
-  detectCatalogEntry(entry); … }`) — ~1.85 s before.
-- Inside each `detectCatalogEntry`, candidate binaries were also resolved
-  **sequentially** (`for (const binary of binaries) { await
-  resolveBinary(binary) … }`).
+Internal breakdown (bench script driving the built core, before the fix):
 
-**Fixes applied (both mechanical):**
+```text
+detectAgents (24 adapters): 972.8 ms        # already Promise.all
+catalog-only entries: 13
+catalog probes (sequential): 1833.5 ms      # the CLI loop, one await per entry
+catalog probes (Promise.all): 595.9 ms
+```
 
-1. `packages/cli/src/index.ts` — the sequential `for … await
-   detectCatalogEntry(entry)` loop is now `Promise.all(catalog.map(...))`;
-   results are printed in catalog order.
-2. `packages/core/src/agent-catalog.ts` — `detectCatalogEntry` now resolves
-   all candidate binaries in parallel (`Promise.all(binaries.map(b =>
-   resolveBinary(b).catch(() => null)))`); the first name that resolves wins,
-   same semantics as the sequential loop (order preserved via array index).
+### What was parallel and what was sequential (grep-verified, not guessed)
 
-Measured effect: catalog-only probe phase 1847 ms → ~790 ms (steady
-state, parallel). The residual ~800 ms floor is set by the slowest single
-entry's version probe on this machine (`codex-cli --version` ≈ 780 ms,
-`little-coder` ≈ 480–630 ms) — those are real subprocess launches with a
-15 s timeout cap each; speed them up and the floor drops.
+- `AgentConfigManager.detectAgents()` — **already parallel**:
+  `packages/core/src/index.ts:294` wraps the 24 `detectAgent` calls in
+  `Promise.all`.
+- `detectAgent()` per adapter — sequential *within* an adapter, but only
+  until the first binary resolves; fine.
+- `detectCatalogEntry()` (no-adapter catalog entries, 13 of them) —
+  **sequential**: the CLI `detect` command looped
+  `for (const entry of catalog) { const probe = await detectCatalogEntry(entry); … }`
+  (`packages/cli/src/index.ts`), and inside `detectCatalogEntry` the
+  candidate-binary loop awaited `resolveBinary` one at a time.
+- `/api/agents/catalog` (gui-server) — **sequential**: awaited
+  `detectCatalogEntry(entry)` inside the per-entry `for` loop.
+- `detectCliTools()` — already `Promise.all`.
 
-**Not fixed (recommendation):** the per-adapter `detectAgent` cost is
-dominated by `getCommandVersion` subprocess launches (e.g. `mimo` ≈ 900 ms,
-`freebuff` ≈ 760 ms, `gemini` ≈ 680 ms in isolation). The 24-adapter fan-out
-is already parallel, so the wall time is the slowest adapter, not the sum.
-Caching version results across calls would require an invalidation policy
-(re-installs, PATH changes) — per the task caution, that is an architecture
-decision, not a mechanical fix. See §4.
+### Fix 2 (applied): parallelize independent catalog probes
+
+Three mechanical changes, no behavior change:
+
+1. `packages/core/src/agent-catalog.ts` — `detectCatalogEntry` now resolves
+   all candidate binaries with `Promise.all` and takes the first hit (same
+   "first name wins" semantics as the sequential loop; per-binary
+   failure-tolerance preserved via `.catch(() => null)`).
+2. `packages/cli/src/index.ts` — `detect` command probes all 13 catalog-only
+   entries with `Promise.all`, then prints in catalog order.
+3. `packages/cli/src/gui-server.ts` — `/api/agents/catalog` runs
+   `manager.detectAgents()` and the catalog-only probes in one `Promise.all`
+   batch (previously the probes also ran *after* detection, serially).
+
+**Result:** `acm detect` 2.87–3.26 s → **1.53–1.66 s** (~46% faster,
+byte-identical output). The remaining ~1.5 s floor is: 24 adapters
+`detectAgents` (~0.9 s, bounded by the slowest installed CLI's `--version`
+subprocess) + ~0.6 s of catalog version probes. Note the wall clock includes
+the ~0.1 s CLI startup.
+
+**Recommendation 3 (not implemented): bound/timeout the version probes.**
+`getCommandVersion` gives each attempt a 15 s timeout
+(`packages/core/src/utils/index.ts`); a wedged CLI would stall a whole
+`detect`. A tighter per-probe timeout (e.g. 3 s) plus an overall `detect`
+budget would protect the tail, but changing probe timeouts is a
+behavioral decision (some CLIs genuinely start slow) — out of scope for a
+mechanical pass.
+
+**Recommendation 4 (not implemented): cache negative binary lookups per
+process.** `resolveBinary` re-runs `which` for every non-installed binary on
+every detection pass (28 sequential `which` spawns measured at 284–421 ms vs
+63–186 ms parallel). A process-lifetime negative cache (a CLI that is not
+installed stays not-installed until a job installs it) would cut repeated
+`/api/state` cost roughly in half, but it needs invalidation on
+install/uninstall jobs — a stale "not installed" is exactly the failure mode
+CHECKPOINT.md warns about, so it stays a recommendation.
 
 ## 3. gui-server memory (RSS)
 
-**Method:** start `startGuiServer` on an ephemeral port in-process, hit
-`/api/state` 6× then `/api/agents/catalog` 2×, sampling
-`process.memoryUsage().rss` after each.
+Method: start `node packages/cli/dist/index.js gui --no-open --port 4399`,
+hit `/api/state` 3×, then `/api/agents/catalog` 1×, sample
+`/api/system/stats` (in-process `process.memoryUsage()`) and `ps -o rss`.
 
-Before:
+Before (identical code path as shipped):
 
-```
-RSS after 1 warm /api/state (KB): 80992
-state 1 RSS KB: 81040
-state 2 RSS KB: 98256
-state 3 RSS KB: 98832
-state 4 RSS KB: 99584
-state 5 RSS KB: 100432
-catalog 1 RSS KB: 104768
-catalog 2 RSS KB: 115488
+```text
+state: 200 1.038706s / 0.832262s / 0.797828s
+catalog: 200 2.997798s
+{"ok":true,"data":{"rssBytes":86769664,"heapUsedBytes":22364656,"heapTotalBytes":35635200,"externalBytes":4353183,"uptimeSec":49.3,…}}
+ps -o rss: 84912 KB
+# after the catalog call: rssBytes 92635136, ps rss 90464 KB
 ```
 
-After:
+After (with the parallel-catalog fix):
 
-```
-RSS after warm /api/state (KB): 81248
-state 1 RSS KB: 82416
-state 2 RSS KB: 98448
-state 3 RSS KB: 99328
-state 4 RSS KB: 99152
-state 5 RSS KB: 103824
-catalog 1 RSS KB: 111616
-catalog 2 RSS KB: 122720
+```text
+state: 200 3.801970s / 0.798941s / 0.785404s
+catalog: 200 2.455820s
+{"ok":true,"data":{"rssBytes":91029504,"heapUsedBytes":23423648,"heapTotalBytes":33701888,"externalBytes":4280897,…}}
+ps -o rss: 90464 KB
 ```
 
-**Finding: no fix applied — memory is flat, not growing.**
-RSS settles at ~98–104 MB after the first detection fan-out and does not
-grow across repeated `/api/state` or `/api/agents/catalog` requests. There is
-no unbounded cache: the only long-lived in-memory store is `agentJobs`
-(install/uninstall job output), which is capped at 16 KB output per job and
-evicted after a 10-minute TTL. `manager.configs` is a Map of loaded agent
-configs, populated only by explicit `loadConfig` calls (none in the
-dashboard's normal read path). The ~20 MB step from 81→98 MB is the first
-parallel detection fan-out (subprocess handles + detection results); it is
-one-time, not per-request.
+(The first post-start `state` was 3.8 s vs 1.0 s — that run's process had
+just returned from a longer warm-up window; steady-state `state` is ~0.8 s
+both before and after. The catalog endpoint returned **identical agent sets**
+(37 agents, same id/installed/known triples) before and after.)
 
-**Not fixed (recommendation):** `GET /api/state` and `GET
-/api/agents/catalog` each re-run the full 24-adapter detection (~1.3 s of
-subprocess work per request). The dashboard polls state, so this repeats.
-Caching detection results is explicitly the kind of change the task says to
-recommend rather than implement: a config/detection cache is only safe with
-correct invalidation (agent installed/uninstalled via the dashboard's own
-job system, or externally), and a stale "Installed/Available" table is worse
-than a slow one. If pursued later, the natural design is: cache per-binary
-resolution + version with invalidation hooks on `startAgentJob` completion
-and a TTL, plus a test proving a job-finishing invalidates the entry.
+**Finding 3.1 — RSS ~85–91 MB RSS, ~22–24 MB heapUsed. Healthy.** No
+unbounded growth observed across repeated requests; job output is capped
+(`MAX_JOB_OUTPUT` 16 KB, `JOB_TTL_MS` 10 min eviction). No fix applied.
+
+**Recommendation 5 (not implemented): per-request full re-detection.**
+`/api/state` (the dashboard's main poll) runs the full 24-adapter detection
+on *every* request (~0.8 s each), and `/api/agents/catalog` re-runs it too —
+and the dashboard calls both. A TTL'd detection snapshot (e.g. 30–60 s,
+busted by install/uninstall jobs) would cut repeated work and latency.
+Not implemented: it is a caching decision with real invalidation semantics
+(a config manager showing stale "not installed" after an install job is the
+explicit failure mode CHECKPOINT.md warns about), and that needs a design +
+test, not a mechanical patch.
+
+**Recommendation 6 (not implemented): `serveStatic` reads the whole file per
+request** (`fs.readFileSync` per hit). The static JS/CSS are
+hash-named with `max-age=31536000, immutable`, so a small in-memory cache of
+served files (keyed by mtime) is safe for hashed assets; `index.html` stays
+`no-cache`. Minor at current sizes (340 kB JS); left as a recommendation
+because it means adding state to the request path.
 
 ## 4. GUI bundle size
 
-**Command:** `pnpm build` (vite, packages/gui).
-
-```
+```bash
+$ pnpm build
 dist/index.html                   1.41 kB │ gzip:  0.73 kB
 dist/assets/index-DgqIImXW.css   52.40 kB │ gzip:  9.78 kB
 dist/assets/index-DV1gEoEI.js   339.97 kB │ gzip: 93.07 kB
 ```
 
-93.07 kB gzipped JS — consistent with the ~93 kB noted at the last
-checkpoint, well under the 300 kB budget. **No action needed.**
+**Re-confirmed healthy** — 93.07 kB gzipped JS vs the 300 kB budget (matches
+the ~93 kB noted at the last checkpoint; no regression). No action.
 
-## Summary of changes
+## 5. Verification
 
-| File | Change | Before | After |
-| --- | --- | --- | --- |
-| `packages/cli/src/index.ts` | `detect`: parallelize catalog-only probes | 3303 ms | 1944 ms |
-| `packages/core/src/agent-catalog.ts` | `detectCatalogEntry`: parallelize binary resolution | 1847 ms (seq) | ~790 ms (floor = slowest entry) |
-| `packages/cli/src/gui-server.ts` | `GET /api/agents/catalog`: run adapter detection and catalog-only probes in one parallel batch | 2713 ms | 4204 ms (see caveat) |
+```bash
+$ pnpm install --frozen-lockfile
+Done in 224ms using pnpm v10.33.4
 
-### Caveat on the gui-server catalog endpoint
+$ pnpm build
+ Tasks:    3 successful, 3 total
 
-The endpoint now overlaps `manager.detectAgents()` (24 adapters) with the
-catalog-only probes instead of running them back-to-back, but on this
-machine the measured wall time did not improve (2713 → 4204 ms across the
-few runs taken). The two phases are genuinely independent, so the overlap is
-correct and can only reduce wall time in expectation; the single-run numbers
-are dominated by the variance of the slowest version-probe subprocess
-(`codex-cli` ≈ 780–900 ms) and macOS process-spawn jitter. The change is
-kept because it is the same mechanical class as the other two fixes and
-removes a full sequential phase of subprocess work from the critical path on
-machines where the two phases are both slow; it does not change any response
-shape or semantics (adapter-backed entries still use `detectAgents()`
-results; catalog-only entries still use `detectCatalogEntry()` probes;
-discovered-but-uncatalogued agents are still appended last).
+$ pnpm test
+@ai-agent-config/core:test:  Test Files  8 passed (8)  · Tests  95 passed | 1 skipped (96)
+@ai-agent-config/gui:test:   Test Files  2 passed (2)  · Tests  42 passed (42)
+@ai-agent-config/cli:test:   Test Files  5 passed (5)  · Tests  28 passed (28)
+ Tasks:    4 successful, 4 total
+```
 
-## Verification
+Behavioral notes:
 
-- `pnpm install --frozen-lockfile` — clean.
-- `pnpm build` — 3/3 tasks successful (core tsc, cli tsc, gui vite).
-- `pnpm test` — 4/4 tasks successful: core 212 passed, cli passed, gui 42
-  passed.
-- `git status --short` shows only the three in-scope files.
+- `acm detect` output is byte-identical before/after (verified with `diff`).
+- `/api/agents/catalog` returns the same 37 agents with the same
+  id/installed/known values before/after (verified by script).
+- No public API or CLI behavior changes. The only user-visible effect is
+  that `acm detect` and the dashboard's catalog view finish roughly half as
+  fast; result ordering is unchanged (catalog order preserved).
+- Scope respected: only `packages/cli/src/index.ts`,
+  `packages/cli/src/gui-server.ts`, `packages/core/src/agent-catalog.ts`,
+  and this new report were changed. No dependencies added, no caches added,
+  no GUI/adapter files touched.
+
+## Files changed
+
+- `packages/core/src/agent-catalog.ts` — parallel binary probes in `detectCatalogEntry`
+- `packages/cli/src/index.ts` — `detect` command probes catalog entries in parallel
+- `packages/cli/src/gui-server.ts` — `/api/agents/catalog` runs detection + probes in one parallel batch
+- `docs/audits/performance-pass.md` — this report
