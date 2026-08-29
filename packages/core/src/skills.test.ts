@@ -63,6 +63,85 @@ describe('parseSkillFrontmatter', () => {
     expect(meta.name).toBe('X');
     expect((meta as Record<string, unknown>).license).toBeUndefined();
   });
+
+  it('parses a representative Junie sample (extra flat keys ignored)', () => {
+    // Shape verified against real files in ~/.junie/skills (e.g. tdd-workflow).
+    const meta = parseSkillFrontmatter(
+      [
+        '---',
+        'name: tdd-workflow',
+        'description: Use this skill when writing new features, fixing bugs, or refactoring code.',
+        'origin: ECC',
+        '---',
+        '',
+        '# Test-Driven Development Workflow',
+      ].join('\n')
+    );
+    expect(meta.name).toBe('tdd-workflow');
+    expect(meta.description).toContain('writing new features');
+  });
+
+  it('parses a representative Pi sample (nested metadata block ignored)', () => {
+    // Shape verified against real files in ~/.pi/agent/skills (e.g. archify).
+    const meta = parseSkillFrontmatter(
+      [
+        '---',
+        'name: archify',
+        'description: Create polished, validated architecture diagrams as explorable standalone HTML.',
+        'license: MIT',
+        'metadata:',
+        '  version: "2.12"',
+        '  author: tt-a1i',
+        '---',
+        '',
+        '# Archify',
+      ].join('\n')
+    );
+    expect(meta.name).toBe('archify');
+    expect(meta.description).toContain('architecture diagrams');
+    expect(meta.version).toBeUndefined(); // nested under metadata: — flat keys only
+  });
+
+  it('parses a representative Qwen sample (extra priority key ignored)', () => {
+    // Shape verified against Qwen Code docs (docs/users/features/skills.md) and
+    // real files in ~/.qwen/skills.
+    const meta = parseSkillFrontmatter(
+      [
+        '---',
+        'name: cmux-cli',
+        'description: "Comprehensive cmux CLI usage guide."',
+        'priority: 10',
+        '---',
+        '',
+        '# cmux CLI',
+      ].join('\n')
+    );
+    expect(meta.name).toBe('cmux-cli');
+    expect(meta.description).toBe('Comprehensive cmux CLI usage guide.');
+  });
+
+  it('parses a representative Continue/Roo sample (argument-hint + metadata ignored)', () => {
+    // Shape verified against real files in ~/.continue/skills and ~/.roo/skills
+    // (e.g. design, banner-design).
+    const meta = parseSkillFrontmatter(
+      [
+        '---',
+        'name: banner-design',
+        'description: "Design banners for social media, ads, website heroes."',
+        'argument-hint: "[platform] [style]"',
+        'license: MIT',
+        'metadata:',
+        '  author: claudekit',
+        '  version: "1.0.0"',
+        '---',
+        '',
+        '# Banner Design',
+      ].join('\n')
+    );
+    expect(meta.name).toBe('banner-design');
+    expect(meta.description).toContain('Design banners');
+    expect(meta.version).toBeUndefined();
+  });
 });
 
 describe('skillSlug', () => {
@@ -283,6 +362,30 @@ describe('catalog skill capability', () => {
     expect(getSkillCapableAgentIds('linux').length).toBeGreaterThan(0);
   });
 
+  it('includes the M041-verified agents on every platform', () => {
+    // Verified per-agent (folder + SKILL.md with flat name/description frontmatter):
+    //   pi       — ~/.pi/agent/skills (pi docs: docs/skills.md; config dir is
+    //              ~/.pi/agent on all platforms, override PI_CODING_AGENT_DIR)
+    //   continue — $CONTINUE_HOME/skills, default ~/.continue/skills
+    //   roo      — ~/.roo/skills (Roo Code docs: features/skills)
+    //   qwen     — ~/.qwen/skills (Qwen Code docs: Agent Skills)
+    //   junie    — ~/.junie/skills (Junie docs: agent-skills)
+    for (const platform of ['darwin', 'linux', 'win32'] as const) {
+      const ids = getSkillCapableAgentIds(platform);
+      for (const id of ['pi', 'continue', 'roo', 'qwen', 'junie']) {
+        expect(ids, `${id} must be skill-capable on ${platform}`).toContain(id);
+      }
+    }
+  });
+
+  it('resolves M041-verified agents to their documented skills dirs', () => {
+    expect(getAgentSkillsDir('pi', 'darwin')).toMatch(/\.pi[\\/]agent[\\/]skills$/);
+    expect(getAgentSkillsDir('continue', 'darwin')).toMatch(/\.continue[\\/]skills$/);
+    expect(getAgentSkillsDir('roo', 'darwin')).toMatch(/\.roo[\\/]skills$/);
+    expect(getAgentSkillsDir('qwen', 'darwin')).toMatch(/\.qwen[\\/]skills$/);
+    expect(getAgentSkillsDir('junie', 'darwin')).toMatch(/\.junie[\\/]skills$/);
+  });
+
   it('claude-code resolves to ~/.claude/skills', () => {
     const dir = getAgentSkillsDir('claude-code', 'darwin');
     expect(dir).toBeTruthy();
@@ -291,5 +394,69 @@ describe('catalog skill capability', () => {
 
   it('agents without skillsPaths resolve to null', () => {
     expect(getAgentSkillsDir('gemini', 'darwin')).toBeNull();
+  });
+
+  it('includes the M041-verified agents on every platform', () => {
+    const expectedDirs: Record<string, [string, string, string]> = {
+      pi: ['~/.pi/agent/skills', '~/.pi/agent/skills', '%USERPROFILE%\\.pi\\agent\\skills'],
+      continue: ['~/.continue/skills', '~/.continue/skills', '%USERPROFILE%\\.continue\\skills'],
+      roo: ['~/.roo/skills', '~/.roo/skills', '%USERPROFILE%\\.roo\\skills'],
+      qwen: ['~/.qwen/skills', '~/.qwen/skills', '%USERPROFILE%\\.qwen\\skills'],
+      junie: ['~/.junie/skills', '~/.junie/skills', '%USERPROFILE%\\.junie\\skills'],
+    };
+    for (const platform of ['darwin', 'linux', 'win32'] as const) {
+      const ids = getSkillCapableAgentIds(platform);
+      for (const agentId of Object.keys(expectedDirs)) {
+        expect(ids, `${agentId} on ${platform}`).toContain(agentId);
+        const dir = getAgentSkillsDir(agentId, platform);
+        expect(dir, `${agentId} on ${platform}`).not.toBeNull();
+        // On darwin/linux the ~ template expands to the real home dir, so the
+        // expanded path must end with the skills subdirectory. (win32 templates
+        // use %USERPROFILE%, which only expands on Windows hosts.)
+        if (platform !== 'win32') {
+          const template = expectedDirs[agentId][platform === 'darwin' ? 0 : 1];
+          const tail = template.replace(/^~/, '').split('/').join(path.sep);
+          expect(dir!.endsWith(tail), `${agentId} on ${platform}`).toBe(true);
+        }
+      }
+    }
+  });
+
+  it('parses representative SKILL.md frontmatter samples for each M041 agent', () => {
+    // Samples mirror the real SKILL.md files found on disk under each agent's
+    // skills directory (extra keys like license/argument-hint/metadata/origin
+    // must be ignored by the flat-key parser).
+    const cases: Array<[string, string, { name: string; description: string }]> = [
+      [
+        'pi',
+        '---\nname: archify\ndescription: Create polished diagrams.\nlicense: MIT\nmetadata:\n  version: "2.12"\n---\nBody',
+        { name: 'archify', description: 'Create polished diagrams.' },
+      ],
+      [
+        'continue',
+        '---\nname: design\ndescription: "Comprehensive design skill: brand identity."\nargument-hint: "[design-type]"\nlicense: MIT\n---\nBody',
+        { name: 'design', description: 'Comprehensive design skill: brand identity.' },
+      ],
+      [
+        'roo',
+        '---\nname: slides\ndescription: Create strategic HTML presentations.\nargument-hint: "[topic]"\nmetadata:\n  author: claudekit\n  version: "1.0.0"\n---\nBody',
+        { name: 'slides', description: 'Create strategic HTML presentations.' },
+      ],
+      [
+        'qwen',
+        '---\nname: cmux-cli\ndescription: "Comprehensive cmux CLI usage guide."\n---\nBody',
+        { name: 'cmux-cli', description: 'Comprehensive cmux CLI usage guide.' },
+      ],
+      [
+        'junie',
+        '---\nname: agent-sort\ndescription: Build an evidence-backed install plan.\norigin: ECC\n---\nBody',
+        { name: 'agent-sort', description: 'Build an evidence-backed install plan.' },
+      ],
+    ];
+    for (const [agentId, content, expected] of cases) {
+      const meta = parseSkillFrontmatter(content);
+      expect(meta.name, agentId).toBe(expected.name);
+      expect(meta.description, agentId).toBe(expected.description);
+    }
   });
 });

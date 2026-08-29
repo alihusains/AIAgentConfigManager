@@ -3,8 +3,10 @@
  *
  * A "skill" is a folder containing a SKILL.md file with YAML frontmatter
  * (`name`, `description`, optional `version`). This is the de-facto skill format
- * shared by Claude Code, OpenAI Codex CLI, OpenCode and AionUi — verified on disk
- * in ~/.claude/skills, ~/.codex/skills, ~/.config/opencode/skills and ~/.aionui/skills.
+ * shared by Claude Code, OpenAI Codex CLI, OpenCode, AionUi, Pi, Continue, Roo
+ * Code, Qwen Code and JetBrains Junie — verified on disk in ~/.claude/skills,
+ * ~/.codex/skills, ~/.config/opencode/skills, ~/.aionui/skills, ~/.pi/agent/skills,
+ * ~/.continue/skills, ~/.roo/skills, ~/.qwen/skills and ~/.junie/skills.
  *
  * Layout:
  *   Library (source of truth): <config home>/skills/<skill-id>/SKILL.md

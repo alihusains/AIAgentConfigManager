@@ -91,7 +91,13 @@
       "status": "stable",
       "addedAt": "2026-08-20",
       "install": "npm install -g @earendil-works/pi-coding-agent",
-      "uninstall": "npm uninstall -g @earendil-works/pi-coding-agent"
+      "uninstall": "npm uninstall -g @earendil-works/pi-coding-agent",
+      "skillsPaths": {
+        "darwin": "~/.pi/agent/skills",
+        "linux": "~/.pi/agent/skills",
+        "win32": "%USERPROFILE%\\.pi\\agent\\skills"
+      },
+      "note": "Skills load from ~/.pi/agent/skills (config dir is ~/.pi/agent on all platforms; override PI_CODING_AGENT_DIR). Also reads ~/.agents/skills; project .pi/skills/.agents/skills."
     },
     {
       "id": "gemini",
@@ -114,7 +120,12 @@
       "status": "stable",
       "source": "https://www.jetbrains.com/junie/",
       "addedAt": "2026-08-20",
-      "note": "Installed by the JetBrains installer script — install or update manually from your JetBrains account."
+      "skillsPaths": {
+        "darwin": "~/.junie/skills",
+        "linux": "~/.junie/skills",
+        "win32": "%USERPROFILE%\\.junie\\skills"
+      },
+      "note": "Installed by the JetBrains installer script — install or update manually from your JetBrains account. User-scope skills: ~/.junie/skills (JetBrains docs: junie.jetbrains.com/docs/agent-skills)."
     },
     {
       "id": "omp",
@@ -355,7 +366,12 @@
       },
       "install": "npm install -g @continuedev/cli",
       "uninstall": "npm uninstall -g @continuedev/cli",
-      "note": "YAML config; MCP servers under `mcpServers` (list)."
+      "skillsPaths": {
+        "darwin": "~/.continue/skills",
+        "linux": "~/.continue/skills",
+        "win32": "%USERPROFILE%\\.continue\\skills"
+      },
+      "note": "YAML config; MCP servers under `mcpServers` (list). Global skills: ~/.continue/skills (continue.dev PR #9353/#11113 — SKILL.md with YAML frontmatter; also reads .claude/skills)."
     },
     {
       "id": "copilot-cli",
@@ -591,7 +607,12 @@
       },
       "install": "npm install -g @qwen-code/qwen-code",
       "uninstall": "npm uninstall -g @qwen-code/qwen-code",
-      "note": "JSON settings; MCP inline (mcpServers). Keys via env vars."
+      "skillsPaths": {
+        "darwin": "~/.qwen/skills",
+        "linux": "~/.qwen/skills",
+        "win32": "%USERPROFILE%\\.qwen\\skills"
+      },
+      "note": "JSON settings; MCP inline (mcpServers). Keys via env vars. Personal skills: ~/.qwen/skills (Qwen Code docs: Agent Skills; project skills in .qwen/skills)."
     },
     {
       "id": "crush",
@@ -660,7 +681,12 @@
       },
       "install": "npm install -g roo-code",
       "uninstall": "npm uninstall -g roo-code",
-      "note": "Cline fork: MCP in mcp_settings.json (keyed mcpServers). VS Code extension: <globalStorage>/RooVeterinaryInc.roo-cline/mcp_settings.json; standalone CLI: ~/.vscode-mock/global-storage/mcp_settings.json. CLI settings: ~/.roo/cli-settings.json."
+      "skillsPaths": {
+        "darwin": "~/.roo/skills",
+        "linux": "~/.roo/skills",
+        "win32": "%USERPROFILE%\\.roo\\skills"
+      },
+      "note": "Cline fork: MCP in mcp_settings.json (keyed mcpServers). VS Code extension: <globalStorage>/RooVeterinaryInc.roo-cline/mcp_settings.json; standalone CLI: ~/.vscode-mock/global-storage/mcp_settings.json. CLI settings: ~/.roo/cli-settings.json. Global skills: ~/.roo/skills (Roo Code docs: features/skills; also reads ~/.agents/skills)."
     },
     {
       "id": "amp",
