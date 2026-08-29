@@ -918,7 +918,8 @@ body {
 
 .btn-primary:hover:not(:disabled) {
   background: var(--accent-primary-hover);
-  box-shadow: var(--elevation-2), 0 0 0 4px color-mix(in srgb, var(--accent-primary) 18%, transparent);
+  box-shadow: var(--elevation-2), 0 0 0 4px
+    color-mix(in srgb, var(--accent-primary) 18%, transparent);
 }
 
 .btn-primary:active:not(:disabled) {
