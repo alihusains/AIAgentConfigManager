@@ -28,6 +28,7 @@ import {
   getSkillsSnapshot,
   assignSkillToAgent,
   removeSkillFromAgent,
+  copySkillBetweenAgents,
   createSkill,
 } from '@ai-agent-config/core';
 import type {
@@ -487,6 +488,19 @@ export async function startGuiServer(
             return { data: { ok: true } };
           });
         }
+        // POST /api/skills/:id/copy { sourceAgentId, targetAgentId } — copy an
+        // installed skill from one agent to another (agent A -> agent B).
+        if (method === 'POST' && parts.length === 4 && parts[3] === 'copy') {
+          const body = await readBody();
+          return handle(async () => {
+            const result = await copySkillBetweenAgents(
+              decodeURIComponent(parts[2]),
+              String(body.sourceAgentId ?? ''),
+              String(body.targetAgentId ?? '')
+            );
+            return { data: result };
+          });
+        }
       }
 
       // ---- Registry import/export ----
@@ -591,7 +605,11 @@ export async function startGuiServer(
           return handle(async () => {
             const providerId = decodeURIComponent(parts[2]);
             const result = await manager.deleteProvider(providerId);
-            if (!result.success) return { error: result.error ?? result.warnings?.join('; ') ?? 'Operation failed', status: 400 };
+            if (!result.success)
+              return {
+                error: result.error ?? result.warnings?.join('; ') ?? 'Operation failed',
+                status: 400,
+              };
             return { data: result.data };
           });
         }
