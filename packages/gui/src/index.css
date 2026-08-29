@@ -887,16 +887,18 @@ body {
   border-radius: var(--radius-md);
 }
 
-/* Buttons */
+/* Buttons — v2 (M035): pill geometry for large CTAs, soft-rounded for dense
+   inline actions, designed hover/focus/active states. The global
+   :focus-visible outline (tokens only) is preserved for keyboard nav. */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 8px 16px;
-  font-size: 13px;
+  gap: var(--space-2);
+  padding: 8px 18px;
+  font-size: var(--text-size-sm);
   font-weight: 500;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-full);
   border: 1px solid transparent;
   cursor: pointer;
   transition: all var(--transition-fast);
@@ -911,20 +913,35 @@ body {
 .btn-primary {
   background: var(--accent-primary);
   color: var(--text-inverse);
+  box-shadow: var(--elevation-1);
 }
 
 .btn-primary:hover:not(:disabled) {
   background: var(--accent-primary-hover);
+  box-shadow: var(--elevation-2), 0 0 0 4px
+    color-mix(in srgb, var(--accent-primary) 18%, transparent);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: scale(0.98);
+  box-shadow: var(--elevation-1);
 }
 
 .btn-secondary {
   background: var(--bg-secondary);
   color: var(--text-primary);
   border-color: var(--border-primary);
+  box-shadow: var(--elevation-1);
 }
 
 .btn-secondary:hover:not(:disabled) {
   background: var(--bg-hover);
+  border-color: var(--border-secondary);
+  box-shadow: var(--elevation-2);
+}
+
+.btn-secondary:active:not(:disabled) {
+  transform: scale(0.98);
 }
 
 .btn-ghost {
@@ -933,33 +950,44 @@ body {
 }
 
 .btn-ghost:hover:not(:disabled) {
-  background: var(--bg-hover);
+  background: color-mix(in srgb, var(--accent-primary) 8%, transparent);
   color: var(--text-primary);
+}
+
+.btn-ghost:active:not(:disabled) {
+  background: color-mix(in srgb, var(--accent-primary) 14%, transparent);
 }
 
 .btn-danger {
   background: var(--accent-error);
   color: var(--text-inverse);
+  box-shadow: var(--elevation-1);
 }
 
 .btn-danger:hover:not(:disabled) {
   background: color-mix(in srgb, var(--accent-error) 86%, #000);
 }
 
+.btn-danger:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
 .btn-sm {
   padding: 6px 12px;
-  font-size: 12px;
+  font-size: var(--text-size-xs);
+  border-radius: var(--radius-md);
 }
 
 .btn-icon {
   padding: 8px;
+  border-radius: var(--radius-md);
 }
 
-/* Inputs */
+/* Inputs — v2 (M035): soft-rounded, consistent border/focus-ring treatment. */
 .input {
   width: 100%;
-  padding: 8px 12px;
-  font-size: 13px;
+  padding: 8px 14px;
+  font-size: var(--text-size-sm);
   font-family: var(--font-sans);
   color: var(--text-primary);
   background: var(--bg-primary);
@@ -973,6 +1001,10 @@ body {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-primary) 20%, transparent);
 }
 
+.input:hover:not(:focus) {
+  border-color: var(--border-secondary);
+}
+
 .input::placeholder {
   color: var(--text-tertiary);
 }
@@ -983,6 +1015,15 @@ body {
 
 .input-error:focus {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-error) 20%, transparent);
+}
+
+/* Native <select> elements styled as inputs (they carry .input too). */
+select.input {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px;
 }
 
 .select {
@@ -1720,22 +1761,27 @@ body {
   color: inherit;
 }
 
-/* Skeleton loading placeholder (audit D1): content-shaped, opacity-only pulse
-   (compositor-friendly — never animates layout). The global
-   prefers-reduced-motion override disables it for reduced-motion users. */
+/* Skeleton loading placeholder — v2 (M035): content-shaped shimmer sweep over
+   v2 surface tokens. The global prefers-reduced-motion override disables the
+   animation for reduced-motion users, leaving a static placeholder. */
 .skeleton {
   display: inline-block;
   border-radius: var(--radius-sm);
-  background: var(--bg-tertiary);
+  background: linear-gradient(
+    100deg,
+    var(--bg-tertiary) 30%,
+    var(--bg-secondary) 50%,
+    var(--bg-tertiary) 70%
+  );
+  background-size: 200% 100%;
   animation: skeleton-pulse 1.6s ease-in-out infinite;
 }
 @keyframes skeleton-pulse {
-  0%,
-  100% {
-    opacity: 1;
+  0% {
+    background-position: 100% 0;
   }
-  50% {
-    opacity: 0.45;
+  100% {
+    background-position: -100% 0;
   }
 }
 
@@ -2126,13 +2172,13 @@ body {
   color: var(--text-primary);
 }
 
-/* Empty State */
+/* Empty State — v2 (M035): icon-based zero-state with generous whitespace. */
 .empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 56px 24px;
+  padding: var(--space-8) var(--space-6);
   text-align: center;
   color: var(--text-tertiary);
   border-radius: var(--radius-lg);
@@ -2144,10 +2190,10 @@ body {
 }
 
 .empty-state-icon {
-  width: 64px;
-  height: 64px;
-  margin-bottom: 18px;
-  padding: 14px;
+  width: 72px;
+  height: 72px;
+  margin-bottom: var(--space-4);
+  padding: 16px;
   border-radius: var(--radius-full);
   display: flex;
   align-items: center;
@@ -2158,21 +2204,21 @@ body {
 }
 
 .empty-state-title {
-  font-size: 17px;
+  font-size: var(--text-size-lg);
   font-weight: 600;
   color: var(--text-primary);
-  margin-bottom: 8px;
+  margin-bottom: var(--space-2);
   letter-spacing: -0.01em;
 }
 
 .empty-state-message {
-  font-size: 13px;
+  font-size: var(--text-size-sm);
   max-width: 340px;
   line-height: 1.6;
 }
 
 .empty-state-action {
-  margin-top: 14px;
+  margin-top: var(--space-4);
 }
 
 /* ============================================================================
@@ -3072,6 +3118,8 @@ textarea {
   position: fixed;
   inset: 0;
   background: rgb(0 0 0 / 0.4);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -3092,7 +3140,9 @@ textarea {
 .palette {
   width: 100%;
   max-width: 560px;
-  background: var(--bg-primary);
+  background: var(--surface-glass);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-elevated);
@@ -3152,7 +3202,7 @@ textarea {
   width: 22px;
   height: 22px;
   border-radius: var(--radius-sm);
-  background: var(--bg-secondary);
+  background: var(--bg-tertiary);
   color: var(--text-tertiary);
   flex-shrink: 0;
 }
@@ -3195,20 +3245,20 @@ textarea {
   cursor: pointer;
   font-size: var(--text-size-sm);
   color: var(--text-primary);
-  transition: background var(--transition-fast);
+  transition: background var(--transition-fast), color var(--transition-fast);
 }
 
 .palette-item:hover {
-  background: var(--bg-hover);
+  background: color-mix(in srgb, var(--accent-primary) 8%, transparent);
 }
 
 .palette-item-active {
-  background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
-  color: var(--accent-primary);
+  background: color-mix(in srgb, var(--accent-primary) 14%, transparent);
+  color: var(--accent-primary-text);
 }
 
 .palette-item-active .palette-item-desc {
-  color: var(--accent-primary);
+  color: var(--accent-primary-text);
   opacity: 0.7;
 }
 
