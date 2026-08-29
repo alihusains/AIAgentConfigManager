@@ -36,9 +36,9 @@ let tauriInvokeFailed = false;
 
 async function loadNodeModules() {
   if (!isNode) return;
-  if (!fs) fs = await import('fs/promises');
-  if (!pathNs) pathNs = await import('path');
-  if (!osNs) osNs = await import('os');
+  if (!fs) fs = await import('node:fs/promises');
+  if (!pathNs) pathNs = await import('node:path');
+  if (!osNs) osNs = await import('node:os');
 }
 
 /**
@@ -389,7 +389,7 @@ export async function getCommandVersion(
   for (const attempt of attempts) {
     try {
       const result = await runCommand(execTarget, [attempt], 15000);
-      const raw = ((result.stdout || '') + '\n' + (result.stderr || '')).trim();
+      const raw = (`${result.stdout || ''}\n${result.stderr || ''}`).trim();
       const version = raw.split(/\r?\n/)[0].trim();
       if (version && !isErrorString(version)) return version;
     } catch {
@@ -452,7 +452,6 @@ export function parseConfig(content: string, format: ConfigFormat): unknown {
       throw new Error(`Unsupported config format: ${format}`);
   }
 }
-
 export function stringifyConfig(obj: unknown, format: ConfigFormat): string {
   switch (format) {
     case 'json':
@@ -558,10 +557,6 @@ function stripJSONCComments(content: string): string {
 
 function parseJSONC(content: string): unknown {
   return JSON.parse(stripJSONCComments(content));
-}
-
-function stringifyYAML(obj: unknown): string {
-  return dumpYAML(obj, { noRefs: true, lineWidth: -1 });
 }
 
 function stringifyTOML(obj: unknown): string {

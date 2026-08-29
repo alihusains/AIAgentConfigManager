@@ -17,8 +17,8 @@
  *          https://junie.jetbrains.com/docs/junie-cli-mcp-configuration.html
  */
 
-import { createGenericAdapter, GenericAdapterOptions } from './generic';
-import { AgentAdapter } from '../types';
+import { createGenericAdapter, type GenericAdapterOptions } from './generic';
+import type { AgentAdapter } from '../types';
 
 /**
  * Create a JetBrains Junie CLI adapter.
@@ -43,6 +43,14 @@ export function createJunieAdapter(): AgentAdapter {
     },
     format: 'json',
     mcpShape: 'keyed',
+    // Junie has no user-configurable model provider — the model is fixed
+    // by the JetBrains backend. The main config file is still the
+    // closest thing to a "model config" surface.
+    modelConfigPaths: {
+      darwin: ['~/.junie/config.json'],
+      win32: ['%USERPROFILE%\\.junie\\config.json'],
+      linux: ['~/.junie/config.json'],
+    },
     supports: {
       modelProviders: false,
       mcpServers: true,

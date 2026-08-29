@@ -16,8 +16,8 @@
  *         + https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/qdev-mcp.html
  */
 
-import { createGenericAdapter, GenericAdapterOptions } from './generic';
-import { AgentAdapter } from '../types';
+import { createGenericAdapter, type GenericAdapterOptions } from './generic';
+import type { AgentAdapter } from '../types';
 
 const AMAZON_Q_MCP_PATHS = {
   darwin: '~/.aws/amazonq/mcp.json',

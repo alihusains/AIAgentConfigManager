@@ -19,7 +19,7 @@
  * Source: https://github.com/github/github-mcp-server/blob/main/docs/installation-guides/install-windsurf.md
  */
 
-import { GenericAdapter, GenericAdapterOptions } from './generic';
+import { GenericAdapter, type GenericAdapterOptions } from './generic';
 import type { AgentAdapter, AgentConfig } from '../types';
 
 const WINDSURF_MCP_PATHS = {
@@ -62,8 +62,7 @@ class WindsurfAdapter extends GenericAdapter {
    */
   private rawMcpServers(): Record<string, Record<string, unknown>> {
     // SAFETY: same field, only the private modifier is bypassed.
-    const raw = (this as unknown as { mcpRawCache: Record<string, unknown> | null })
-      .mcpRawCache;
+    const raw = (this as unknown as { mcpRawCache: Record<string, unknown> | null }).mcpRawCache;
     const mcp = raw?.mcpServers as Record<string, Record<string, unknown>> | undefined;
     return mcp && typeof mcp === 'object' ? mcp : {};
   }

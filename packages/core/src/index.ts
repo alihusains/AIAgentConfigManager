@@ -723,7 +723,7 @@ export class AgentConfigManager {
    * validated first; custom agents are re-registered so their adapters exist.
    */
   async importRegistry(data: unknown): Promise<OperationResult<RegistryState>> {
-    const registry = await this.requireRegistry();
+    const _registry = await this.requireRegistry();
     if (!data || typeof data !== 'object') {
       return { success: false, error: 'Registry file must be a JSON object' };
     }
@@ -1364,7 +1364,7 @@ export class AgentConfigManager {
     const detected = await this.detectAgent(agentId);
     const mcpPath = detected?.detection.mcpPath;
     if (!mcpPath) {
-      return { success: false, error: `This agent has no separate MCP file on this machine` };
+      return { success: false, error: 'This agent has no separate MCP file on this machine' };
     }
     return { success: true, data: mcpPath };
   }
@@ -1548,7 +1548,7 @@ export class AgentConfigManager {
   }
 
   private summarizeResults(results: OperationResult[]): OperationResult {
-    const succeeded = results.filter((r) => r.success).length;
+    const _succeeded = results.filter((r) => r.success).length;
     const failed = results.filter((r) => !r.success).length;
     const errors = results
       .filter((r) => !r.success)

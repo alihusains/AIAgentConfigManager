@@ -16,8 +16,8 @@
  * Source: https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-config-dir-reference
  */
 
-import { createGenericAdapter, GenericAdapterOptions } from './generic';
-import { AgentAdapter } from '../types';
+import { createGenericAdapter, type GenericAdapterOptions } from './generic';
+import type { AgentAdapter } from '../types';
 
 const COPILOT_CLI_PATHS = {
   darwin: '~/.copilot/settings.json',

@@ -30,8 +30,7 @@ export function createFreebuffAdapter(): AgentAdapter {
   const options: GenericAdapterOptions = {
     id: 'freebuff',
     name: 'FreeBuff',
-    description:
-      'FreeBuff CLI — free, ad-supported coding agent built on the Codebuff platform.',
+    description: 'FreeBuff CLI — free, ad-supported coding agent built on the Codebuff platform.',
     binaries: ['freebuff'],
     configPath: '~/.config/manicode/settings.json',
     configPaths: {
@@ -44,6 +43,11 @@ export function createFreebuffAdapter(): AgentAdapter {
       darwin: '~/.agents/mcp.json',
       win32: '~/.agents/mcp.json',
       linux: '~/.agents/mcp.json',
+    },
+    modelConfigPaths: {
+      darwin: ['~/.config/manicode/settings.json'],
+      win32: ['~/.config/manicode/settings.json'],
+      linux: ['~/.config/manicode/settings.json'],
     },
     format: 'json',
     mcpShape: 'keyed',

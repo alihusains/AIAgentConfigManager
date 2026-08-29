@@ -28,8 +28,8 @@
  *   packages/vscode-shim/src/context/ExtensionContext.ts)
  */
 
-import { createGenericAdapter, GenericAdapterOptions } from './generic';
-import { AgentAdapter } from '../types';
+import { createGenericAdapter, type GenericAdapterOptions } from './generic';
+import type { AgentAdapter } from '../types';
 
 const ROO_MCP_PATHS = {
   darwin: '~/.vscode-mock/global-storage/mcp_settings.json',
@@ -50,7 +50,8 @@ export function createRooCodeAdapter(): AgentAdapter {
   const options: GenericAdapterOptions = {
     id: 'roo',
     name: 'Roo Code',
-    description: 'Roo Code — open-source autonomous coding agent (Cline fork; MCP via mcp_settings.json).',
+    description:
+      'Roo Code — open-source autonomous coding agent (Cline fork; MCP via mcp_settings.json).',
     binaries: ['roo', 'roo-code'],
     // Main config = the CLI settings file (kept untouched; models are managed
     // through Roo's own provider flows, so no provider keys are written here).

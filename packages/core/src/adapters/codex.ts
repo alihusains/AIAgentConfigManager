@@ -28,7 +28,7 @@
  *   disabled_tools = []
  */
 
-import {
+import type {
   AgentAdapter,
   AgentInfo,
   AgentConfig,
@@ -101,7 +101,17 @@ export class CodexAdapter implements AgentAdapter {
       win32: '%USERPROFILE%\\.codex\\config.toml',
       linux: '~/.codex/config.toml',
     },
-    binaries: ['codex', 'chatgpt'],
+    binaries: ['codex', 'chatgpt', 'openai-codex'],
+    mcpConfigPaths: {
+      darwin: '~/.codex/config.toml',
+      win32: '%USERPROFILE%\\.codex\\config.toml',
+      linux: '~/.codex/config.toml',
+    },
+    modelConfigPaths: {
+      darwin: ['~/.codex/config.toml'],
+      win32: ['%USERPROFILE%\\.codex\\config.toml'],
+      linux: ['~/.codex/config.toml'],
+    },
     supports: {
       modelProviders: true,
       mcpServers: true,
@@ -122,13 +132,20 @@ export class CodexAdapter implements AgentAdapter {
     // CODEX_HOME overrides the config directory
     if (typeof process !== 'undefined' && process.env?.CODEX_HOME) {
       const base = process.env.CODEX_HOME;
-      const isWin = platform === 'win32' ||
-        (typeof process !== 'undefined' && process.platform === 'win32');
+      const isWin =
+        platform === 'win32' || (typeof process !== 'undefined' && process.platform === 'win32');
       return `${base}${isWin ? '\\' : '/'}config.toml`;
     }
     const current = platform || this.detectPlatform();
     const template = this.info.configPaths[current] || this.info.configPaths.darwin;
     return resolveConfigPath(template);
+  }
+
+  getMCPConfigPath(platform?: Platform): string | null {
+    const current = platform || this.detectPlatform();
+    const template = this.info.mcpConfigPaths?.[current];
+    if (!template) return null;
+    return resolveConfigPath(template, current);
   }
 
   private detectPlatform(): Platform {
@@ -218,8 +235,8 @@ export class CodexAdapter implements AgentAdapter {
 
     // Codex does not declare model lists in the config; the `model` and
     // `small_model` keys name (possibly qualified) models directly.
-    const defaultProviderId = raw.model_provider ||
-      (modelProviders.length > 0 ? modelProviders[0].id : 'openai');
+    const defaultProviderId =
+      raw.model_provider || (modelProviders.length > 0 ? modelProviders[0].id : 'openai');
     if (raw.model) {
       models.push({
         id: 'default',
@@ -275,9 +292,7 @@ export class CodexAdapter implements AgentAdapter {
   }
 
   private transformToRaw(config: AgentConfig): CodexConfig {
-    const raw: CodexConfig = this.rawCache
-      ? JSON.parse(JSON.stringify(this.rawCache))
-      : {};
+    const raw: CodexConfig = this.rawCache ? JSON.parse(JSON.stringify(this.rawCache)) : {};
 
     // Rebuild model_providers from the unified list (merging unknown keys)
     const model_providers: Record<string, CodexModelProvider> = {};
@@ -286,7 +301,7 @@ export class CodexAdapter implements AgentAdapter {
         this.rawCache?.model_providers?.[provider.id];
       const entry: CodexModelProvider = {
         ...existing,
-        name: existing?.name || provider.name,
+        name: provider.name,
       };
       const cfg = provider.config;
       const baseUrl = (cfg.baseUrl as string) || existing?.base_url;
@@ -305,9 +320,10 @@ export class CodexAdapter implements AgentAdapter {
     // Default model + provider selection
     const defaultModel = config.models.find((m) => m.id === 'default') || config.models[0];
     const smallModel = config.models.find((m) => m.id === 'small');
-    const defaultProviderId = config.models
-      .find((m) => m.id === 'default')
-      ?.providerId || config.modelProviders[0]?.id || raw.model_provider;
+    const defaultProviderId =
+      config.models.find((m) => m.id === 'default')?.providerId ||
+      config.modelProviders[0]?.id ||
+      raw.model_provider;
 
     const mcp_servers: Record<string, CodexMCPServer> = {};
     for (const server of config.mcpServers) {
@@ -391,7 +407,22 @@ export class CodexAdapter implements AgentAdapter {
     if (index === -1) {
       throw new Error(`Provider with id "${providerId}" not found`);
     }
-    config.modelProviders[index] = { ...config.modelProviders[index], ...updates };
+    // A rename must not silently collide with another provider's name. The
+    // on-disk map is keyed by id, so a name clash would never overwrite the
+    // other provider — but letting two providers share a display name is
+    // confusing, so we reject it explicitly.
+    if (updates.name && updates.name !== config.modelProviders[index].name) {
+      const clash = config.modelProviders.find(
+        (p) => p.id !== providerId && p.name === updates.name
+      );
+      if (clash) {
+        throw new Error(`Provider with name "${updates.name}" already exists`);
+      }
+    }
+    config.modelProviders[index] = {
+      ...config.modelProviders[index],
+      ...updates,
+    };
     config.lastModified = Date.now();
     await this.writeConfig(config);
   }

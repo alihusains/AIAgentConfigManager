@@ -20,8 +20,8 @@
  * Source: https://github.com/google-gemini/gemini-cli (settings.json reference)
  */
 
-import { createGenericAdapter, GenericAdapterOptions } from './generic';
-import { AgentAdapter } from '../types';
+import { createGenericAdapter, type GenericAdapterOptions } from './generic';
+import type { AgentAdapter } from '../types';
 
 /**
  * Create a Google Gemini CLI adapter.
@@ -30,8 +30,8 @@ export function createGeminiAdapter(): AgentAdapter {
   const options: GenericAdapterOptions = {
     id: 'gemini',
     name: 'Gemini CLI',
-    description: 'Google Gemini CLI — Google\'s terminal coding agent (MCP via settings.json).',
-    binaries: ['gemini'],
+    description: "Google Gemini CLI — Google's terminal coding agent (MCP via settings.json).",
+    binaries: ['gemini', 'gemini-cli'],
     configPath: '~/.gemini/settings.json',
     configPaths: {
       darwin: '~/.gemini/settings.json',
@@ -40,6 +40,11 @@ export function createGeminiAdapter(): AgentAdapter {
     },
     format: 'json',
     mcpShape: 'keyed',
+    modelConfigPaths: {
+      darwin: ['~/.gemini/settings.json'],
+      win32: ['%USERPROFILE%\\.gemini\\settings.json'],
+      linux: ['~/.gemini/settings.json'],
+    },
     supports: {
       modelProviders: false,
       mcpServers: true,

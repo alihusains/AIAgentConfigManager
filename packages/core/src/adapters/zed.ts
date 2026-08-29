@@ -25,7 +25,7 @@
  * Source: https://zed.dev/docs/ai/mcp
  */
 
-import { GenericAdapter, GenericAdapterOptions } from './generic';
+import { GenericAdapter, type GenericAdapterOptions } from './generic';
 import type { AgentAdapter, AgentConfig } from '../types';
 import { writeFileSafe, stringifyConfig } from '../utils';
 
@@ -127,7 +127,8 @@ export function createZedAdapter(): AgentAdapter {
   const options: GenericAdapterOptions = {
     id: 'zed',
     name: 'Zed',
-    description: 'Zed — high-performance editor with a built-in AI agent (MCP via context_servers).',
+    description:
+      'Zed — high-performance editor with a built-in AI agent (MCP via context_servers).',
     binaries: ['zed'],
     configPath: ZED_CONFIG_PATHS.darwin,
     configPaths: { ...ZED_CONFIG_PATHS },

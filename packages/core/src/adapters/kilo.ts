@@ -29,7 +29,8 @@ export function createKiloAdapter(): OpenCodeStyleAdapter {
   return new OpenCodeStyleAdapter({
     id: 'kilo',
     name: 'Kilo Code',
-    description: 'Kilo Code CLI (OpenCode fork, Cline/Roo lineage) — provider-agnostic coding agent with MCP support.',
+    description:
+      'Kilo Code CLI (OpenCode fork, Cline/Roo lineage) — provider-agnostic coding agent with MCP support.',
     binaries: ['kilo'],
     configPaths: { ...KILO_CONFIG_PATHS },
   });

@@ -26,7 +26,7 @@
  * per-platform map is given (custom agents).
  */
 
-import {
+import type {
   AgentAdapter,
   AgentInfo,
   AgentConfig,
@@ -74,23 +74,55 @@ export interface GenericAdapterOptions {
   mcpShape?: MCPShape;
   /** Capability overrides; defaults to all supported (custom agent). */
   supports?: Partial<AgentCapabilities>;
+  /** Candidate paths where model/provider config lives (see AgentInfo). */
+  modelConfigPaths?: Partial<Record<Platform, string[]>>;
+  /** Where provider credentials are stored, when distinct (see AgentInfo). */
+  modelCredentialPaths?: Partial<Record<Platform, string[]>>;
+  /**
+   * Optional separate file (supports ~/ and %ENV% templates) where the
+   * agent's providers/models live — e.g. Pi's ~/.pi/agent/models.json.
+   * When set, providers/models are read from and written to this file and
+   * are never embedded in the main config file.
+   */
+  providerStorePath?: string;
+  /** Optional per-platform overrides for providerStorePath */
+  providerStorePaths?: Record<Platform, string>;
+  /** Decode a provider-store file's raw content into unified providers/models. */
+  decodeProviderStore?: (raw: Record<string, unknown>) => {
+    modelProviders: ModelProvider[];
+    models: ModelConfig[];
+  } | null;
+  /** Serialize unified providers/models into the provider-store file shape. */
+  encodeProviderStore?: (
+    config: AgentConfig,
+    raw: Record<string, unknown> | null
+  ) => Record<string, unknown>;
 }
 
 export class GenericAdapter implements AgentAdapter {
   readonly info: AgentInfo;
   private readonly configTemplate: string;
   private readonly mcpTemplate: string | null;
+  private readonly providerStoreTemplate: string | null;
+  private readonly providerStorePaths: Record<Platform, string> | undefined;
   private readonly fileFormat: 'json' | 'jsonc';
   private readonly mcpShape: MCPShape;
+  private readonly decodeProviderStoreFn: GenericAdapterOptions['decodeProviderStore'];
+  private readonly encodeProviderStoreFn: GenericAdapterOptions['encodeProviderStore'];
   protected configCache: AgentConfig | null = null;
   private mainRawCache: Record<string, unknown> | null = null;
   private mcpRawCache: Record<string, unknown> | null = null;
+  private providerStoreRawCache: Record<string, unknown> | null = null;
 
   constructor(options: GenericAdapterOptions) {
     this.configTemplate = options.configPath;
     this.mcpTemplate = options.mcpPath || null;
+    this.providerStoreTemplate = options.providerStorePath || null;
+    this.providerStorePaths = options.providerStorePaths;
     this.fileFormat = options.format || 'json';
     this.mcpShape = options.mcpShape || 'array';
+    this.decodeProviderStoreFn = options.decodeProviderStore;
+    this.encodeProviderStoreFn = options.encodeProviderStore;
 
     const configPaths: Record<Platform, string> = {
       darwin: options.configPath,
@@ -125,6 +157,8 @@ export class GenericAdapter implements AgentAdapter {
       supports,
       // Same-file MCP mode: the MCP file IS the main config file
       mcpConfigPaths: mcpPaths || configPaths,
+      modelConfigPaths: options.modelConfigPaths,
+      modelCredentialPaths: options.modelCredentialPaths,
     };
   }
 
@@ -134,9 +168,21 @@ export class GenericAdapter implements AgentAdapter {
     return resolveConfigPath(template);
   }
 
-  getMCPConfigPath(): string | null {
-    if (!this.mcpTemplate) return null;
-    return resolveConfigPath(this.mcpTemplate);
+  getMCPConfigPath(platform?: Platform): string | null {
+    if (!this.info.supports.mcpServers) return null;
+    const current = platform || this.detectPlatform();
+    const template =
+      this.info.mcpConfigPaths?.[current] ||
+      this.info.configPaths[current] ||
+      this.info.configPaths.darwin;
+    return resolveConfigPath(template, current);
+  }
+
+  getProviderStorePath(platform?: Platform): string | null {
+    if (!this.providerStoreTemplate) return null;
+    const current = platform || this.detectPlatform();
+    const template = this.providerStorePaths?.[current] || this.providerStoreTemplate;
+    return resolveConfigPath(template, current);
   }
 
   private detectPlatform(): Platform {
@@ -204,11 +250,12 @@ export class GenericAdapter implements AgentAdapter {
     return {
       // URL-only entries (pi's drawio/miro/rezi) carry no type — treat them
       // as http transports so the unified model is consistent.
-      type: typeof rawType === 'string'
-        ? this.mapTransport(rawType)
-        : typeof entry.url === 'string'
-          ? 'http'
-          : 'stdio',
+      type:
+        typeof rawType === 'string'
+          ? this.mapTransport(rawType)
+          : typeof entry.url === 'string'
+            ? 'http'
+            : 'stdio',
       command: Array.isArray(command)
         ? typeof command[0] === 'string'
           ? command[0]
@@ -228,7 +275,9 @@ export class GenericAdapter implements AgentAdapter {
       timeout: typeof entry.timeout === 'number' ? entry.timeout : undefined,
       enabled: entry.enabled !== false,
       approvalMode:
-        entry.approvalMode === 'prompt' || entry.approvalMode === 'auto' || entry.approvalMode === 'never'
+        entry.approvalMode === 'prompt' ||
+        entry.approvalMode === 'auto' ||
+        entry.approvalMode === 'never'
           ? entry.approvalMode
           : undefined,
       tools: Array.isArray(entry.tools) ? (entry.tools as string[]) : undefined,
@@ -245,7 +294,10 @@ export class GenericAdapter implements AgentAdapter {
     // field) and brand-new servers use the intersection-safe minimal shape:
     // string command + separate args[]; URL entries without a type — every
     // tool in this family (pi/junie/gemini) defaults URL entries to remote.
-    const existing = (this.getRawMCPServersObject() || {}) as Record<string, Record<string, unknown>>;
+    const existing = (this.getRawMCPServersObject() || {}) as Record<
+      string,
+      Record<string, unknown>
+    >;
     const out: Record<string, unknown> = {};
     for (const s of servers) {
       const prior = existing[s.name] || {};
@@ -253,11 +305,11 @@ export class GenericAdapter implements AgentAdapter {
         out[s.name] = {
           ...prior,
           command: s.command,
-          ...(s.args && s.args.length ? { args: s.args } : {}),
+          ...(s.args?.length ? { args: s.args } : {}),
           ...(s.env ? { env: s.env } : {}),
           ...(s.cwd ? { cwd: s.cwd } : {}),
           ...(s.timeout !== undefined ? { timeout: s.timeout } : {}),
-          ...(s.tools && s.tools.length ? { tools: s.tools } : {}),
+          ...(s.tools?.length ? { tools: s.tools } : {}),
           ...(s.enabled === false ? { enabled: false } : {}),
         };
       } else if (s.url) {
@@ -288,7 +340,9 @@ export class GenericAdapter implements AgentAdapter {
     const raw = this.mcpTemplate ? this.mcpRawCache : this.mainRawCache;
     if (!raw) return null;
     const mcp = raw.mcpServers;
-    return mcp && typeof mcp === 'object' && !Array.isArray(mcp) ? (mcp as Record<string, unknown>) : null;
+    return mcp && typeof mcp === 'object' && !Array.isArray(mcp)
+      ? (mcp as Record<string, unknown>)
+      : null;
   }
 
   // ============================================================================
@@ -308,12 +362,29 @@ export class GenericAdapter implements AgentAdapter {
     let modelProviders: ModelProvider[] = [];
     let models: ModelConfig[] = [];
     this.mainRawCache = null;
+    this.providerStoreRawCache = null;
 
     if (mainContent) {
       const raw = parseConfig(mainContent, this.fileFormat) as Record<string, unknown>;
       this.mainRawCache = raw;
       if (Array.isArray(raw.modelProviders)) modelProviders = raw.modelProviders as ModelProvider[];
       if (Array.isArray(raw.models)) models = raw.models as ModelConfig[];
+    }
+
+    // Separate provider-store file (e.g. Pi's models.json) takes precedence
+    // over any provider keys in the main config file.
+    const psPath = this.getProviderStorePath();
+    if (psPath && this.decodeProviderStoreFn) {
+      const psContent = await readFileSafe(psPath);
+      if (psContent) {
+        const psRaw = parseConfig(psContent, this.fileFormat) as Record<string, unknown>;
+        this.providerStoreRawCache = psRaw;
+        const decoded = this.decodeProviderStoreFn(psRaw);
+        if (decoded) {
+          modelProviders = decoded.modelProviders;
+          models = decoded.models;
+        }
+      }
     }
 
     let mcpServers: MCPServerConfig[] = [];
@@ -361,14 +432,16 @@ export class GenericAdapter implements AgentAdapter {
     const main: Record<string, unknown> = { ...mainRaw };
     // Only write provider/model keys when the agent's config actually holds
     // them (Pi/Junie/Gemini keep providers managed by their own auth flows —
-    // writing empty arrays would pollute their settings files).
-    if (this.info.supports.modelProviders) {
+    // writing empty arrays would pollute their settings files). Agents with a
+    // separate provider-store file get their providers written there instead.
+    if (this.info.supports.modelProviders && !this.providerStoreTemplate) {
       main.modelProviders = config.modelProviders;
       main.models = config.models;
     }
 
     const mcpPath = this.getMCPConfigPath();
-    if (mcpPath) {
+    const sameFileMCP = mcpPath !== null && mcpPath === configPath;
+    if (mcpPath && !sameFileMCP) {
       // Separate MCP file: never write mcpServers into the main config
       await this.ensureDir(mcpPath);
       const mcpRaw: Record<string, unknown> = this.mcpRawCache
@@ -390,6 +463,16 @@ export class GenericAdapter implements AgentAdapter {
     await backupFile(configPath).catch(() => undefined);
     await writeFileSafe(configPath, stringifyConfig(main, this.fileFormat as 'json' | 'jsonc'));
     this.mainRawCache = main;
+
+    // Separate provider-store file: write providers/models there
+    const psPath = this.getProviderStorePath();
+    if (psPath && this.encodeProviderStoreFn) {
+      await this.ensureDir(psPath);
+      const psFile = this.encodeProviderStoreFn(config, this.providerStoreRawCache);
+      await backupFile(psPath).catch(() => undefined);
+      await writeFileSafe(psPath, stringifyConfig(psFile, this.fileFormat as 'json' | 'jsonc'));
+      this.providerStoreRawCache = psFile;
+    }
 
     this.configCache = config;
   }
@@ -435,7 +518,10 @@ export class GenericAdapter implements AgentAdapter {
     return this.mutate((config) => {
       const index = config.modelProviders.findIndex((p) => p.id === providerId);
       if (index === -1) throw new Error(`Provider with id "${providerId}" not found`);
-      config.modelProviders[index] = { ...config.modelProviders[index], ...updates };
+      config.modelProviders[index] = {
+        ...config.modelProviders[index],
+        ...updates,
+      };
     }).then(() => undefined);
   }
 
@@ -526,6 +612,7 @@ export class GenericAdapter implements AgentAdapter {
     await writeFileSafe(this.getConfigPath(), content);
     this.configCache = null;
     this.mainRawCache = null;
+    this.providerStoreRawCache = null;
   }
 }
 

@@ -6,15 +6,15 @@
 
 import { z } from 'zod';
 import {
-  AgentAdapter,
-  AgentInfo,
-  AgentConfig,
+  type AgentAdapter,
+  type AgentInfo,
+  type AgentConfig,
   AgentCapabilities,
-  ModelProvider,
-  ModelConfig,
-  MCPServerConfig,
-  PermissionConfig,
-  Platform,
+  type ModelProvider,
+  type ModelConfig,
+  type MCPServerConfig,
+  type PermissionConfig,
+  type Platform,
   OperationResult,
   ConfigFormat,
 } from '../types';
@@ -51,16 +51,6 @@ interface ClaudeCodeSettings {
   [key: string]: unknown;
 }
 
-interface ClaudeCodeModelProvider {
-  id: string;
-  name: string;
-  type: 'anthropic' | 'bedrock' | 'vertex' | 'openai-compatible';
-  baseUrl?: string;
-  apiKey?: string;
-  models?: string[];
-  enabled: boolean;
-}
-
 // ============================================================================
 // Adapter Implementation
 // ============================================================================
@@ -69,14 +59,24 @@ export class ClaudeCodeAdapter implements AgentAdapter {
   readonly info: AgentInfo = {
     id: 'claude-code',
     name: 'Claude Code',
-    description: 'Anthropic\'s official CLI for Claude',
+    description: "Anthropic's official CLI for Claude",
     configFormat: 'json',
     configPaths: {
       darwin: '~/.claude/settings.json',
       win32: '%USERPROFILE%\\.claude\\settings.json',
       linux: '~/.claude/settings.json',
     },
-    binaries: ['claude'],
+    binaries: ['claude', 'claude-code'],
+    mcpConfigPaths: {
+      darwin: '~/.claude/mcp.json',
+      win32: '%USERPROFILE%\\.claude\\mcp.json',
+      linux: '~/.claude/mcp.json',
+    },
+    modelConfigPaths: {
+      darwin: ['~/.claude/settings.json'],
+      win32: ['%USERPROFILE%\\.claude\\settings.json'],
+      linux: ['~/.claude/settings.json'],
+    },
     supports: {
       modelProviders: true,
       mcpServers: true,
@@ -85,8 +85,9 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     },
   };
 
+  private rawSettingsCache: ClaudeCodeSettings | null = null;
   private configCache: AgentConfig | null = null;
-  private configPath: string = '';
+  private configPath = '';
 
   constructor() {
     this.configPath = this.getConfigPath();
@@ -97,13 +98,20 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     return resolveConfigPath(template);
   }
 
+  getMCPConfigPath(platform?: Platform): string | null {
+    const current = platform || (process.platform as Platform);
+    const template = this.info.mcpConfigPaths?.[current];
+    if (!template) return null;
+    return resolveConfigPath(template, current);
+  }
+
   // ============================================================================
   // Config File Operations
   // ============================================================================
 
   async readConfig(): Promise<AgentConfig> {
     const content = await readFileSafe(this.configPath);
-    
+
     if (!content) {
       // Return default config if file doesn't exist
       const config = this.getDefaultConfig();
@@ -115,6 +123,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       const rawSettings = parseConfig(content, 'json') as ClaudeCodeSettings;
       const config = await this.transformFromClaudeCode(rawSettings);
       this.configCache = config;
+      this.rawSettingsCache = rawSettings;
       return config;
     } catch (error) {
       throw new Error(`Failed to parse Claude Code config: ${error}`);
@@ -127,10 +136,18 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       throw new Error(`Invalid config: ${validation.errors.join(', ')}`);
     }
 
+    // Safety net: keep a timestamped backup before touching the agent's file
+    try {
+      await backupFile(this.configPath);
+    } catch {
+      // Ignore backup failures (e.g. file doesn't exist yet)
+    }
+
     const claudeSettings = this.transformToClaudeCode(config);
     const content = stringifyConfig(claudeSettings, 'json');
     await writeFileSafe(this.configPath, content);
     this.configCache = config;
+    this.rawSettingsCache = claudeSettings;
   }
 
   validateConfig(config: unknown): { valid: boolean; errors: string[] } {
@@ -239,7 +256,9 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       const mcpContent = await readFileSafe(mcpConfigPath);
       if (mcpContent) {
         try {
-          const rawMcp = parseConfig(mcpContent, 'json') as { mcpServers?: Record<string, MCPServerConfig> };
+          const rawMcp = parseConfig(mcpContent, 'json') as {
+            mcpServers?: Record<string, MCPServerConfig>;
+          };
           for (const [name, server] of Object.entries(rawMcp.mcpServers || {})) {
             if (!mcpServers.some((s) => s.name === name)) {
               mcpServers.push({ ...server, name, enabled: true });
@@ -290,65 +309,91 @@ export class ClaudeCodeAdapter implements AgentAdapter {
   }
 
   private transformToClaudeCode(config: AgentConfig): ClaudeCodeSettings {
-    const settings: ClaudeCodeSettings = {
-      autoUpdatesChannel: config.customSettings.autoUpdatesChannel as 'latest' | 'stable' | undefined,
-      minimumVersion: config.customSettings.minimumVersion as string | undefined,
-      apiKeyHelper: config.customSettings.apiKeyHelper as string | undefined,
-      env: {},
-      mcpServers: {},
-      disabledMcpServers: [],
-      permissions: { allow: [], deny: [], ask: [] },
-    };
+    // Start from the previously-read raw settings so unknown keys survive
+    // (inputNeededNotifEnabled, agentPushNotifEnabled, etc.) and existing
+    // env vars are preserved when providers don't map to them.
+    const settings: ClaudeCodeSettings = this.rawSettingsCache
+      ? (JSON.parse(JSON.stringify(this.rawSettingsCache)) as ClaudeCodeSettings)
+      : { env: {} };
 
-    // Build env from model providers
+    // Build env from model providers (merge with existing, don't wipe)
     for (const provider of config.modelProviders) {
       if (!provider.enabled) continue;
-      
+
       switch (provider.type) {
         case 'anthropic':
-          if (provider.config.apiKey) settings.env!.ANTHROPIC_API_KEY = provider.config.apiKey as string;
-          if (provider.config.baseUrl) settings.env!.ANTHROPIC_BASE_URL = provider.config.baseUrl as string;
+          if (provider.config.apiKey)
+            settings.env!.ANTHROPIC_API_KEY = provider.config.apiKey as string;
+          if (provider.config.baseUrl)
+            settings.env!.ANTHROPIC_BASE_URL = provider.config.baseUrl as string;
           break;
         case 'bedrock':
           if (provider.config.region) settings.env!.AWS_REGION = provider.config.region as string;
-          if (provider.config.profile) settings.env!.AWS_PROFILE = provider.config.profile as string;
+          if (provider.config.profile)
+            settings.env!.AWS_PROFILE = provider.config.profile as string;
           break;
         case 'vertex':
-          if (provider.config.project) settings.env!.GOOGLE_CLOUD_PROJECT = provider.config.project as string;
-          if (provider.config.region) settings.env!.VERTEX_AI_REGION = provider.config.region as string;
+          if (provider.config.project)
+            settings.env!.GOOGLE_CLOUD_PROJECT = provider.config.project as string;
+          if (provider.config.region)
+            settings.env!.VERTEX_AI_REGION = provider.config.region as string;
           break;
         case 'openai-compatible':
-          if (provider.config.apiKey) settings.env!.OPENAI_API_KEY = provider.config.apiKey as string;
-          if (provider.config.baseUrl) settings.env!.OPENAI_API_BASE = provider.config.baseUrl as string;
+          if (provider.config.apiKey)
+            settings.env!.OPENAI_API_KEY = provider.config.apiKey as string;
+          if (provider.config.baseUrl)
+            settings.env!.OPENAI_API_BASE = provider.config.baseUrl as string;
           break;
       }
     }
 
-    // Build MCP servers
+    // Build MCP servers (merge with existing, don't wipe unknown keys)
+    const mcpServers: Record<string, unknown> = {
+      ...(settings.mcpServers || {}),
+    };
     for (const server of config.mcpServers) {
-      settings.mcpServers![server.name] = server;
-      if (!server.enabled) {
-        settings.disabledMcpServers!.push(server.name);
-      }
+      const existing = mcpServers[server.name] as Record<string, unknown> | undefined;
+      mcpServers[server.name] = {
+        ...existing,
+        ...server,
+        name: server.name,
+      };
+    }
+    settings.mcpServers = mcpServers as Record<string, MCPServerConfig>;
+
+    // Preserve disabledMcpServers from the raw file (Claude Code's own list)
+    // — don't rebuild it from the unified enabled state, which would clobber
+    // servers the user disabled directly in Claude Code.
+    if (!settings.disabledMcpServers) {
+      settings.disabledMcpServers = [];
     }
 
-    // Build permissions
+    // Build permissions (merge with existing, don't wipe ask patterns)
+    const existingPerms = settings.permissions || {
+      allow: [],
+      deny: [],
+      ask: [],
+    };
     const permissions = {
-      allow: settings.permissions?.allow || [],
-      deny: settings.permissions?.deny || [],
-      ask: settings.permissions?.ask || [],
+      allow: [...(existingPerms.allow || [])],
+      deny: [...(existingPerms.deny || [])],
+      ask: [...(existingPerms.ask || [])],
     };
     for (const perm of config.permissions) {
       if (perm.allowed) {
-        permissions.allow.push(perm.pattern);
+        if (!permissions.allow.includes(perm.pattern)) {
+          permissions.allow.push(perm.pattern);
+        }
       } else {
-        permissions.deny.push(perm.pattern);
+        if (!permissions.deny.includes(perm.pattern)) {
+          permissions.deny.push(perm.pattern);
+        }
       }
     }
     settings.permissions = permissions;
 
     // Set default model
-    const defaultModel = config.models.find(m => m.id === 'default') || config.models[0];
+    const defaultModel = config.models.find((m) => m.id === 'default') || config.models[0];
     if (defaultModel) {
       settings.model = defaultModel.name;
     }
@@ -383,7 +428,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
 
   async addModelProvider(provider: ModelProvider): Promise<void> {
     const config = await this.readConfig();
-    const existing = config.modelProviders.find(p => p.id === provider.id);
+    const existing = config.modelProviders.find((p) => p.id === provider.id);
     if (existing) {
       throw new Error(`Provider with id "${provider.id}" already exists`);
     }
@@ -394,20 +439,23 @@ export class ClaudeCodeAdapter implements AgentAdapter {
 
   async removeModelProvider(providerId: string): Promise<void> {
     const config = await this.readConfig();
-    config.modelProviders = config.modelProviders.filter(p => p.id !== providerId);
+    config.modelProviders = config.modelProviders.filter((p) => p.id !== providerId);
     // Also remove models using this provider
-    config.models = config.models.filter(m => m.providerId !== providerId);
+    config.models = config.models.filter((m) => m.providerId !== providerId);
     config.lastModified = Date.now();
     await this.writeConfig(config);
   }
 
   async updateModelProvider(providerId: string, updates: Partial<ModelProvider>): Promise<void> {
     const config = await this.readConfig();
-    const index = config.modelProviders.findIndex(p => p.id === providerId);
+    const index = config.modelProviders.findIndex((p) => p.id === providerId);
     if (index === -1) {
       throw new Error(`Provider with id "${providerId}" not found`);
     }
-    config.modelProviders[index] = { ...config.modelProviders[index], ...updates };
+    config.modelProviders[index] = {
+      ...config.modelProviders[index],
+      ...updates,
+    };
     config.lastModified = Date.now();
     await this.writeConfig(config);
   }
@@ -425,7 +473,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
 
   async addModel(model: ModelConfig): Promise<void> {
     const config = await this.readConfig();
-    const existing = config.models.find(m => m.id === model.id);
+    const existing = config.models.find((m) => m.id === model.id);
     if (existing) {
       throw new Error(`Model with id "${model.id}" already exists`);
     }
@@ -436,14 +484,14 @@ export class ClaudeCodeAdapter implements AgentAdapter {
 
   async removeModel(modelId: string): Promise<void> {
     const config = await this.readConfig();
-    config.models = config.models.filter(m => m.id !== modelId);
+    config.models = config.models.filter((m) => m.id !== modelId);
     config.lastModified = Date.now();
     await this.writeConfig(config);
   }
 
   async updateModel(modelId: string, updates: Partial<ModelConfig>): Promise<void> {
     const config = await this.readConfig();
-    const index = config.models.findIndex(m => m.id === modelId);
+    const index = config.models.findIndex((m) => m.id === modelId);
     if (index === -1) {
       throw new Error(`Model with id "${modelId}" not found`);
     }
@@ -465,7 +513,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
 
   async addMCPServer(server: MCPServerConfig): Promise<void> {
     const config = await this.readConfig();
-    const existing = config.mcpServers.find(s => s.name === server.name);
+    const existing = config.mcpServers.find((s) => s.name === server.name);
     if (existing) {
       throw new Error(`MCP server with name "${server.name}" already exists`);
     }
@@ -476,14 +524,14 @@ export class ClaudeCodeAdapter implements AgentAdapter {
 
   async removeMCPServer(serverName: string): Promise<void> {
     const config = await this.readConfig();
-    config.mcpServers = config.mcpServers.filter(s => s.name !== serverName);
+    config.mcpServers = config.mcpServers.filter((s) => s.name !== serverName);
     config.lastModified = Date.now();
     await this.writeConfig(config);
   }
 
   async updateMCPServer(serverName: string, updates: Partial<MCPServerConfig>): Promise<void> {
     const config = await this.readConfig();
-    const index = config.mcpServers.findIndex(s => s.name === serverName);
+    const index = config.mcpServers.findIndex((s) => s.name === serverName);
     if (index === -1) {
       throw new Error(`MCP server with name "${serverName}" not found`);
     }
@@ -505,7 +553,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
 
   async addPermission(permission: PermissionConfig): Promise<void> {
     const config = await this.readConfig();
-    const existing = config.permissions.find(p => p.id === permission.id);
+    const existing = config.permissions.find((p) => p.id === permission.id);
     if (existing) {
       throw new Error(`Permission with id "${permission.id}" already exists`);
     }
@@ -516,14 +564,14 @@ export class ClaudeCodeAdapter implements AgentAdapter {
 
   async removePermission(permissionId: string): Promise<void> {
     const config = await this.readConfig();
-    config.permissions = config.permissions.filter(p => p.id !== permissionId);
+    config.permissions = config.permissions.filter((p) => p.id !== permissionId);
     config.lastModified = Date.now();
     await this.writeConfig(config);
   }
 
   async updatePermission(permissionId: string, updates: Partial<PermissionConfig>): Promise<void> {
     const config = await this.readConfig();
-    const index = config.permissions.findIndex(p => p.id === permissionId);
+    const index = config.permissions.findIndex((p) => p.id === permissionId);
     if (index === -1) {
       throw new Error(`Permission with id "${permissionId}" not found`);
     }

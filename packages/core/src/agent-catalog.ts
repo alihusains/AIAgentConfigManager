@@ -16,11 +16,14 @@ import catalogJson from './agent-catalog.json';
 import {
   expandPath,
   fileExists,
-  getCommandPath,
   getCommandVersion,
   getCurrentPlatform,
+  parseConfig,
+  readFileSafe,
 } from './utils';
-import type { Platform } from './types';
+import { resolveBinary, type BinaryFoundBy } from './detect/binary';
+import { listAvailableAdapters } from './adapters';
+import type { Platform, ProviderApiKind } from './types';
 import type { DetectedAgent } from './index'; // eslint-disable-line import/no-cycle
 
 export type AgentCatalogStatus = 'stable' | 'beta' | 'upcoming';
@@ -57,8 +60,47 @@ export interface AgentCatalogEntry {
   uninstall?: string;
   /** Platforms the uninstall command is known to work on. Absent = all platforms. */
   uninstallPlatforms?: Platform[];
+  /**
+   * Version probe argument forms to try, in order. Defaults to
+   * `["--version"]`; use `["--version", "-V"]` for CLIs that only
+   * accept the short form.
+   */
+  versionArgs?: string[];
+  /** Candidate paths where model/provider config lives (see AgentInfo). */
+  modelConfigPaths?: Partial<Record<Platform, string[]>>;
+  /**
+   * Where MCP servers are configured, per platform. When present the entry
+   * is MCP-capable (catalogEntryToDetected sets supports.mcpServers=true).
+   * Usually the same file as settingsPaths (reasonix's [[plugins]]).
+   */
+  mcpPaths?: Partial<Record<Platform, string[]>>;
+  /** Where provider API keys are stored, when distinct from the settings file.
+   *  e.g. reasonix keeps its DEEPSEEK_API_KEY in ~/.reasonix/.env. */
+  modelCredentialPaths?: Partial<Record<Platform, string[]>>;
   /** Shown in the UI under the command — explains alternatives or warns. */
   note?: string;
+  /**
+   * Lucide icon name to render for this agent in the UI (e.g. "Bot", "Zap").
+   * Absent = fall back to a generic bot glyph. Kept as a string so the
+   * catalog JSON stays framework-agnostic; the GUI maps name → icon component.
+   */
+  icon?: string;
+  /**
+   * API/wire protocols this agent's provider config can express, drawn from the
+   * `ProviderApiKind` vocabulary:
+   *   - 'chat'      = OpenAI Chat Completions / OpenAI-compatible chat endpoint
+   *   - 'responses' = OpenAI Responses API
+   *   - 'anthropic' = Anthropic Messages API
+   * Drives the api-capability badges shown in the dashboard. Absent = unknown.
+   */
+  apiTypes?: ProviderApiKind[];
+  /**
+   * Per-platform directories where the agent loads user skills from (each
+   * skill = a folder containing a SKILL.md with YAML frontmatter). Presence
+   * for the current platform marks the entry as "skill capable" — see
+   * skills.ts for assign/remove. Paths may contain `~`.
+   */
+  skillsPaths?: Partial<Record<Platform, string>>;
 }
 
 /** Platform-filtered view of a catalog entry's lifecycle commands. */
@@ -72,7 +114,7 @@ export interface AgentCommands {
 export interface AgentJob {
   id: string;
   agentId: string;
-  action: 'install' | 'uninstall';
+  action: 'install' | 'uninstall' | 'update';
   command: string;
   status: 'running' | 'success' | 'failed';
   exitCode?: number;
@@ -97,11 +139,21 @@ export function getAgentCatalogMeta(): { version: number; updatedAt: string } {
 }
 
 export function getAgentCatalog(): AgentCatalogEntry[] {
-  return entries;
+  // Adapter-backed entries: derive binaries from the adapter so the catalog
+  // JSON never drifts from the adapter's own binary list. JSON fields remain
+  // as fallbacks for non-adapter entries only.
+  const adapters = new Map(listAvailableAdapters().map((a) => [a.info.id, a.info]));
+  return entries.map((entry) => {
+    const adapterInfo = adapters.get(entry.id);
+    if (adapterInfo?.binaries?.length) {
+      return { ...entry, binaries: adapterInfo.binaries };
+    }
+    return entry;
+  });
 }
 
 export function getAgentCatalogEntry(id: string): AgentCatalogEntry | undefined {
-  return entries.find((e) => e.id === id);
+  return getAgentCatalog().find((e) => e.id === id);
 }
 
 function appliesTo(platforms: Platform[] | undefined, platform: Platform): boolean {
@@ -113,10 +165,7 @@ function appliesTo(platforms: Platform[] | undefined, platform: Platform): boole
  * filtered to the current platform. Returns undefined for agents that have no
  * catalogued command (manual install/uninstall only).
  */
-export function getAgentCommands(
-  agentId: string,
-  platform: Platform,
-): AgentCommands | undefined {
+export function getAgentCommands(agentId: string, platform: Platform): AgentCommands | undefined {
   const entry = getAgentCatalogEntry(agentId);
   if (!entry) return undefined;
   const commands: AgentCommands = {};
@@ -141,12 +190,61 @@ export interface CatalogEntryDetection {
   installed: boolean;
   /** Absolute path of the first binary found (e.g. /usr/local/bin/reasonix). */
   binaryPath?: string;
+  /** How the binary was located. */
+  detectedBy?: BinaryFoundBy;
   /** Version string reported by the CLI, if it could be queried. */
   version?: string;
-  /** True when at least one of the entry's settingsPaths exists on disk. */
   settingsExist: boolean;
   /** Expanded (home-resolved) candidate settings paths, for the GUI. */
   settingsPaths: string[];
+  /** Resolved MCP config path (from entry.mcpPaths), if declared. */
+  mcpPath?: string;
+  /** Whether the MCP config file exists on disk. */
+  mcpConfigExists?: boolean;
+  /** Number of MCP servers in the config (best-effort). */
+  mcpServerCount?: number;
+  /** Where model/provider config lives (from settingsPaths). */
+  modelConfigPath?: string;
+  /** Whether the model config file exists on disk. */
+  modelConfigExists?: boolean;
+  /** Where provider credentials are stored, when distinct. */
+  modelCredentialPath?: string;
+  /** Whether the credential file exists on disk. */
+  modelCredentialExists?: boolean;
+}
+
+/**
+ * Best-effort MCP server count for a catalog-only entry. Reuses the
+ * same shape heuristics as the core's countMcpServers.
+ */
+async function countCatalogMcpServers(path: string, _entry: AgentCatalogEntry): Promise<number> {
+  try {
+    const content = await readFileSafe(path);
+    if (!content) return 0;
+    let raw: unknown;
+    try {
+      raw = parseConfig(content, 'toml');
+    } catch {
+      try {
+        raw = parseConfig(content, 'json');
+      } catch {
+        return 0;
+      }
+    }
+    if (!raw || typeof raw !== 'object') return 0;
+    const obj = raw as Record<string, unknown>;
+    const plugins = obj.plugins;
+    if (Array.isArray(plugins)) return plugins.length;
+    const keyed = obj.mcpServers;
+    if (keyed && typeof keyed === 'object' && !Array.isArray(keyed)) {
+      return Object.keys(keyed as object).length;
+    }
+    const arr = obj.mcp;
+    if (Array.isArray(arr)) return arr.length;
+    return 0;
+  } catch {
+    return 0;
+  }
 }
 
 /**
@@ -155,19 +253,19 @@ export interface CatalogEntryDetection {
  * `settingsPaths` on disk. Used by the dashboard so catalog-only agents
  * (reasonix, freebuff) show as Installed instead of "Available to Install".
  */
-export async function detectCatalogEntry(
-  entry: AgentCatalogEntry,
-): Promise<CatalogEntryDetection> {
+export async function detectCatalogEntry(entry: AgentCatalogEntry): Promise<CatalogEntryDetection> {
   const binaries = entry.binaries?.length ? entry.binaries : [entry.id];
 
   let installed = false;
   let binaryPath: string | undefined;
+  let detectedBy: BinaryFoundBy | undefined;
   for (const binary of binaries) {
     try {
-      const found = await getCommandPath(binary);
+      const found = await resolveBinary(binary);
       if (found) {
         installed = true;
-        binaryPath = found;
+        binaryPath = found.path;
+        detectedBy = found.foundBy;
         break;
       }
     } catch {
@@ -179,7 +277,7 @@ export async function detectCatalogEntry(
   if (installed) {
     for (const binary of binaries) {
       try {
-        const v = await getCommandVersion(binary);
+        const v = await getCommandVersion(binary, entry.versionArgs);
         if (v) {
           version = v;
           break;
@@ -203,7 +301,69 @@ export async function detectCatalogEntry(
     }
   }
 
-  return { installed, binaryPath, version, settingsExist, settingsPaths };
+  // Model config: the first existing settings path (or the first candidate).
+  const modelConfigPath = settingsPaths[0];
+  const modelConfigExists = settingsExist;
+
+  // MCP surface: from entry.mcpPaths (catalog-only entries).
+  let mcpPath: string | undefined;
+  let mcpConfigExists: boolean | undefined;
+  let mcpServerCount: number | undefined;
+  const mcpCandidates = (entry.mcpPaths?.[getCurrentPlatform()] ?? []).map(expandPath);
+  if (mcpCandidates.length > 0) {
+    mcpPath = mcpCandidates[0];
+    for (const p of mcpCandidates) {
+      try {
+        if (await fileExists(p)) {
+          mcpPath = p;
+          mcpConfigExists = true;
+          mcpServerCount = await countCatalogMcpServers(p, entry);
+          break;
+        }
+      } catch {
+        // keep looking
+      }
+    }
+    if (mcpConfigExists === undefined) mcpConfigExists = false;
+  }
+
+  // Credential store: from entry.modelCredentialPaths.
+  let modelCredentialPath: string | undefined;
+  let modelCredentialExists: boolean | undefined;
+  const credCandidates = (entry.modelCredentialPaths?.[getCurrentPlatform()] ?? []).map(expandPath);
+  if (credCandidates.length > 0) {
+    for (const p of credCandidates) {
+      try {
+        if (await fileExists(p)) {
+          modelCredentialPath = p;
+          modelCredentialExists = true;
+          break;
+        }
+      } catch {
+        // keep looking
+      }
+    }
+    if (modelCredentialExists === undefined) {
+      modelCredentialPath = credCandidates[0];
+      modelCredentialExists = false;
+    }
+  }
+
+  return {
+    installed,
+    binaryPath,
+    detectedBy,
+    version,
+    settingsExist,
+    settingsPaths,
+    mcpPath,
+    mcpConfigExists,
+    mcpServerCount,
+    modelConfigPath,
+    modelConfigExists,
+    modelCredentialPath,
+    modelCredentialExists,
+  };
 }
 
 /**
@@ -214,7 +374,7 @@ export async function detectCatalogEntry(
  */
 export function catalogEntryToDetected(
   entry: AgentCatalogEntry,
-  probe: CatalogEntryDetection,
+  probe: CatalogEntryDetection
 ): DetectedAgent {
   const cfg = (entry.settingsPaths ?? {}) as Partial<Record<Platform, string[]>>;
   return {
@@ -229,7 +389,7 @@ export function catalogEntryToDetected(
     },
     supports: {
       modelProviders: false,
-      mcpServers: false,
+      mcpServers: entry.mcpPaths !== undefined,
       permissions: false,
       projectConfig: false,
     },
@@ -239,7 +399,15 @@ export function catalogEntryToDetected(
       configExists: probe.settingsExist,
       binaryPath: probe.binaryPath,
       version: probe.version,
+      detectedBy: probe.detectedBy,
       method: probe.installed ? 'command' : probe.settingsExist ? 'config' : 'assumed',
+      mcpPath: probe.mcpPath,
+      mcpConfigExists: probe.mcpConfigExists,
+      mcpServerCount: probe.mcpServerCount,
+      modelConfigPath: probe.modelConfigPath,
+      modelConfigExists: probe.modelConfigExists,
+      modelCredentialPath: probe.modelCredentialPath,
+      modelCredentialExists: probe.modelCredentialExists,
     },
   };
 }

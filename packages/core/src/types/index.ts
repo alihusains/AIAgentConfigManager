@@ -30,6 +30,23 @@ export interface AgentInfo {
    * are written.
    */
   mcpConfigPaths?: Record<Platform, string>;
+  /**
+   * Optional per-agent override of the version probe arguments.
+   * Some CLIs only support `-V` or print the version to stderr.
+   * Defaults to `["--version"]`.
+   */
+  versionArgs?: string[];
+  /**
+   * Candidate paths where model/provider config lives, per platform.
+   * First existing file wins; if none exist the first candidate is
+   * reported as the "would-be" path. Usually the main config file.
+   */
+  modelConfigPaths?: Partial<Record<Platform, string[]>>;
+  /**
+   * Where API keys / provider credentials are stored (distinct from the
+   * model config), e.g. reasonix's `~/.reasonix/.env`.
+   */
+  modelCredentialPaths?: Partial<Record<Platform, string[]>>;
 }
 
 /**
@@ -47,6 +64,27 @@ export interface AgentDetection {
   version?: string;
   /** How detection was performed */
   method: 'command' | 'config' | 'assumed';
+  /**
+   * How the binary was located, when installed via PATH lookup:
+   * 'path' = found on the process PATH, 'shell-env' = found after parsing
+   * the login shell's PATH, 'known-location' = found in a well-known
+   * install directory (nvm/bun/brew/home-grown bins).
+   */
+  detectedBy?: 'path' | 'shell-env' | 'known-location';
+  /** Resolved absolute MCP config path (undefined when the agent has no MCP support). */
+  mcpPath?: string;
+  /** Whether the MCP config file exists on disk. */
+  mcpConfigExists?: boolean;
+  /** Number of MCP servers in the config (best-effort; 0 on parse failure, undefined when unreadable/no MCP). */
+  mcpServerCount?: number;
+  /** Where model/provider config lives (usually the main config file). */
+  modelConfigPath?: string;
+  /** Whether the model config file exists on disk. */
+  modelConfigExists?: boolean;
+  /** Where provider API keys / credentials are stored, when distinct from the model config. */
+  modelCredentialPath?: string;
+  /** Whether the credential file exists on disk. */
+  modelCredentialExists?: boolean;
   /** Error encountered during detection, if any */
   error?: string;
 }
@@ -65,7 +103,15 @@ export interface AgentCapabilities {
 export interface ModelProvider {
   id: string;
   name: string;
-  type: 'builtin' | 'custom' | 'openai-compatible' | 'anthropic' | 'google' | 'azure' | 'bedrock' | 'vertex';
+  type:
+    | 'builtin'
+    | 'custom'
+    | 'openai-compatible'
+    | 'anthropic'
+    | 'google'
+    | 'azure'
+    | 'bedrock'
+    | 'vertex';
   config: Record<string, unknown>;
   enabled: boolean;
   priority: number;
@@ -85,9 +131,21 @@ export interface ModelConfig {
   customOptions?: Record<string, unknown>;
 }
 
-export type ModelRole = 'chat' | 'edit' | 'apply' | 'summarize' | 'autocomplete' | 'embed' | 'rerank';
+export type ModelRole =
+  | 'chat'
+  | 'edit'
+  | 'apply'
+  | 'summarize'
+  | 'autocomplete'
+  | 'embed'
+  | 'rerank';
 
-export type ModelCapability = 'tool_use' | 'image_input' | 'reasoning' | 'vision' | 'code_generation';
+export type ModelCapability =
+  | 'tool_use'
+  | 'image_input'
+  | 'reasoning'
+  | 'vision'
+  | 'code_generation';
 
 // ============================================================================
 // MCP Server Types
@@ -165,37 +223,55 @@ export interface AgentConfig {
 
 export interface AgentAdapter {
   readonly info: AgentInfo;
-  
+
   // Configuration file operations
   getConfigPath(platform?: Platform): string;
+  /**
+   * Absolute path of the file where MCP servers are configured.
+   * Returns null for agents without MCP support (e.g. detect-only omp).
+   * In same-file mode this is the main config file.
+   */
+  getMCPConfigPath?(platform?: Platform): string | null;
   readConfig(): Promise<AgentConfig>;
   writeConfig(config: AgentConfig): Promise<void>;
   validateConfig(config: unknown): { valid: boolean; errors: string[] };
-  
+
+  /**
+   * Providers derived from one registry entry for alternate wire protocols
+   * this agent's format can express (e.g. an OpenCode-style agent getting a
+   * `<id>-anthropic` sibling backed by @ai-sdk/anthropic when verification
+   * confirmed the Anthropic Messages API). Adapters that cannot represent
+   * alternate wires simply don't implement this. Derived ids MUST be treated
+   * as registry-managed so they are cleaned up with their parent.
+   */
+  deriveAlternateProviders?(
+    entry: RegistryProvider
+  ): { provider: ModelProvider; models: ModelConfig[] }[];
+
   // Model/Provider operations
   listModelProviders(): ModelProvider[];
   addModelProvider(provider: ModelProvider): Promise<void>;
   removeModelProvider(providerId: string): Promise<void>;
   updateModelProvider(providerId: string, updates: Partial<ModelProvider>): Promise<void>;
-  
+
   // Model operations
   listModels(): ModelConfig[];
   addModel(model: ModelConfig): Promise<void>;
   removeModel(modelId: string): Promise<void>;
   updateModel(modelId: string, updates: Partial<ModelConfig>): Promise<void>;
-  
+
   // MCP operations
   listMCPServers(): MCPServerConfig[];
   addMCPServer(server: MCPServerConfig): Promise<void>;
   removeMCPServer(serverName: string): Promise<void>;
   updateMCPServer(serverName: string, updates: Partial<MCPServerConfig>): Promise<void>;
-  
+
   // Permission operations
   listPermissions(): PermissionConfig[];
   addPermission(permission: PermissionConfig): Promise<void>;
   removePermission(permissionId: string): Promise<void>;
   updatePermission(permissionId: string, updates: Partial<PermissionConfig>): Promise<void>;
-  
+
   // Utility
   backupConfig(): Promise<string>; // returns backup path
   restoreConfig(backupPath: string): Promise<void>;
@@ -230,7 +306,10 @@ export interface CLICommand {
   description: string;
   args: CLIArg[];
   options: CLIOption[];
-  handler: (args: Record<string, string>, options: Record<string, unknown>) => Promise<OperationResult>;
+  handler: (
+    args: Record<string, string>,
+    options: Record<string, unknown>
+  ) => Promise<OperationResult>;
 }
 
 export interface CLIArg {
@@ -281,7 +360,16 @@ export interface GUINotification {
 export const ModelProviderSchema = z.object({
   id: z.string(),
   name: z.string(),
-  type: z.enum(['builtin', 'custom', 'openai-compatible', 'anthropic', 'google', 'azure', 'bedrock', 'vertex']),
+  type: z.enum([
+    'builtin',
+    'custom',
+    'openai-compatible',
+    'anthropic',
+    'google',
+    'azure',
+    'bedrock',
+    'vertex',
+  ]),
   config: z.record(z.unknown()),
   enabled: z.boolean(),
   priority: z.number().int().min(0),
@@ -297,7 +385,9 @@ export const ModelConfigSchema = z.object({
   maxTokens: z.number().int().positive().optional(),
   temperature: z.number().min(0).max(2).optional(),
   topP: z.number().min(0).max(1).optional(),
-  capabilities: z.array(z.enum(['tool_use', 'image_input', 'reasoning', 'vision', 'code_generation'])).optional(),
+  capabilities: z
+    .array(z.enum(['tool_use', 'image_input', 'reasoning', 'vision', 'code_generation']))
+    .optional(),
   customOptions: z.record(z.unknown()).optional(),
 });
 
@@ -356,17 +446,19 @@ export interface MCPServerAgentOverride {
 }
 
 /**
- * The two OpenAI-style wire protocols a provider gateway may expose:
- * - "chat"      → POST {base}/chat/completions (the classic Chat Completions API)
- * - "responses" → POST {base}/responses (the newer Responses API)
+ * The wire protocols a provider gateway may expose:
+ * - "chat"      → POST {base}/chat/completions (OpenAI Chat Completions API)
+ * - "responses" → POST {base}/responses (the newer OpenAI Responses API)
+ * - "anthropic" → POST {base}/messages (Anthropic Messages API; many
+ *   multi-protocol gateways serve both OpenAI and Anthropic shapes)
  *
  * Some providers — e.g. ChatGPT accounts — have removed chat completions and
  * answer only on the responses route. Verification records which kinds an
  * endpoint really supports so the dashboard can say "Chat ✓ / Responses ✗".
  */
-export type ProviderApiKind = 'chat' | 'responses';
+export type ProviderApiKind = 'chat' | 'responses' | 'anthropic';
 
-/** Outcome of probing one endpoint (GET /models, POST /chat/completions, POST /responses). */
+/** Outcome of probing one endpoint (GET /models, POST /chat/completions, POST /responses, POST /messages). */
 export interface ProviderProbeDetail {
   api: 'models' | ProviderApiKind;
   /** HTTP 2xx response was received */
@@ -396,7 +488,8 @@ export interface ProviderVerificationResult {
   models: ProviderProbeDetail;
   chat: ProviderProbeDetail;
   responses: ProviderProbeDetail;
-  /** API kinds confirmed working: 'chat', 'responses' — or both */
+  anthropic: ProviderProbeDetail;
+  /** API kinds confirmed working: any of 'chat', 'responses', 'anthropic' */
   supported: ProviderApiKind[];
   verifiedAt: string;
 }

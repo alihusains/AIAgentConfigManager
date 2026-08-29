@@ -36,7 +36,7 @@
  * }
  */
 
-import {
+import type {
   AgentAdapter,
   AgentInfo,
   AgentConfig,
@@ -46,6 +46,7 @@ import {
   PermissionConfig,
   Platform,
   ConfigFormat,
+  RegistryProvider,
 } from '../types';
 import {
   resolveConfigPath,
@@ -135,6 +136,11 @@ export class OpenCodeStyleAdapter implements AgentAdapter {
       configPaths: options.configPaths,
       // MCP servers live inside the main config (`mcp` key) for this family
       mcpConfigPaths: { ...options.configPaths },
+      modelConfigPaths: {
+        darwin: [options.configPaths.darwin],
+        win32: [options.configPaths.win32],
+        linux: [options.configPaths.linux],
+      },
       binaries: options.binaries,
       supports: {
         modelProviders: true,
@@ -150,6 +156,11 @@ export class OpenCodeStyleAdapter implements AgentAdapter {
     const current = platform || this.detectPlatform();
     const template = this.info.configPaths[current] || this.info.configPaths.darwin;
     return resolveConfigPath(template);
+  }
+
+  /** MCP servers live inside the main config file for this family. */
+  getMCPConfigPath(platform?: Platform): string | null {
+    return this.getConfigPath(platform);
   }
 
   private detectPlatform(): Platform {
@@ -305,9 +316,7 @@ export class OpenCodeStyleAdapter implements AgentAdapter {
 
   private transformToRaw(config: AgentConfig): OpenCodeStyleConfig {
     // Start from the previously-read raw config so unknown keys survive
-    const raw: OpenCodeStyleConfig = this.rawCache
-      ? JSON.parse(JSON.stringify(this.rawCache))
-      : {};
+    const raw: OpenCodeStyleConfig = this.rawCache ? JSON.parse(JSON.stringify(this.rawCache)) : {};
 
     const providers: Record<string, OpenCodeStyleProvider> = {};
     for (const provider of config.modelProviders) {
@@ -317,9 +326,15 @@ export class OpenCodeStyleAdapter implements AgentAdapter {
       const apiKey = provider.config.apiKey as string | undefined;
 
       const entry: OpenCodeStyleProvider = {
-        name: existing?.name || provider.name,
+        // The provider's own name always wins so a rename via
+        // updateModelProvider persists. (An unchanged on-disk name is
+        // preserved because transformFromRaw reads it back into provider.name.)
+        name: provider.name,
         env: existing?.env || [this.deriveEnvVar(provider.name || provider.id)],
-        npm: existing?.npm || (provider.config.npm as string | undefined) || '@ai-sdk/openai-compatible',
+        npm:
+          existing?.npm ||
+          (provider.config.npm as string | undefined) ||
+          '@ai-sdk/openai-compatible',
         options: {
           ...existingOptions,
           ...(baseURL ? { baseURL } : {}),
@@ -346,7 +361,7 @@ export class OpenCodeStyleAdapter implements AgentAdapter {
 
     const mcp: Record<string, OpenCodeStyleMCPServer> = {};
     for (const server of config.mcpServers) {
-      const existing = raw.mcp?.[server.name] || {};
+      const existing = raw.mcp?.[server.name] || ({} as OpenCodeStyleMCPServer);
       if (server.type === 'stdio' && server.command) {
         mcp[server.name] = {
           ...existing,
@@ -394,6 +409,36 @@ export class OpenCodeStyleAdapter implements AgentAdapter {
       .replace(/^_+|_+$/g, '')
       .toUpperCase();
     return `${cleaned || 'PROVIDER'}_API_KEY`;
+  }
+
+  /**
+   * When live verification confirmed the Anthropic Messages API on this
+   * gateway, also expose the provider through Anthropic's wire: a sibling
+   * `<id>-anthropic` provider block backed by @ai-sdk/anthropic (the `npm`
+   * key is exactly how OpenCode picks the adapter). Models are mirrored so
+   * users can pick either protocol per model, e.g. "b.ai/deepseek-v4-flash"
+   * and "b.ai-anthropic/deepseek-v4-flash".
+   */
+  deriveAlternateProviders(entry: RegistryProvider): {
+    provider: ModelProvider;
+    models: ModelConfig[];
+  }[] {
+    const caps = entry.apiCapabilities;
+    if (!caps || !caps.supported.includes('anthropic')) return [];
+    if (entry.provider.type !== 'openai-compatible') return [];
+    if (entry.models.length === 0) return [];
+    const id = `${entry.provider.id}-anthropic`;
+    return [
+      {
+        provider: {
+          ...entry.provider,
+          id,
+          name: `${entry.provider.name} · Anthropic`,
+          config: { ...entry.provider.config, npm: '@ai-sdk/anthropic' },
+        },
+        models: entry.models.map((m) => ({ ...m, providerId: id })),
+      },
+    ];
   }
 
   private getDefaultConfig(): AgentConfig {
@@ -444,7 +489,19 @@ export class OpenCodeStyleAdapter implements AgentAdapter {
     if (index === -1) {
       throw new Error(`Provider with id "${providerId}" not found`);
     }
-    config.modelProviders[index] = { ...config.modelProviders[index], ...updates };
+    // A rename must not silently collide with another provider's name.
+    if (updates.name && updates.name !== config.modelProviders[index].name) {
+      const clash = config.modelProviders.find(
+        (p) => p.id !== providerId && p.name === updates.name
+      );
+      if (clash) {
+        throw new Error(`Provider with name "${updates.name}" already exists`);
+      }
+    }
+    config.modelProviders[index] = {
+      ...config.modelProviders[index],
+      ...updates,
+    };
     config.lastModified = Date.now();
     await this.writeConfig(config);
   }
@@ -462,7 +519,9 @@ export class OpenCodeStyleAdapter implements AgentAdapter {
 
   async addModel(model: ModelConfig): Promise<void> {
     const config = await this.readConfig();
-    const existing = config.models.find((m) => m.id === model.id && m.providerId === model.providerId);
+    const existing = config.models.find(
+      (m) => m.id === model.id && m.providerId === model.providerId
+    );
     if (existing) {
       throw new Error(`Model "${model.id}" already exists under provider "${model.providerId}"`);
     }
@@ -577,7 +636,7 @@ export function createOpenCodeAdapter(): OpenCodeStyleAdapter {
     id: 'opencode',
     name: 'Code (OpenCode)',
     description: 'OpenCode CLI - open-source AI coding agent ("code" command)',
-    binaries: ['opencode'],
+    binaries: ['opencode', 'oc'],
     configPaths: {
       darwin: '~/.config/opencode/opencode.json',
       win32: '%APPDATA%\\opencode\\opencode.json',
