@@ -31,6 +31,10 @@ import {
   removeSkillFromAgent,
   copySkillBetweenAgents,
   createSkill,
+  listEnvVars,
+  setEnvVar,
+  removeEnvVar,
+  revealEnvVar,
 } from '@ai-agent-config/core';
 import type {
   ModelProvider,
@@ -509,6 +513,43 @@ export async function startGuiServer(
             return { data: result };
           });
         }
+      }
+
+      // ---- Environment variables ----
+      // GET /api/env — list env vars (sensitive-looking values redacted).
+      if (method === 'GET' && parts.length === 2 && parts[1] === 'env') {
+        return handle(async () => {
+          const vars = await listEnvVars();
+          return { data: { platform: process.platform, vars } };
+        });
+      }
+      // POST /api/env { name, value } — set a user-level env var.
+      if (method === 'POST' && parts.length === 2 && parts[1] === 'env') {
+        const body = await readBody();
+        return handle(async () => {
+          const name = String(body.name ?? '');
+          const value = String(body.value ?? '');
+          if (!name) return { error: 'name is required', status: 400 };
+          const result = await setEnvVar(name, value);
+          return { data: result };
+        });
+      }
+      // POST /api/env/:name/reveal — deliberate, per-variable unredaction.
+      if (method === 'POST' && parts.length === 4 && parts[1] === 'env' && parts[3] === 'reveal') {
+        return handle(async () => {
+          const name = decodeURIComponent(parts[2]);
+          const value = await revealEnvVar(name);
+          if (value === null) return { error: `Environment variable "${name}" not found`, status: 404 };
+          return { data: { name, value } };
+        });
+      }
+      // DELETE /api/env/:name — remove a user-level env var.
+      if (method === 'DELETE' && parts.length === 3 && parts[1] === 'env') {
+        return handle(async () => {
+          const name = decodeURIComponent(parts[2]);
+          const result = await removeEnvVar(name);
+          return { data: result };
+        });
       }
 
       // ---- Registry import/export ----
