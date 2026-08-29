@@ -104,7 +104,10 @@ describe('agent-catalog.json ↔ adapter consistency', () => {
       for (const [platform, dir] of Object.entries(entry.skillsPaths)) {
         expect(['darwin', 'linux', 'win32']).toContain(platform);
         expect(typeof dir, `${entry.id} skillsPaths.${platform}`).toBe('string');
-        expect((dir as string).trim().length, `${entry.id} skillsPaths.${platform}`).toBeGreaterThan(0);
+        expect(
+          (dir as string).trim().length,
+          `${entry.id} skillsPaths.${platform}`
+        ).toBeGreaterThan(0);
       }
     }
   });
@@ -136,12 +139,9 @@ describe('isSafeCommand — golden master: every real catalog command passes', (
     ).toEqual([]);
   });
 
-  it.each(commands.map((c) => [c.id, c.action, c.cmd]))(
-    '%s %s: %s',
-    (_id, _action, cmd) => {
-      expect(isSafeCommand(cmd)).toBe(true);
-    }
-  );
+  it.each(commands.map((c) => [c.id, c.action, c.cmd]))('%s %s: %s', (_id, _action, cmd) => {
+    expect(isSafeCommand(cmd)).toBe(true);
+  });
 
   it('tool-update commands (npm/pnpm/yarn/bun) still pass', () => {
     for (const cmd of [
