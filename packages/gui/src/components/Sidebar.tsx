@@ -2,7 +2,17 @@ import { useEffect, useState } from 'react';
 import { useStore } from '../store';
 import { api, type CatalogAgent } from '../api';
 import { AgentIconTile } from './AgentIcon';
-import { LayoutGrid, Database, Server, Bot, Settings, X, Terminal, Sparkles } from 'lucide-react';
+import {
+  LayoutGrid,
+  Database,
+  Server,
+  Bot,
+  Settings,
+  X,
+  Terminal,
+  Sparkles,
+  KeyRound,
+} from 'lucide-react';
 
 interface SidebarProps {
   onClose?: () => void;
@@ -16,6 +26,7 @@ const REGISTRY_VIEWS = [
   { id: 'agents', label: 'Agents', icon: Bot },
   { id: 'skills', label: 'Skills', icon: Sparkles },
   { id: 'tools', label: 'CLI Tools', icon: Terminal },
+  { id: 'env-vars', label: 'Environment', icon: KeyRound },
 ] as const;
 
 export function Sidebar({ onClose }: SidebarProps) {

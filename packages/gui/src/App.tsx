@@ -9,6 +9,7 @@ import { AgentsView } from './components/AgentsView';
 import { AgentDetailView } from './components/AgentDetailView';
 import { ToolsView } from './components/ToolsView';
 import { SkillsView } from './components/SkillsView';
+import { EnvVarsView } from './components/EnvVarsView';
 import { SettingsView } from './components/SettingsView';
 import { RamMeter } from './components/RamMeter';
 import { ToastContainer } from './components/Toast';
@@ -26,6 +27,7 @@ const VALID_VIEWS: View[] = [
   'agent-detail',
   'skills',
   'tools',
+  'env-vars',
   'settings',
 ];
 
@@ -163,6 +165,8 @@ function App() {
         return <AgentDetailView agentId={selectedAgentId} />;
       case 'skills':
         return <SkillsView />;
+      case 'env-vars':
+        return <EnvVarsView />;
       case 'tools':
         return <ToolsView />;
       case 'settings':
