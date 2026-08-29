@@ -405,27 +405,55 @@ export function catalogEntryToDetected(
 }
 
 /**
- * Defense-in-depth for the command allow-list. The catalog is already trusted,
- * but if a future entry is ever crafted carelessly this blocks destructive
- * patterns before they reach a shell.
+ * Defense-in-depth for the command allow-list. The catalog is already
+ * developer-curated, but if a future entry is ever crafted carelessly this
+ * blocks anything that is not one of the known-safe command shapes before it
+ * reaches a shell.
+ *
+ * A command is safe only if it is a single, unquoted, space-joined command
+ * line (no shell metacharacters anywhere) AND matches one of the known-good
+ * shapes below, derived from the real commands in agent-catalog.json plus the
+ * tool-update commands in detect/tools.ts:
+ *   - (npm|pnpm|yarn|bun) (install|add|uninstall|remove) -g <package>
+ *   - brew (install|uninstall|upgrade) <formula|tap/path>
+ *   - pip (install|uninstall) <package>
+ *   - pipx (install|uninstall) <package>
+ *   - curl -fsSL <https-url> | bash
  */
-const FORBIDDEN_TOKENS = [
-  'sudo',
-  'su ',
-  'rm -rf /',
-  'mkfs.',
-  'dd if=',
-  '> /dev/sd',
-  'shutdown',
-  'reboot',
-  ':(){',
+
+/** Package name for npm-family installs: bare name, scoped name, or name@version. */
+const NPM_PACKAGE = '(?:@?[a-z0-9][a-z0-9._-]*(?:/[a-z0-9][a-z0-9._-]*)?)(?:@[^\\s@]+)?';
+/** Homebrew formula, or a tap path like `block/goose/goose`. */
+const BREW_FORMULA = '[a-z0-9][a-z0-9._-]*(?:/[a-z0-9][a-z0-9._/-]*)?';
+/** Python package name (pip / pipx). */
+const PY_PACKAGE = '[a-z0-9][a-z0-9._-]*';
+/** https URL with no shell metacharacters (curl|bash installer scripts). */
+const HTTPS_URL = 'https://[^\\s]+';
+
+const SAFE_COMMAND_PATTERNS: RegExp[] = [
+  new RegExp(`^(?:npm|pnpm|yarn|bun) (?:install|add|uninstall|remove) -g ${NPM_PACKAGE}$`),
+  new RegExp(`^brew (?:install|uninstall|upgrade) ${BREW_FORMULA}$`),
+  new RegExp(`^pip (?:install|uninstall) ${PY_PACKAGE}$`),
+  new RegExp(`^pipx (?:install|uninstall) ${PY_PACKAGE}$`),
+  new RegExp(`^curl -fsSL ${HTTPS_URL} \\| bash$`),
 ];
 
 export function isSafeCommand(command: string): boolean {
   const trimmed = command.trim();
   if (!trimmed) return false;
   if (trimmed.length > 500) return false;
-  return !FORBIDDEN_TOKENS.some((tok) => trimmed.includes(tok));
+  // Reject shell metacharacters unconditionally, anywhere in the command.
+  // (The single `|` in the curl|bash shape is handled by the allow-list
+  // pattern below, which is the only shape where a pipe is expected.)
+  if (/[;&`$\n\r]/.test(trimmed)) return false;
+  // Reject quoting so a command cannot smuggle a second command inside it.
+  if (/["'\\]/.test(trimmed)) return false;
+  // Reject any character outside printable ASCII except the space: this
+  // covers tabs, vertical tabs, non-breaking spaces, and any other
+  // non-printable or non-ASCII character. (Newlines and carriage returns
+  // are already rejected above.)
+  if (/[^ -~]/.test(trimmed)) return false;
+  return SAFE_COMMAND_PATTERNS.some((re) => re.test(trimmed));
 }
 
 /** Re-exported for the GUI: the catalog entry merged with live detection. */

