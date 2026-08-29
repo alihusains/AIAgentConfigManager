@@ -17,6 +17,7 @@ import {
   createSkill,
   assignSkillToAgent,
   removeSkillFromAgent,
+  copySkillBetweenAgents,
   getSkillsSnapshot,
   getSkillCapableAgentIds,
   getAgentSkillsDir,
@@ -32,7 +33,15 @@ async function writeSkill(dir: string, id: string, frontmatter: string, body = '
 describe('parseSkillFrontmatter', () => {
   it('parses name/description/version from a leading --- block', () => {
     const meta = parseSkillFrontmatter(
-      ['---', 'name: My Skill', 'description: Does things', 'version: 1.2.3', '---', '', 'Body'].join('\n')
+      [
+        '---',
+        'name: My Skill',
+        'description: Does things',
+        'version: 1.2.3',
+        '---',
+        '',
+        'Body',
+      ].join('\n')
     );
     expect(meta.name).toBe('My Skill');
     expect(meta.description).toBe('Does things');
@@ -171,6 +180,100 @@ describe('skill library (temp dir)', () => {
     expect(snapshot.skills.map((s) => s.id)).toContain('shared');
     expect(Array.isArray(snapshot.agents)).toBe(true);
     expect(typeof snapshot.assignments).toBe('object');
+  });
+});
+
+describe('copySkillBetweenAgents (temp dirs)', () => {
+  let sourceDir: string;
+  let targetDir: string;
+
+  beforeEach(async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'skills-copy-test-'));
+    sourceDir = path.join(tmp, 'agent-a-skills');
+    targetDir = path.join(tmp, 'agent-b-skills');
+    await fs.mkdir(sourceDir, { recursive: true });
+  });
+
+  afterEach(async () => {
+    await fs.rm(path.dirname(sourceDir), { recursive: true, force: true });
+  });
+
+  it('copies an installed skill from one agent to another and leaves the source untouched', async () => {
+    await writeSkill(sourceDir, 'shared', '---\nname: Shared\n---', 'source body\n');
+    const { targetPath } = await copySkillBetweenAgents('shared', 'agent-a', 'agent-b', {
+      sourceSkillsDir: sourceDir,
+      skillsDir: targetDir,
+    });
+    expect(targetPath).toBe(path.join(targetDir, 'shared'));
+    // Target now has the same SKILL.md content.
+    const sourceContent = await fs.readFile(path.join(sourceDir, 'shared', 'SKILL.md'), 'utf8');
+    const targetContent = await fs.readFile(path.join(targetDir, 'shared', 'SKILL.md'), 'utf8');
+    expect(targetContent).toBe(sourceContent);
+    // Source copy untouched.
+    expect(await fs.readFile(path.join(sourceDir, 'shared', 'SKILL.md'), 'utf8')).toBe(
+      sourceContent
+    );
+  });
+
+  it('copies nested files too', async () => {
+    const skillDir = await writeSkill(sourceDir, 'rich', '---\nname: Rich\n---');
+    await fs.mkdir(path.join(skillDir, 'scripts'), { recursive: true });
+    await fs.writeFile(path.join(skillDir, 'scripts', 'run.sh'), 'echo hi\n');
+    await copySkillBetweenAgents('rich', 'agent-a', 'agent-b', {
+      sourceSkillsDir: sourceDir,
+      skillsDir: targetDir,
+    });
+    expect(await fs.readFile(path.join(targetDir, 'rich', 'scripts', 'run.sh'), 'utf8')).toBe(
+      'echo hi\n'
+    );
+  });
+
+  it('rejects when the source agent does not support skills', async () => {
+    await writeSkill(sourceDir, 'shared', '---\nname: Shared\n---');
+    await expect(
+      copySkillBetweenAgents('shared', 'gemini', 'agent-b', {
+        sourceSkillsDir: undefined,
+        skillsDir: targetDir,
+      })
+    ).rejects.toThrow('Agent does not support skills: gemini');
+  });
+
+  it('rejects when the target agent does not support skills', async () => {
+    await writeSkill(sourceDir, 'shared', '---\nname: Shared\n---');
+    await expect(
+      copySkillBetweenAgents('shared', 'agent-a', 'gemini', {
+        sourceSkillsDir: sourceDir,
+        skillsDir: undefined,
+      })
+    ).rejects.toThrow('Agent does not support skills: gemini');
+  });
+
+  it('rejects when the skill is not installed on the source agent', async () => {
+    await expect(
+      copySkillBetweenAgents('missing', 'agent-a', 'agent-b', {
+        sourceSkillsDir: sourceDir,
+        skillsDir: targetDir,
+      })
+    ).rejects.toThrow('Skill is not assigned to this agent: missing -> agent-a');
+  });
+
+  it('rejects when source and target agent are the same', async () => {
+    await writeSkill(sourceDir, 'shared', '---\nname: Shared\n---');
+    await expect(
+      copySkillBetweenAgents('shared', 'agent-a', 'agent-a', {
+        sourceSkillsDir: sourceDir,
+        skillsDir: targetDir,
+      })
+    ).rejects.toThrow('Source and target agent are the same: agent-a');
+  });
+
+  it('rejects unsafe ids', async () => {
+    await expect(
+      copySkillBetweenAgents('../escape', 'agent-a', 'agent-b', {
+        sourceSkillsDir: sourceDir,
+        skillsDir: targetDir,
+      })
+    ).rejects.toThrow(/invalid skill id/i);
   });
 });
 

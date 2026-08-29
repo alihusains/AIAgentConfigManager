@@ -73,6 +73,8 @@ export interface SkillsDirOptions {
   platform?: Platform;
   /** Override the target agent skills directory (tests). */
   skillsDir?: string;
+  /** Override the source agent skills directory (tests, agent-to-agent copy). */
+  sourceSkillsDir?: string;
 }
 
 /**
@@ -197,7 +199,7 @@ export async function listSkills(opts: SkillsDirOptions = {}): Promise<SkillDef[
 /** List skills installed for one agent. */
 export async function listAgentSkills(
   agentId: string,
-  opts: SkillsDirOptions = {},
+  opts: SkillsDirOptions = {}
 ): Promise<SkillDef[]> {
   const dir = opts.skillsDir ?? getAgentSkillsDir(agentId, opts.platform);
   if (!dir) return [];
@@ -210,7 +212,7 @@ export async function listAgentSkills(
  */
 export function getAgentSkillsDir(
   agentId: string,
-  platform: Platform = getCurrentPlatform(),
+  platform: Platform = getCurrentPlatform()
 ): string | null {
   const entry = getAgentCatalogEntry(agentId);
   const template = entry?.skillsPaths?.[platform];
@@ -265,7 +267,7 @@ export async function getSkillsSnapshot(opts: SkillsDirOptions = {}): Promise<Sk
 export async function assignSkillToAgent(
   skillId: string,
   agentId: string,
-  opts: SkillsDirOptions = {},
+  opts: SkillsDirOptions = {}
 ): Promise<{ targetPath: string }> {
   assertSafeId(skillId, 'skill id');
   assertSafeId(agentId, 'agent id');
@@ -285,11 +287,46 @@ export async function assignSkillToAgent(
   return { targetPath };
 }
 
+/**
+ * Copy a skill already installed on one agent to a different agent
+ * (agent A -> agent B). The source agent keeps its copy.
+ */
+export async function copySkillBetweenAgents(
+  skillId: string,
+  sourceAgentId: string,
+  targetAgentId: string,
+  opts: SkillsDirOptions = {}
+): Promise<{ targetPath: string }> {
+  assertSafeId(skillId, 'skill id');
+  assertSafeId(sourceAgentId, 'agent id');
+  assertSafeId(targetAgentId, 'agent id');
+  if (sourceAgentId === targetAgentId) {
+    throw new Error(`Source and target agent are the same: ${sourceAgentId}`);
+  }
+  const sourceDir = opts.sourceSkillsDir ?? getAgentSkillsDir(sourceAgentId, opts.platform);
+  if (!sourceDir) {
+    throw new Error(`Agent does not support skills: ${sourceAgentId}`);
+  }
+  const targetDir = opts.skillsDir ?? getAgentSkillsDir(targetAgentId, opts.platform);
+  if (!targetDir) {
+    throw new Error(`Agent does not support skills: ${targetAgentId}`);
+  }
+  const sourcePath = path.join(sourceDir, skillId);
+  if (!(await fileExists(path.join(sourcePath, 'SKILL.md')))) {
+    throw new Error(`Skill is not assigned to this agent: ${skillId} -> ${sourceAgentId}`);
+  }
+  const targetPath = path.join(targetDir, skillId);
+  await fs.mkdir(targetDir, { recursive: true });
+  await fs.rm(targetPath, { recursive: true, force: true });
+  await fs.cp(sourcePath, targetPath, { recursive: true });
+  return { targetPath };
+}
+
 /** Remove a previously assigned skill from an agent (deletes only the copy). */
 export async function removeSkillFromAgent(
   skillId: string,
   agentId: string,
-  opts: SkillsDirOptions = {},
+  opts: SkillsDirOptions = {}
 ): Promise<void> {
   assertSafeId(skillId, 'skill id');
   assertSafeId(agentId, 'agent id');
@@ -323,7 +360,7 @@ export function skillSlug(name: string): string {
 /** Create a new skill in the shared library. */
 export async function createSkill(
   input: CreateSkillInput,
-  opts: SkillsDirOptions = {},
+  opts: SkillsDirOptions = {}
 ): Promise<SkillDef> {
   const name = (input.name ?? '').trim();
   if (!name) throw new Error('Skill name is required');
