@@ -417,6 +417,24 @@ describe('SkillsView', () => {
       },
     ],
     assignments: { 'test-skill': ['claude-code'] },
+    allSkills: [
+      {
+        id: 'test-skill',
+        name: 'Test Skill',
+        description: 'A test skill',
+        path: '/tmp/skills/test-skill',
+        fileCount: 1,
+        foundOn: ['library', 'claude-code'],
+      },
+      {
+        id: 'agent-only-skill',
+        name: 'Agent Only Skill',
+        description: 'Installed directly on Claude Code',
+        path: '/tmp/claude/skills/agent-only-skill',
+        fileCount: 1,
+        foundOn: ['claude-code'],
+      },
+    ],
   } as never;
 
   beforeEach(() => {
@@ -455,6 +473,58 @@ describe('SkillsView', () => {
     await waitFor(() => {
       expect(apiMock.copySkillToAgent).toHaveBeenCalledWith('test-skill', 'claude-code', 'codex');
     });
+  });
+
+  it('renders a skill that exists only on an agent (not the library) and offers to copy it', async () => {
+    apiMock.copySkillToAgent.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { targetPath: '/tmp/codex/skills/agent-only-skill' },
+    });
+    render(<SkillsView />);
+    // The agent-only skill is browsable via the aggregated list.
+    await screen.findByText('Agent Only Skill');
+    // It is NOT a library skill: no assign/unassign, but its found-on agent
+    // chip still exposes the copy affordance.
+    expect(
+      screen.queryByRole('button', { name: 'Remove Agent Only Skill from Claude Code' })
+    ).not.toBeInTheDocument();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Copy Agent Only Skill to another agent' }));
+    expect(screen.getByRole('menuitem', { name: /Codex/ })).toBeInTheDocument();
+    await user.click(screen.getByRole('menuitem', { name: /Codex/ }));
+
+    await waitFor(() => {
+      expect(apiMock.copySkillToAgent).toHaveBeenCalledWith(
+        'agent-only-skill',
+        'claude-code',
+        'codex'
+      );
+    });
+  });
+
+  it('search narrows the visible skill list', async () => {
+    render(<SkillsView />);
+    await screen.findByText('Test Skill');
+    expect(screen.getByText('Agent Only Skill')).toBeInTheDocument();
+
+    const user = userEvent.setup();
+    await user.type(screen.getByRole('searchbox', { name: 'Filter skills' }), 'agent only');
+
+    await waitFor(() => {
+      expect(screen.getByText('Agent Only Skill')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('Test Skill')).not.toBeInTheDocument();
+  });
+
+  it('shows loading skeletons while the aggregated list is in flight', async () => {
+    let resolveLoad!: (v: { ok: boolean; status: number; data: never }) => void;
+    apiMock.getSkills.mockReturnValue(new Promise((resolve) => (resolveLoad = resolve)));
+    const { container } = render(<SkillsView />);
+    expect(container.querySelectorAll('.skeleton').length).toBeGreaterThan(0);
+    resolveLoad({ ok: true, status: 200, data: skillsSnapshot });
+    await screen.findByText('Test Skill');
   });
 });
 
