@@ -18,7 +18,7 @@ import { Badge, Button, Card, EmptyState, Field, Modal, SectionHeader, StatCard 
 /** `${skillId}->${agentId}:${action}` — identifies which button is busy. */
 type BusyKey = string;
 
-const busyKey = (skillId: string, agentId: string, action: 'assign' | 'unassign') =>
+const busyKey = (skillId: string, agentId: string, action: 'assign' | 'unassign' | 'copy') =>
   `${skillId}->${agentId}:${action}`;
 
 /* ------------------------------------------------------------------ */
@@ -32,6 +32,7 @@ interface SkillCardProps {
   busy: BusyKey | null;
   onAssign: (skillId: string, agentId: string) => void;
   onUnassign: (skillId: string, agentId: string) => void;
+  onCopy: (skillId: string, sourceAgentId: string, targetAgentId: string) => void;
 }
 
 const SkillCard = memo(function SkillCard({
@@ -41,9 +42,12 @@ const SkillCard = memo(function SkillCard({
   busy,
   onAssign,
   onUnassign,
+  onCopy,
 }: SkillCardProps) {
   const assigned = useMemo(() => new Set(assignedAgentIds), [assignedAgentIds]);
   const unassignedAgents = agents.filter((a) => !assigned.has(a.agentId));
+  // Which agent's copy-offer menu is open (null = closed).
+  const [copySourceId, setCopySourceId] = useState<string | null>(null);
 
   return (
     <Card
@@ -71,18 +75,71 @@ const SkillCard = memo(function SkillCard({
           .filter((a) => assigned.has(a.agentId))
           .map((agent) => {
             const key = busyKey(skill.id, agent.agentId, 'unassign');
+            const copyOpen = copySourceId === agent.agentId;
+            const copyTargets = agents
+              .filter((a) => a.agentId !== agent.agentId && !assigned.has(a.agentId))
+              .concat(agents.filter((a) => a.agentId !== agent.agentId && assigned.has(a.agentId)));
             return (
-              <button
+              <span
                 key={agent.agentId}
-                type="button"
                 className="badge badge-success badge-chip flex items-center gap-1"
-                title={`Remove ${skill.name} from ${agent.name}`}
-                disabled={busy != null}
-                onClick={() => onUnassign(skill.id, agent.agentId)}
               >
+                <span className="badge-chip-remove-wrap">
+                  <button
+                    type="button"
+                    className="badge-chip-remove"
+                    title={`Remove ${skill.name} from ${agent.name}`}
+                    disabled={busy != null}
+                    aria-label={`Remove ${skill.name} from ${agent.name}`}
+                    onClick={() => onUnassign(skill.id, agent.agentId)}
+                  >
+                    {busy === key ? (
+                      <RefreshCw size={12} className="animate-spin" />
+                    ) : (
+                      <X size={12} />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    className="badge-chip-copy"
+                    title={`Copy ${skill.name} to another agent`}
+                    aria-label={`Copy ${skill.name} to another agent`}
+                    disabled={busy != null || agents.length < 2}
+                    aria-expanded={copyOpen}
+                    onClick={() => setCopySourceId(copyOpen ? null : agent.agentId)}
+                  >
+                    <Link2 size={12} />
+                  </button>
+                </span>
                 {agent.name}
-                {busy === key ? <RefreshCw size={12} className="animate-spin" /> : <X size={12} />}
-              </button>
+                {copyOpen && (
+                  <span className="copy-menu" role="menu" aria-label={`Copy to`}>
+                    {copyTargets.length === 0 && (
+                      <span className="copy-menu-empty">No other agents</span>
+                    )}
+                    {copyTargets.map((target) => {
+                      const ckey = busyKey(skill.id, target.agentId, 'copy');
+                      return (
+                        <button
+                          key={target.agentId}
+                          type="button"
+                          role="menuitem"
+                          className="copy-menu-item"
+                          disabled={busy != null}
+                          onClick={() => {
+                            setCopySourceId(null);
+                            onCopy(skill.id, agent.agentId, target.agentId);
+                          }}
+                        >
+                          <AgentIconTile id={target.agentId} size={20} iconSize={10} />
+                          <span className="truncate">{target.name}</span>
+                          {busy === ckey && <RefreshCw size={12} className="animate-spin" />}
+                        </button>
+                      );
+                    })}
+                  </span>
+                )}
+              </span>
             );
           })}
       </div>
@@ -179,12 +236,41 @@ export function SkillsView() {
       try {
         const res = await api.unassignSkill(skillId, agentId);
         if (!res.ok) throw new Error(res.error ?? 'Remove failed');
-        addToast({ type: 'success', title: 'Skill removed', message: `${skillId} removed from ${agentId}` });
+        addToast({
+          type: 'success',
+          title: 'Skill removed',
+          message: `${skillId} removed from ${agentId}`,
+        });
         await load();
       } catch (e) {
         addToast({
           type: 'error',
           title: 'Remove failed',
+          message: e instanceof Error ? e.message : String(e),
+        });
+      } finally {
+        setBusy(null);
+      }
+    },
+    [addToast, load]
+  );
+
+  const handleCopy = useCallback(
+    async (skillId: string, sourceAgentId: string, targetAgentId: string) => {
+      setBusy(busyKey(skillId, targetAgentId, 'copy'));
+      try {
+        const res = await api.copySkillToAgent(skillId, sourceAgentId, targetAgentId);
+        if (!res.ok) throw new Error(res.error ?? 'Copy failed');
+        addToast({
+          type: 'success',
+          title: 'Skill copied',
+          message: `Copied "${skillId}" to ${targetAgentId}`,
+        });
+        await load();
+      } catch (e) {
+        addToast({
+          type: 'error',
+          title: 'Copy failed',
           message: e instanceof Error ? e.message : String(e),
         });
       } finally {
@@ -324,6 +410,7 @@ export function SkillsView() {
               busy={busy}
               onAssign={handleAssign}
               onUnassign={handleUnassign}
+              onCopy={handleCopy}
             />
           ))}
         </div>
