@@ -553,6 +553,10 @@ body {
 .break-all {
   word-break: break-all;
 }
+.break-words {
+  overflow-wrap: break-word;
+  word-break: normal;
+}
 .italic {
   font-style: italic;
 }
@@ -1375,6 +1379,18 @@ select.input {
 .table td:last-child,
 .table th:last-child {
   padding-right: 16px;
+}
+
+/* M037 — Agents table path columns (Config Path / MCP File). The shared .table
+   uses auto layout, so a td with only a max-width (and break-all text) could be
+   collapsed to near-zero width, wrapping paths one character per line. This
+   scoped class pins a sane floor + ceiling and wraps at path-segment
+   boundaries instead of every character. */
+.agents-table .path-cell {
+  min-width: 160px;
+  max-width: 220px;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 /* ============================================================================

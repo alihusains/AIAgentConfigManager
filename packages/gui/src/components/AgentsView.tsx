@@ -568,7 +568,7 @@ export function AgentsView() {
           </div>
         </div>
         <div className="table-container">
-          <table className="table">
+          <table className="table agents-table">
             <thead>
               <tr>
                 <th>Agent</th>
@@ -664,12 +664,14 @@ export function AgentsView() {
                       {row.detection.configExists ? 'exists' : 'missing'}
                     </span>
                   </td>
-                  <td
-                    className="font-mono text-xs break-all max-w-0"
-                    style={{ maxWidth: 220 }}
-                  >
+                  <td className="font-mono text-xs path-cell">
                     <div className="flex items-center gap-1.5">
-                      <span className="flex-1 min-w-0">{row.configPath}</span>
+                      <span
+                        className="flex-1 min-w-0 break-words"
+                        title={row.configPath}
+                      >
+                        {row.configPath}
+                      </span>
                       <button
                         className="btn-ghost btn-icon btn-sm flex-shrink-0"
                         title="Edit config file"
@@ -698,13 +700,15 @@ export function AgentsView() {
                       </div>
                     )}
                   </td>
-                  <td
-                    className="font-mono text-xs break-all"
-                    style={{ maxWidth: 180 }}
-                  >
+                  <td className="font-mono text-xs path-cell">
                     {row.mcpPath && row.mcpPath !== 'same file' ? (
                       <div className="flex items-center gap-1.5">
-                        <span className="flex-1 min-w-0">{row.mcpPath}</span>
+                        <span
+                          className="flex-1 min-w-0 break-words"
+                          title={row.mcpPath}
+                        >
+                          {row.mcpPath}
+                        </span>
                         <button
                           className="btn-ghost btn-icon btn-sm flex-shrink-0"
                           title="Edit MCP file"
