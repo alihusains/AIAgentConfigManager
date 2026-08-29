@@ -1,18 +1,38 @@
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { Sparkles, Plus, RefreshCw, FolderOpen, Bot, X, Link2 } from 'lucide-react';
-import type { SkillDef, SkillCapableAgent, SkillsSnapshot } from '@ai-agent-config/core';
+import { Sparkles, Plus, RefreshCw, FolderOpen, Bot, X, Link2, Search } from 'lucide-react';
+import type {
+  AggregatedSkill,
+  SkillDef,
+  SkillCapableAgent,
+  SkillsSnapshot,
+} from '@ai-agent-config/core';
 import { api } from '../api';
 import { useStore } from '../store';
+import { useWindowedList } from '../hooks/useWindowedList';
 import { AgentIconTile } from './AgentIcon';
-import { Badge, Button, Card, EmptyState, Field, Modal, SectionHeader, StatCard } from '../ui';
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  Field,
+  Modal,
+  SectionHeader,
+  Skeleton,
+  StatCard,
+} from '../ui';
 
 /**
  * SkillsView — the skill management platform.
  *
- * A shared local skill library (folders with SKILL.md) that can be assigned to
- * skill-capable agents (Claude Code, OpenAI Codex, OpenCode, AionUi). Assigning
- * copies the skill folder into the agent's skills directory; removing deletes
- * only the copy. One fetch per mount + manual refresh — no polling.
+ * A shared local skill library (folders with SKILL.md) plus every skill
+ * installed directly on any skill-capable agent (Claude Code, OpenAI Codex,
+ * OpenCode, Pi, …). The browsable list is the cross-agent aggregation
+ * (`snapshot.allSkills`, M044): every skill id known anywhere, with `foundOn`
+ * listing its locations ('library' + agent ids). Library skills keep their
+ * assign/unassign chips; agent-installed skills can be copied to any other
+ * skill-capable agent from their real current location. One fetch per mount +
+ * manual refresh — no polling.
  */
 
 /** `${skillId}->${agentId}:${action}` — identifies which button is busy. */
@@ -21,70 +41,121 @@ type BusyKey = string;
 const busyKey = (skillId: string, agentId: string, action: 'assign' | 'unassign' | 'copy') =>
   `${skillId}->${agentId}:${action}`;
 
+/** Fixed row height for the windowed skill list (see useWindowedList). */
+const SKILL_ROW_HEIGHT = 92;
+
 /* ------------------------------------------------------------------ */
-/* Skill card                                                          */
+/* Windowed list row (one aggregated skill)                            */
 /* ------------------------------------------------------------------ */
 
-interface SkillCardProps {
-  skill: SkillDef;
+interface SkillRowProps {
+  skill: AggregatedSkill;
   agents: SkillCapableAgent[];
-  assignedAgentIds: string[];
+  isLibrarySkill: boolean;
   busy: BusyKey | null;
   onAssign: (skillId: string, agentId: string) => void;
   onUnassign: (skillId: string, agentId: string) => void;
   onCopy: (skillId: string, sourceAgentId: string, targetAgentId: string) => void;
 }
 
-const SkillCard = memo(function SkillCard({
+const SkillRow = memo(function SkillRow({
   skill,
   agents,
-  assignedAgentIds,
+  isLibrarySkill,
   busy,
   onAssign,
   onUnassign,
   onCopy,
-}: SkillCardProps) {
-  const assigned = useMemo(() => new Set(assignedAgentIds), [assignedAgentIds]);
-  const unassignedAgents = agents.filter((a) => !assigned.has(a.agentId));
-  // Which agent's copy-offer menu is open (null = closed).
+}: SkillRowProps) {
+  const foundOn = useMemo(() => new Set(skill.foundOn), [skill.foundOn]);
+  const onAgents = agents.filter((a) => foundOn.has(a.agentId));
+  const inLibrary = foundOn.has('library');
+  const unassignedAgents = isLibrarySkill ? agents.filter((a) => !foundOn.has(a.agentId)) : [];
+  // Which location's copy-offer menu is open (null = closed).
   const [copySourceId, setCopySourceId] = useState<string | null>(null);
 
+  const openCopyMenu = (sourceId: string) =>
+    setCopySourceId((prev) => (prev === sourceId ? null : sourceId));
+
+  const copyTargets = (sourceId: string) =>
+    agents.filter((a) => a.agentId !== sourceId && !foundOn.has(a.agentId));
+
   return (
-    <Card
-      title={
-        <span className="flex items-center gap-2 min-w-0">
-          <span className="truncate">{skill.name}</span>
+    <div className="skill-row" style={{ height: SKILL_ROW_HEIGHT }}>
+      <div className="skill-row-main">
+        <div className="skill-row-title">
+          <span className="skill-row-name truncate">{skill.name}</span>
           {skill.version != null && (
             <Badge variant="neutral" className="flex-shrink-0">
               v{skill.version}
             </Badge>
           )}
-        </span>
-      }
-      actions={<span className="text-xs text-tertiary">{skill.fileCount} files</span>}
-    >
-      <p className="text-sm text-secondary mb-4 skill-card-desc">
-        {skill.description ?? 'No description.'}
-      </p>
+          <span className="skill-row-meta flex-shrink-0">{skill.fileCount} files</span>
+        </div>
+        <p className="skill-row-desc truncate">
+          {skill.description ?? 'No description.'}
+        </p>
+      </div>
 
-      <div className="flex flex-wrap gap-2 mb-4">
-        {assignedAgentIds.length === 0 && (
-          <span className="text-xs text-tertiary">Not assigned to any agent yet.</span>
-        )}
-        {agents
-          .filter((a) => assigned.has(a.agentId))
-          .map((agent) => {
-            const key = busyKey(skill.id, agent.agentId, 'unassign');
-            const copyOpen = copySourceId === agent.agentId;
-            const copyTargets = agents
-              .filter((a) => a.agentId !== agent.agentId && !assigned.has(a.agentId))
-              .concat(agents.filter((a) => a.agentId !== agent.agentId && assigned.has(a.agentId)));
-            return (
-              <span
-                key={agent.agentId}
-                className="badge badge-success badge-chip flex items-center gap-1"
+      <div className="skill-row-locs flex-wrap gap-2">
+        {inLibrary && (
+          <span className="badge badge-chip">
+            <span className="badge-chip-remove-wrap">
+              <button
+                type="button"
+                className="badge-chip-copy"
+                title="Copy library skill to another agent"
+                aria-label="Copy library skill to another agent"
+                disabled={busy != null || agents.length < 2}
+                aria-expanded={copySourceId === 'library'}
+                onClick={() => openCopyMenu('library')}
               >
-                <span className="badge-chip-remove-wrap">
+                <Link2 size={12} />
+              </button>
+            </span>
+            Library
+            {copySourceId === 'library' && (
+              <span className="copy-menu" role="menu" aria-label="Copy library skill to">
+                {copyTargets('library').length === 0 && (
+                  <span className="copy-menu-empty">No other agents</span>
+                )}
+                {copyTargets('library').map((target) => {
+                  const key = busyKey(skill.id, target.agentId, 'copy');
+                  return (
+                    <button
+                      key={target.agentId}
+                      type="button"
+                      role="menuitem"
+                      className="copy-menu-item"
+                      disabled={busy != null}
+                      onClick={() => {
+                        setCopySourceId(null);
+                        onAssign(skill.id, target.agentId);
+                      }}
+                    >
+                      <AgentIconTile id={target.agentId} size={20} iconSize={10} />
+                      <span className="truncate">{target.name}</span>
+                      {busy === key && <RefreshCw size={12} className="animate-spin" />}
+                    </button>
+                  );
+                })}
+              </span>
+            )}
+          </span>
+        )}
+
+        {onAgents.map((agent) => {
+          const key = busyKey(skill.id, agent.agentId, isLibrarySkill ? 'unassign' : 'copy');
+          const copyOpen = copySourceId === agent.agentId;
+          return (
+            <span
+              key={agent.agentId}
+              className={`badge badge-chip flex items-center gap-1 ${
+                isLibrarySkill ? 'badge-success' : 'badge-neutral'
+              }`}
+            >
+              <span className="badge-chip-remove-wrap">
+                {isLibrarySkill && (
                   <button
                     type="button"
                     className="badge-chip-remove"
@@ -99,53 +170,54 @@ const SkillCard = memo(function SkillCard({
                       <X size={12} />
                     )}
                   </button>
-                  <button
-                    type="button"
-                    className="badge-chip-copy"
-                    title={`Copy ${skill.name} to another agent`}
-                    aria-label={`Copy ${skill.name} to another agent`}
-                    disabled={busy != null || agents.length < 2}
-                    aria-expanded={copyOpen}
-                    onClick={() => setCopySourceId(copyOpen ? null : agent.agentId)}
-                  >
-                    <Link2 size={12} />
-                  </button>
-                </span>
-                {agent.name}
-                {copyOpen && (
-                  <span className="copy-menu" role="menu" aria-label={`Copy to`}>
-                    {copyTargets.length === 0 && (
-                      <span className="copy-menu-empty">No other agents</span>
-                    )}
-                    {copyTargets.map((target) => {
-                      const ckey = busyKey(skill.id, target.agentId, 'copy');
-                      return (
-                        <button
-                          key={target.agentId}
-                          type="button"
-                          role="menuitem"
-                          className="copy-menu-item"
-                          disabled={busy != null}
-                          onClick={() => {
-                            setCopySourceId(null);
-                            onCopy(skill.id, agent.agentId, target.agentId);
-                          }}
-                        >
-                          <AgentIconTile id={target.agentId} size={20} iconSize={10} />
-                          <span className="truncate">{target.name}</span>
-                          {busy === ckey && <RefreshCw size={12} className="animate-spin" />}
-                        </button>
-                      );
-                    })}
-                  </span>
                 )}
+                <button
+                  type="button"
+                  className="badge-chip-copy"
+                  title={`Copy ${skill.name} to another agent`}
+                  aria-label={`Copy ${skill.name} to another agent`}
+                  disabled={busy != null || agents.length < 2}
+                  aria-expanded={copyOpen}
+                  onClick={() => openCopyMenu(agent.agentId)}
+                >
+                  <Link2 size={12} />
+                </button>
               </span>
-            );
-          })}
+              {agent.name}
+              {copyOpen && (
+                <span className="copy-menu" role="menu" aria-label="Copy to">
+                  {copyTargets(agent.agentId).length === 0 && (
+                    <span className="copy-menu-empty">No other agents</span>
+                  )}
+                  {copyTargets(agent.agentId).map((target) => {
+                    const ckey = busyKey(skill.id, target.agentId, 'copy');
+                    return (
+                      <button
+                        key={target.agentId}
+                        type="button"
+                        role="menuitem"
+                        className="copy-menu-item"
+                        disabled={busy != null}
+                        onClick={() => {
+                          setCopySourceId(null);
+                          onCopy(skill.id, agent.agentId, target.agentId);
+                        }}
+                      >
+                        <AgentIconTile id={target.agentId} size={20} iconSize={10} />
+                        <span className="truncate">{target.name}</span>
+                        {busy === ckey && <RefreshCw size={12} className="animate-spin" />}
+                      </button>
+                    );
+                  })}
+                </span>
+              )}
+            </span>
+          );
+        })}
       </div>
 
       {unassignedAgents.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+        <div className="skill-row-assign flex-wrap items-center gap-2">
           <span className="text-xs text-tertiary">Assign to:</span>
           {unassignedAgents.map((agent) => {
             const key = busyKey(skill.id, agent.agentId, 'assign');
@@ -165,7 +237,7 @@ const SkillCard = memo(function SkillCard({
           })}
         </div>
       )}
-    </Card>
+    </div>
   );
 });
 
@@ -180,6 +252,7 @@ export function SkillsView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<BusyKey | null>(null);
+  const [search, setSearch] = useState('');
 
   // New-skill modal state.
   const [modalOpen, setModalOpen] = useState(false);
@@ -312,11 +385,32 @@ export function SkillsView() {
     return Object.values(snapshot.assignments).reduce((sum, ids) => sum + ids.length, 0);
   }, [snapshot]);
 
+  // Every skill known anywhere (library + all agents), name-sorted by the
+  // server; client-side substring filter on top of the already-fetched list.
+  const allSkills: AggregatedSkill[] = snapshot?.allSkills ?? [];
+  const librarySkillIds = useMemo(
+    () => new Set((snapshot?.skills ?? []).map((s: SkillDef) => s.id)),
+    [snapshot]
+  );
+  const filteredSkills = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return allSkills;
+    return allSkills.filter(
+      (s) =>
+        s.name.toLowerCase().includes(q) ||
+        s.id.toLowerCase().includes(q) ||
+        (s.description ?? '').toLowerCase().includes(q)
+    );
+  }, [allSkills, search]);
+
+  const { containerRef, onScroll, range } = useWindowedList(filteredSkills.length, SKILL_ROW_HEIGHT);
+  const visibleSkills = filteredSkills.slice(range.start, range.end);
+
   return (
     <div>
       <SectionHeader
         title="Skills"
-        description="A shared skill library you can assign to skill-capable agents."
+        description="Every skill on this machine — the shared library plus each skill-capable agent's own skills."
         actions={
           <>
             <Button
@@ -355,6 +449,12 @@ export function SkillsView() {
           color="var(--accent-primary)"
         />
         <StatCard
+          title="Skills total (all agents)"
+          value={snapshot ? allSkills.length : '—'}
+          icon={<Sparkles size={18} />}
+          color="var(--accent-primary)"
+        />
+        <StatCard
           title="Skill-capable agents"
           value={snapshot ? snapshot.agents.length : '—'}
           icon={<Bot size={18} />}
@@ -368,8 +468,8 @@ export function SkillsView() {
         />
       </div>
 
-      {/* Empty library */}
-      {snapshot != null && snapshot.skills.length === 0 && !loading && (
+      {/* Empty library — keep the existing "create your first skill" affordance */}
+      {snapshot != null && snapshot.skills.length === 0 && allSkills.length === 0 && !loading && (
         <Card className="mb-6">
           <EmptyState
             icon={<Sparkles size={28} />}
@@ -395,25 +495,72 @@ export function SkillsView() {
         </Card>
       )}
 
-      {/* Skill cards */}
-      {snapshot != null && snapshot.skills.length > 0 && (
-        <div
-          className="grid gap-4 mb-6"
-          style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(320px, 100%), 1fr))' }}
+      {/* All skills — windowed list with search */}
+      {loading ? (
+        <Card title="All skills" className="mb-6">
+          <div className="space-y-2" aria-busy="true">
+            {Array.from({ length: 8 }, (_, i) => (
+              <Skeleton key={i} className="block" width="100%" height={SKILL_ROW_HEIGHT - 8} />
+            ))}
+          </div>
+        </Card>
+      ) : (
+        snapshot != null && allSkills.length > 0 && (
+        <Card
+          title={`All skills (${allSkills.length})`}
+          actions={
+            <div className="skill-search relative w-64 max-w-full">
+              <Search
+                size={14}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-tertiary pointer-events-none"
+              />
+              <input
+                className="input pl-8"
+                type="search"
+                placeholder="Filter skills…"
+                aria-label="Filter skills"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+          }
         >
-          {snapshot.skills.map((skill) => (
-            <SkillCard
-              key={skill.id}
-              skill={skill}
-              agents={snapshot.agents}
-              assignedAgentIds={snapshot.assignments[skill.id] ?? []}
-              busy={busy}
-              onAssign={handleAssign}
-              onUnassign={handleUnassign}
-              onCopy={handleCopy}
-            />
-          ))}
-        </div>
+          <div
+            ref={containerRef}
+            onScroll={onScroll}
+            className="skill-window"
+            style={{ maxHeight: '65vh' }}
+          >
+            <div
+              className="skill-window-viewport"
+              style={{ height: range.totalHeight }}
+            >
+              <div
+                className="skill-window-slice"
+                style={{ transform: `translateY(${range.offsetTop}px)` }}
+              >
+                {visibleSkills.map((skill) => (
+                  <SkillRow
+                    key={skill.id}
+                    skill={skill}
+                    agents={snapshot.agents}
+                    isLibrarySkill={librarySkillIds.has(skill.id)}
+                    busy={busy}
+                    onAssign={handleAssign}
+                    onUnassign={handleUnassign}
+                    onCopy={handleCopy}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+          {filteredSkills.length === 0 && (
+            <p className="text-sm text-tertiary py-4 text-center">
+              No skills match “{search.trim()}”.
+            </p>
+          )}
+        </Card>
+        )
       )}
 
       {/* Capable agents */}

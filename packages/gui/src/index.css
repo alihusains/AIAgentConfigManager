@@ -2291,6 +2291,82 @@ select.input {
   min-height: 2.5em;
 }
 
+/* Windowed "All skills" list (M045): fixed-height rows, virtualized slice —
+   mirrors .agent-window so a machine with hundreds of agent-installed skills
+   stays responsive and scrolls vertically only. */
+.skill-window {
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  position: relative;
+}
+
+.skill-window-viewport {
+  position: relative;
+  width: 100%;
+}
+
+.skill-window-slice {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  will-change: transform;
+}
+
+.skill-row {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.skill-row:last-child {
+  border-bottom: none;
+}
+
+.skill-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.skill-row-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.skill-row-name {
+  font-weight: 500;
+  font-size: var(--text-size-sm, 14px);
+}
+
+.skill-row-meta {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.skill-row-desc {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.skill-row-locs {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.skill-row-assign {
+  display: flex;
+  align-items: center;
+}
+
 /* Split the assigned-agent chip into a label + small icon buttons (remove /
    copy) so a chip stays one pill while exposing two actions. */
 .badge-chip-remove-wrap {
