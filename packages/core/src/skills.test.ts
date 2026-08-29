@@ -396,7 +396,7 @@ describe('catalog skill capability', () => {
     expect(getAgentSkillsDir('gemini', 'darwin')).toBeNull();
   });
 
-  it('includes the M041-verified agents on every platform', () => {
+  it('resolves M041-verified agents to their documented skills dirs (per-platform)', () => {
     const expectedDirs: Record<string, [string, string, string]> = {
       pi: ['~/.pi/agent/skills', '~/.pi/agent/skills', '%USERPROFILE%\\.pi\\agent\\skills'],
       continue: ['~/.continue/skills', '~/.continue/skills', '%USERPROFILE%\\.continue\\skills'],
