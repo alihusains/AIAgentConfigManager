@@ -708,14 +708,14 @@ export async function startGuiServer(
         if (method === 'PUT' && parts.length === 4) {
           const body = await readBody();
           return handle(async () => {
-            const result = await manager.updateCustomAgent(parts[3], body);
+            const result = await manager.updateCustomAgent(decodeURIComponent(parts[3]), body);
             if (!result.success) return { error: result.error, status: 400 };
             return { data: result.data };
           });
         }
         if (method === 'DELETE' && parts.length === 4) {
           return handle(async () => {
-            const result = await manager.removeCustomAgent(parts[3]);
+            const result = await manager.removeCustomAgent(decodeURIComponent(parts[3]));
             if (!result.success) return { error: result.error, status: 400 };
             return { data: result.data };
           });
