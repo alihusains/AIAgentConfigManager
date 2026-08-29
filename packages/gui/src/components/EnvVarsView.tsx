@@ -1,15 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  KeyRound,
-  Eye,
-  EyeOff,
-  Plus,
-  Edit,
-  Trash2,
-  Search,
-  RefreshCw,
-  Lock,
-} from 'lucide-react';
+import { KeyRound, Eye, EyeOff, Plus, Edit, Trash2, Search, RefreshCw, Lock } from 'lucide-react';
 import type { EnvVarEntry } from '@ai-agent-config/core';
 import { api } from '../api';
 import { useStore } from '../store';
@@ -326,10 +316,7 @@ export function EnvVarsView() {
     return bySource;
   }, [filtered]);
 
-  const editableCount = useMemo(
-    () => vars?.filter((v) => v.editable).length ?? 0,
-    [vars]
-  );
+  const editableCount = useMemo(() => vars?.filter((v) => v.editable).length ?? 0, [vars]);
 
   return (
     <div className="p-4">
@@ -407,9 +394,7 @@ export function EnvVarsView() {
                       <th>Name</th>
                       <th>Value</th>
                       <th style={{ width: '110px' }}>Access</th>
-                      <th style={{ minWidth: '200px' }}>
-                        {query ? 'Notes / Actions' : 'Actions'}
-                      </th>
+                      <th style={{ minWidth: '200px' }}>{query ? 'Notes / Actions' : 'Actions'}</th>
                     </tr>
                   </thead>
                   {groups != null &&
@@ -439,8 +424,8 @@ export function EnvVarsView() {
                 </table>
               </div>
               <p className="env-vars-footer">
-                {vars?.length ?? 0} variable(s) · {editableCount} editable here · process
-                variables are read-only — set them in a shell profile to make them editable.
+                {vars?.length ?? 0} variable(s) · {editableCount} editable here · process variables
+                are read-only — set them in a shell profile to make them editable.
               </p>
             </div>
           )}

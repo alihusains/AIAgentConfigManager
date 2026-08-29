@@ -335,8 +335,7 @@ export const api = {
 
   // --- Environment variables (M048 backend: read/categorize/redact/edit) ---
   /** List env vars; sensitive-looking values arrive redacted by the server. */
-  getEnvVars: () =>
-    request<{ platform: string; vars: EnvVarEntry[] }>('GET', '/api/env'),
+  getEnvVars: () => request<{ platform: string; vars: EnvVarEntry[] }>('GET', '/api/env'),
   /** Set (create or update) a user-level env var. */
   setEnvVar: (name: string, value: string) =>
     request<MutateEnvVarResult>('POST', '/api/env', { name, value }),

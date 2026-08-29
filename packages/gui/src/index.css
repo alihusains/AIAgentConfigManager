@@ -1708,9 +1708,8 @@ select.input {
   background: color-mix(in srgb, var(--accent-primary) 14%, transparent);
   color: var(--text-primary);
   font-weight: 600;
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--accent-primary) 25%, transparent),
-    0 0 14px 2px color-mix(in srgb, var(--accent-primary) 22%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-primary) 25%, transparent), 0 0 14px 2px
+    color-mix(in srgb, var(--accent-primary) 22%, transparent);
 }
 
 .nav-item-icon {
