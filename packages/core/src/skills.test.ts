@@ -19,6 +19,7 @@ import {
   removeSkillFromAgent,
   copySkillBetweenAgents,
   getSkillsSnapshot,
+  getAllKnownSkills,
   getSkillCapableAgentIds,
   getAgentSkillsDir,
   readFileSafe,
@@ -307,6 +308,117 @@ describe('skill library (temp dir)', () => {
     expect(snapshot.skills.map((s) => s.id)).toContain('shared');
     expect(Array.isArray(snapshot.agents)).toBe(true);
     expect(typeof snapshot.assignments).toBe('object');
+    // M044: snapshot also carries the aggregated cross-agent view.
+    expect(Array.isArray(snapshot.allSkills)).toBe(true);
+    expect(snapshot.allSkills.map((s) => s.id)).toContain('shared');
+  });
+
+  it('createSkill rejects path-traversal names (QA finding C2 regression)', async () => {
+    // Exact repro from docs/audits/qa-pass.md C2: name "../escape-test" used to
+    // create <library-parent>/escape-test/ instead of <library>/escape-test/.
+    await expect(
+      createSkill({ name: '../escape-test', description: 'traversal' }, { libraryDir })
+    ).rejects.toThrow(/invalid skill name/i);
+    // Nothing escaped outside the library.
+    await expect(fs.access(path.join(libraryDir, '..', 'escape-test'))).rejects.toThrow();
+    // No skill dir was created inside the library either.
+    expect((await listSkills({ libraryDir })).length).toBe(0);
+    // Backslash traversal is rejected the same way.
+    await expect(createSkill({ name: '..\\escape-test' }, { libraryDir })).rejects.toThrow(
+      /invalid skill name/i
+    );
+  });
+});
+
+describe('getAllKnownSkills (temp dirs)', () => {
+  let libraryDir: string;
+  let agentADir: string;
+  let agentBDir: string;
+
+  beforeEach(async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'skills-known-test-'));
+    libraryDir = path.join(tmp, 'library');
+    agentADir = path.join(tmp, 'agent-a-skills');
+    agentBDir = path.join(tmp, 'agent-b-skills');
+    await fs.mkdir(libraryDir, { recursive: true });
+    await fs.mkdir(agentADir, { recursive: true });
+    await fs.mkdir(agentBDir, { recursive: true });
+  });
+
+  afterEach(async () => {
+    await fs.rm(path.dirname(libraryDir), { recursive: true, force: true });
+  });
+
+  it('lists a skill only in the library with foundOn ["library"]', async () => {
+    await writeSkill(libraryDir, 'lib-only', '---\nname: Lib Only\n---');
+    const all = await getAllKnownSkills({
+      libraryDir,
+      platform: 'darwin',
+      agentSkillsDirs: { 'claude-code': agentADir, opencode: agentBDir },
+    });
+    const entry = all.find((s) => s.id === 'lib-only');
+    expect(entry).toBeDefined();
+    expect(entry!.foundOn).toEqual(['library']);
+  });
+
+  it('lists a skill only on one agent with foundOn [agentId]', async () => {
+    // Mirrors this machine's real layout: populated claude-code dir, empty library.
+    await writeSkill(agentADir, 'agent-only', '---\nname: Agent Only\n---');
+    const all = await getAllKnownSkills({
+      libraryDir,
+      platform: 'darwin',
+      agentSkillsDirs: { 'claude-code': agentADir, opencode: agentBDir },
+    });
+    const entry = all.find((s) => s.id === 'agent-only');
+    expect(entry).toBeDefined();
+    expect(entry!.foundOn).toEqual(['claude-code']);
+    expect(entry!.name).toBe('Agent Only');
+    expect(entry!.path).toBe(path.join(agentADir, 'agent-only'));
+  });
+
+  it('lists a skill on two agents with both agent ids in foundOn', async () => {
+    await writeSkill(agentADir, 'two-agents', '---\nname: Two Agents\n---', 'a body\n');
+    await writeSkill(agentBDir, 'two-agents', '---\nname: Two Agents\n---', 'b body\n');
+    const all = await getAllKnownSkills({
+      libraryDir,
+      platform: 'darwin',
+      agentSkillsDirs: { 'claude-code': agentADir, opencode: agentBDir },
+    });
+    const entry = all.find((s) => s.id === 'two-agents');
+    expect(entry).toBeDefined();
+    expect(entry!.foundOn.sort()).toEqual(['claude-code', 'opencode']);
+  });
+
+  it('lists a skill in both the library and an agent, preferring library metadata', async () => {
+    await writeSkill(libraryDir, 'both', '---\nname: Both\nversion: 2.0.0\n---', 'lib body\n');
+    await writeSkill(agentADir, 'both', '---\nname: Agent Copy\n---', 'agent body\n');
+    const all = await getAllKnownSkills({
+      libraryDir,
+      platform: 'darwin',
+      agentSkillsDirs: { 'claude-code': agentADir, opencode: agentBDir },
+    });
+    const entry = all.find((s) => s.id === 'both');
+    expect(entry).toBeDefined();
+    expect(entry!.foundOn.sort()).toEqual(['claude-code', 'library']);
+    // Library metadata wins (name/version from the library copy, not the agent).
+    expect(entry!.name).toBe('Both');
+    expect(entry!.version).toBe('2.0.0');
+    expect(entry!.path).toBe(path.join(libraryDir, 'both'));
+  });
+
+  it('returns an empty list when the library and all agent dirs are empty', async () => {
+    const dirs: Record<string, string> = {};
+    for (const agentId of getSkillCapableAgentIds('darwin')) {
+      const dir = path.join(libraryDir, 'fake-agents', agentId);
+      await fs.mkdir(dir, { recursive: true });
+      dirs[agentId] = dir;
+    }
+    const all = await getAllKnownSkills({
+      libraryDir,
+      platform: 'darwin',
+      agentSkillsDirs: dirs,
+    });
+    expect(all).toEqual([]);
   });
 });
 

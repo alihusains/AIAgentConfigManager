@@ -59,6 +59,24 @@ export interface SkillsSnapshot {
   agents: SkillCapableAgent[];
   /** skillId -> agentIds that currently have that skill installed. */
   assignments: Record<string, string[]>;
+  /**
+   * Aggregated cross-agent view: every skill id known anywhere (shared library
+   * plus every skill-capable agent's own directory), with `foundOn` listing
+   * each location. Lets the GUI browse and copy skills that are installed
+   * directly on an agent without a library copy (see getAllKnownSkills).
+   */
+  allSkills: AggregatedSkill[];
+}
+
+/**
+ * A skill id known anywhere on this machine — in the shared library and/or on
+ * any skill-capable agent. Metadata prefers the library copy when present,
+ * otherwise the first agent copy read. Copies with the same id but different
+ * content are intentionally merged into one entry (no content diffing).
+ */
+export interface AggregatedSkill extends SkillDef {
+  /** Locations the skill currently exists: agent ids, plus 'library'. */
+  foundOn: string[];
 }
 
 export interface CreateSkillInput {
@@ -77,6 +95,12 @@ export interface SkillsDirOptions {
   skillsDir?: string;
   /** Override the source agent skills directory (tests, agent-to-agent copy). */
   sourceSkillsDir?: string;
+  /**
+   * Per-agent skills dir overrides (tests): agentId -> directory. Only used by
+   * getAllKnownSkills/getSkillsSnapshot; when provided, the catalog's real
+   * per-agent directories are NOT read for the overridden agents.
+   */
+  agentSkillsDirs?: Record<string, string>;
 }
 
 /**
@@ -259,7 +283,42 @@ export async function getSkillsSnapshot(opts: SkillsDirOptions = {}): Promise<Sk
     }
   }
 
-  return { libraryDir, skills, agents, assignments };
+  const allSkills = await getAllKnownSkills(opts);
+
+  return { libraryDir, skills, agents, assignments, allSkills };
+}
+
+/**
+ * Discover every skill known on this machine: the shared library plus the real
+ * per-agent skills directories of every skill-capable agent. Merged by skill
+ * id (folder name); each entry's `foundOn` lists every location it exists in
+ * (agent ids, plus 'library'). Metadata prefers the library copy, otherwise the
+ * first agent copy read. Known limitation: same id with different content on
+ * two agents is merged as one entry (no content diffing).
+ */
+export async function getAllKnownSkills(opts: SkillsDirOptions = {}): Promise<AggregatedSkill[]> {
+  const platform = opts.platform ?? getCurrentPlatform();
+  const libraryDir = opts.libraryDir ?? getSkillsLibraryDir();
+
+  const byId = new Map<string, AggregatedSkill>();
+  const add = (def: SkillDef, location: string): void => {
+    const existing = byId.get(def.id);
+    if (existing) {
+      existing.foundOn.push(location);
+    } else {
+      byId.set(def.id, { ...def, foundOn: [location] });
+    }
+  };
+
+  // Library first so its metadata wins when the same id is also on an agent.
+  for (const def of await listSkillsInDir(libraryDir)) add(def, 'library');
+  for (const agentId of getSkillCapableAgentIds(platform)) {
+    const dir = opts.agentSkillsDirs?.[agentId] ?? getAgentSkillsDir(agentId, platform);
+    if (!dir) continue;
+    for (const def of await listSkillsInDir(dir)) add(def, agentId);
+  }
+
+  return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /**
@@ -366,6 +425,10 @@ export async function createSkill(
 ): Promise<SkillDef> {
   const name = (input.name ?? '').trim();
   if (!name) throw new Error('Skill name is required');
+  // Validate the RAW name first: slugification strips path separators, so a
+  // name like "../escape-test" would otherwise survive slug validation while
+  // the raw value reaches path.join (QA finding C2 — path traversal).
+  assertSafeId(name, 'skill name');
   const id = skillSlug(name);
   assertSafeId(id, 'skill name');
   const libraryDir = opts.libraryDir ?? getSkillsLibraryDir();
