@@ -79,7 +79,10 @@ describe('parseShellProfile', () => {
   });
 
   it('strips matching surrounding quotes', () => {
-    const vars = parseShellProfile('/fake/.zshrc', ['export A="quoted value"', "B='single'"].join('\n'));
+    const vars = parseShellProfile(
+      '/fake/.zshrc',
+      ['export A="quoted value"', "B='single'"].join('\n')
+    );
     expect(vars.get('A')).toBe('quoted value');
     expect(vars.get('B')).toBe('single');
   });
@@ -144,7 +147,7 @@ describe('updateProfileContent', () => {
     expect(updated).toBe("export A=1\nexport B='2'\n");
   });
 
-  it("escapes single quotes in the value", () => {
+  it('escapes single quotes in the value', () => {
     const updated = updateProfileContent('', 'Q', "it's");
     expect(updated).toBe("export Q='it'\\''s'\n");
   });

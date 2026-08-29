@@ -97,13 +97,7 @@ function redact(entries: EnvVarEntry[]): EnvVarEntry[] {
  * Shell profile files, in the order they are consulted. Only files that
  * actually exist are read.
  */
-const PROFILE_FILENAMES = [
-  '.zshrc',
-  '.zprofile',
-  '.bash_profile',
-  '.bashrc',
-  '.profile',
-];
+const PROFILE_FILENAMES = ['.zshrc', '.zprofile', '.bash_profile', '.bashrc', '.profile'];
 
 /** Matches `export NAME=value`, `NAME=value`, and quoted/unquoted variants. */
 const PROFILE_LINE_RE = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/;
@@ -226,7 +220,10 @@ export function updateProfileContent(content: string, name: string, value: strin
 }
 
 /** Build new file content with every assignment line for `name` removed. */
-export function removeProfileContent(content: string, name: string): { content: string; removed: boolean } {
+export function removeProfileContent(
+  content: string,
+  name: string
+): { content: string; removed: boolean } {
   const lines = content.split(/\r?\n/);
   const kept: string[] = [];
   let removed = false;
@@ -311,7 +308,8 @@ function parseRegQueryOutput(stdout: string): Map<string, string> {
 }
 
 const HKU_ENV_KEY = 'HKEY_CURRENT_USER\\Environment';
-const HKLM_ENV_KEY = 'HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment';
+const HKLM_ENV_KEY =
+  'HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment';
 
 async function readWindowsRegistryKey(key: string): Promise<Map<string, string> | null> {
   const result = await runWinCommand('reg', ['query', key]);
@@ -416,7 +414,10 @@ export async function listEnvVars(opts: ListEnvVarsOptions = {}): Promise<EnvVar
  * the ONLY path to an unredacted value — call it deliberately. Returns null
  * when the variable is not known to this tool.
  */
-export async function revealEnvVar(name: string, opts: ListEnvVarsOptions = {}): Promise<string | null> {
+export async function revealEnvVar(
+  name: string,
+  opts: ListEnvVarsOptions = {}
+): Promise<string | null> {
   const platform: Platform = opts.platform ?? (process.platform as Platform);
   if (platform === 'win32') {
     const userVars = await readWindowsRegistryKey(HKU_ENV_KEY);
@@ -511,14 +512,20 @@ export async function setEnvVar(
  *
  * Windows: `reg delete` on `HKCU\Environment`. UNVERIFIED on real Windows.
  */
-export async function removeEnvVar(name: string, opts: ListEnvVarsOptions = {}): Promise<MutateEnvVarResult> {
+export async function removeEnvVar(
+  name: string,
+  opts: ListEnvVarsOptions = {}
+): Promise<MutateEnvVarResult> {
   const platform: Platform = opts.platform ?? (process.platform as Platform);
 
   if (platform === 'win32') {
     // UNVERIFIED on real Windows.
     const result = await runWinCommand('reg', ['delete', HKU_ENV_KEY, `/v ${name}`, '/f']);
     if (result.code !== 0) {
-      return { ok: false, warning: `reg delete failed: ${result.stderr.trim() || 'unknown error'}` };
+      return {
+        ok: false,
+        warning: `reg delete failed: ${result.stderr.trim() || 'unknown error'}`,
+      };
     }
     return {
       ok: true,
