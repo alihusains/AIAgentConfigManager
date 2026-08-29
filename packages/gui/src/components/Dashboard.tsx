@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, type ReactNode } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useStore } from '../store';
 import { useAgentCatalog } from '../hooks/useAgentCatalog';
 import { ApiTypeBadges } from './ApiTypeBadges';
@@ -19,14 +19,16 @@ import type { ProviderApiKind } from '@ai-agent-config/core';
  * Dashboard — at-a-glance health of the local AI-agent estate.
  *
  * Design intent:
- *  - A single "stat strip" overview panel gives the headline counts (providers,
- *    MCP servers, installed agents, custom agents) as one surface divided by
- *    hairlines, each cell clickable through to the relevant view. This replaces
- *    the former row of four identical tinted cards (a uniform card grid) with
- *    one intentional overview panel in a single accent hue.
+ *  - A bento-grid of four differentiated stat cards (providers, MCP servers,
+ *    installed agents, custom agents) — each with its own accent tint and a
+ *    subtle per-metric gradient. This is an intentional overview panel, not a
+ *    uniform row of identical tinted cards: the tints are per-metric semantic
+ *    accents, and only cards with a genuine secondary data dimension (installed
+ *    vs. known agents) get a ring; the others stay number-forward.
  *  - A "Protocol coverage" panel answers the new question the catalog now
  *    supports: how many catalog agents speak each wire protocol
- *    (chat / responses / anthropic), rendered as proportional bars.
+ *    (chat / responses / anthropic), rendered as segmented gradient bars with
+ *    an animated fill-in plus one combined distribution bar.
  *  - A compact "Detected agents" strip surfaces installed agents with their
  *    API-kind badges so the newest data dimension is visible immediately.
  *
@@ -37,30 +39,162 @@ import type { ProviderApiKind } from '@ai-agent-config/core';
 const PROTOCOL_ORDER: ProviderApiKind[] = ['chat', 'responses', 'anthropic'];
 
 /* -------------------------------------------------------------------------- */
-/* KPI cell (one stat inside the overview strip)                              */
+/* Count-up + ring helpers (no charting library — plain CSS/SVG)              */
 /* -------------------------------------------------------------------------- */
 
-const KpiCell = memo(function KpiCell({
+function usePrefersReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(
+    () =>
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const onChange = (e: MediaQueryListEvent) => setReduced(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  return reduced;
+}
+
+/**
+ * Entrance count-up: eases 0 → value on mount. Skipped entirely under
+ * prefers-reduced-motion (shows the final value immediately).
+ */
+function useCountUp(target: number, reduced: boolean): number {
+  const [value, setValue] = useState(reduced ? target : 0);
+  const rafRef = useRef(0);
+  useEffect(() => {
+    if (reduced) {
+      setValue(target);
+      return;
+    }
+    const from = 0;
+    const distance = target - from;
+    if (distance === 0) {
+      setValue(0);
+      return;
+    }
+    const start = performance.now();
+    const duration = 700;
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - (1 - t) ** 3;
+      setValue(Math.round(from + distance * eased));
+      if (t < 1) rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [target, reduced]);
+  return value;
+}
+
+/**
+ * Thin SVG ring showing one real ratio (e.g. installed agents / known agents).
+ * A dashoffset transition drives the fill-in; the global reduced-motion
+ * override collapses the transition to instant.
+ */
+const Ring = memo(function Ring({
+  ratio,
+  size = 52,
+  stroke = 6,
+  trackClass = 'bento-ring-track',
+  fillClass = 'bento-ring-fill',
+}: {
+  /** 0..1 — a real, currently-available ratio. */
+  ratio: number;
+  size?: number;
+  stroke?: number;
+  trackClass?: string;
+  fillClass?: string;
+}) {
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const clamped = Math.max(0, Math.min(1, ratio));
+  return (
+    <svg
+      className="bento-ring"
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      aria-hidden="true"
+    >
+      <circle
+        className={trackClass}
+        cx={size / 2}
+        cy={size / 2}
+        r={r}
+        fill="none"
+        strokeWidth={stroke}
+      />
+      <circle
+        className={fillClass}
+        cx={size / 2}
+        cy={size / 2}
+        r={r}
+        fill="none"
+        strokeWidth={stroke}
+        strokeLinecap="round"
+        strokeDasharray={c}
+        strokeDashoffset={c * (1 - clamped)}
+        transform={`rotate(-90 ${size / 2} ${size / 2})`}
+      />
+    </svg>
+  );
+});
+
+/* -------------------------------------------------------------------------- */
+/* Bento stat card (one metric in the overview grid)                          */
+/* -------------------------------------------------------------------------- */
+
+const BentoCard = memo(function BentoCard({
   label,
   icon,
   value,
-  trend,
+  caption,
+  tint,
+  captionClass,
+  ring,
   onClick,
 }: {
   label: string;
   icon: ReactNode;
-  value: ReactNode;
-  trend: string;
+  value: number;
+  caption: string;
+  /** `--bento-tint` token, e.g. `var(--accent-primary)`. */
+  tint: string;
+  captionClass?: string;
+  /** Real ratio (0..1) to render as a ring; omit for a number-forward card. */
+  ring?: { ratio: number; trackClass: string; fillClass: string };
   onClick: () => void;
 }) {
+  const reduced = usePrefersReducedMotion();
+  const displayed = useCountUp(value, reduced);
   return (
-    <button type="button" className="stat-strip-cell" onClick={onClick}>
-      <span className="stat-strip-label">
+    <button
+      type="button"
+      className="bento-card"
+      style={{ '--bento-tint': tint } as React.CSSProperties}
+      onClick={onClick}
+    >
+      <span className="bento-card-label">
         {icon}
         {label}
       </span>
-      <span className="stat-value block mt-2">{value}</span>
-      <span className="stat-strip-trend">{trend}</span>
+      <span className="bento-card-body">
+        <span className="bento-card-value stat-figure">{displayed}</span>
+        <span className="bento-card-caption">
+          {caption}
+          {captionClass ? <span className={captionClass} /> : null}
+        </span>
+      </span>
+      {ring ? (
+        <Ring
+          ratio={ring.ratio}
+          trackClass={ring.trackClass}
+          fillClass={ring.fillClass}
+        />
+      ) : null}
     </button>
   );
 });
@@ -88,7 +222,10 @@ const ProtocolCoverage = memo(function ProtocolCoverage({
           const pct = total > 0 ? Math.round((n / total) * 100) : 0;
           return (
             <div className="protocol-row" key={kind}>
-              <span className="protocol-row-label">{providerApiLabel(kind)}</span>
+              <span className="protocol-row-label">
+                <span className={`protocol-dot is-${kind}`} aria-hidden="true" />
+                {providerApiLabel(kind)}
+              </span>
               <div
                 className="protocol-bar"
                 role="progressbar"
@@ -97,12 +234,36 @@ const ProtocolCoverage = memo(function ProtocolCoverage({
                 aria-valuemax={total}
                 aria-label={`${providerApiLabel(kind)}: ${n} of ${total} agents`}
               >
-                <div className={`protocol-bar-fill is-${kind}`} style={{ width: `${pct}%` }} />
+                <div
+                  className={`protocol-bar-fill is-${kind}`}
+                  style={{ width: `${pct}%` }}
+                />
               </div>
               <span className="protocol-row-count">{n}</span>
             </div>
           );
         })}
+        {/* Combined distribution — one segmented bar of the same real data. */}
+        <div
+          className="protocol-segments"
+          role="img"
+          aria-label={`Protocol distribution: ${PROTOCOL_ORDER.map(
+            (k) => `${providerApiLabel(k)} ${counts[k]}`,
+          ).join(', ')}`}
+        >
+          {PROTOCOL_ORDER.map((kind) => {
+            const n = counts[kind];
+            const pct = total > 0 ? (n / total) * 100 : 0;
+            return (
+              <div
+                key={kind}
+                className={`protocol-segment is-${kind}`}
+                style={{ width: `${pct}%` }}
+                title={`${providerApiLabel(kind)}: ${n}`}
+              />
+            );
+          })}
+        </div>
       </div>
       <p className="text-tertiary text-xs mt-3">
         Share of catalog agents declaring each wire protocol: chat (OpenAI Chat
@@ -252,7 +413,7 @@ export function Dashboard() {
                 local API and cannot be shown without it.
               </p>
               <div className="mt-4">
-                <button className="btn-primary" onClick={() => refreshAll()}>
+                <button type="button" className="btn-primary" onClick={() => refreshAll()}>
                   Try Again
                 </button>
               </div>
@@ -267,7 +428,7 @@ export function Dashboard() {
             <>
               <h3 className="empty-state-title">Cannot reach the config server</h3>
               <p className="empty-state-message text-error">{error}</p>
-              <button className="btn-primary mt-4" onClick={() => refreshAll()}>
+              <button type="button" className="btn-primary mt-4" onClick={() => refreshAll()}>
                 Retry
               </button>
             </>
@@ -285,42 +446,57 @@ export function Dashboard() {
 
   return (
     <div className="p-4 dashboard">
-      {/* KPI overview strip — one surface, four stats, single accent */}
-      <div className="card stat-strip">
-        <KpiCell
+      {/* KPI bento grid — four differentiated stat cards, one accent each */}
+      <div className="bento-grid">
+        <BentoCard
           label="Model Providers"
           icon={<Database size={16} />}
           value={providers.length}
-          trend={
+          caption={
             providers.length > 0
               ? `${providers.filter((p) => p.provider.enabled).length} enabled`
               : 'Add your first provider'
           }
+          tint="var(--accent-primary)"
           onClick={goProviders}
         />
-        <KpiCell
+        <BentoCard
           label="MCP Servers"
           icon={<Server size={16} />}
           value={mcpServers.length}
-          trend={
+          caption={
             mcpServers.length > 0
               ? `${mcpServers.filter((m) => m.server.enabled).length} enabled`
               : 'Add your first MCP server'
           }
+          tint="var(--accent-info)"
           onClick={goMCP}
         />
-        <KpiCell
+        <BentoCard
           label="Agents (installed)"
           icon={<Bot size={16} />}
-          value={`${installedAgents.length}/${agents.length}`}
-          trend={`${agentsWithConfig.length} have a config file`}
+          value={installedAgents.length}
+          caption={`${agentsWithConfig.length} have a config file · ${agents.length} known`}
+          tint="var(--accent-success)"
+          ring={
+            agents.length > 0
+              ? {
+                  ratio: installedAgents.length / agents.length,
+                  trackClass: 'bento-ring-track-success',
+                  fillClass: 'bento-ring-fill-success',
+                }
+              : undefined
+          }
           onClick={goAgents}
         />
-        <KpiCell
+        <BentoCard
           label="Custom Agents"
           icon={<UserPlus size={16} />}
           value={customAgents.length}
-          trend={customAgents.length > 0 ? 'user-defined config paths' : 'Register custom tools'}
+          caption={
+            customAgents.length > 0 ? 'user-defined config paths' : 'Register custom tools'
+          }
+          tint="var(--accent-warning)"
           onClick={goAgents}
         />
       </div>
@@ -367,7 +543,7 @@ export function Dashboard() {
               </div>
             </div>
           </div>
-          <button className="btn-ghost btn-sm self-start" onClick={goAgents}>
+          <button type="button" className="btn-ghost btn-sm self-start" onClick={goAgents}>
             Manage agents
             <ArrowRight size={14} />
           </button>

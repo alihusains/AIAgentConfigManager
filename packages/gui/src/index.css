@@ -2285,6 +2285,26 @@ textarea {
   color: var(--text-primary);
 }
 
+/* Legend dot — ties each row's label to its bar's gradient color. */
+.protocol-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+}
+
+.protocol-dot.is-chat {
+  background: var(--accent-primary);
+}
+
+.protocol-dot.is-responses {
+  background: var(--accent-info);
+}
+
+.protocol-dot.is-anthropic {
+  background: var(--anthropic-accent);
+}
+
 .protocol-row-count {
   font-size: 12.5px;
   font-weight: 600;
@@ -2301,22 +2321,57 @@ textarea {
   position: relative;
 }
 
+/* Gradient fills (accent → text-safe variant of the same family) with the
+   existing width transition driving the animated fill-in. */
 .protocol-bar-fill {
   height: 100%;
   border-radius: 4px;
-  transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .protocol-bar-fill.is-chat {
-  background: var(--accent-primary);
+  background: linear-gradient(
+    90deg,
+    var(--accent-primary),
+    var(--accent-primary-text)
+  );
 }
 
 .protocol-bar-fill.is-responses {
-  background: var(--accent-info);
+  background: linear-gradient(90deg, var(--accent-info), var(--accent-info-text));
 }
 
 .protocol-bar-fill.is-anthropic {
-  background: var(--anthropic-accent);
+  background: linear-gradient(90deg, var(--anthropic-accent), color-mix(in srgb, var(--anthropic-accent) 70%, var(--text-primary)));
+}
+
+/* Combined distribution — one segmented bar of the same three real counts. */
+.protocol-segments {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg-tertiary);
+  overflow: hidden;
+  margin-top: 2px;
+}
+
+.protocol-segment {
+  height: 100%;
+  transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.protocol-segment.is-chat {
+  background: linear-gradient(90deg, var(--accent-primary), var(--accent-primary-text));
+}
+
+.protocol-segment.is-responses {
+  background: linear-gradient(90deg, var(--accent-info), var(--accent-info-text));
+}
+
+.protocol-segment.is-anthropic {
+  background: linear-gradient(90deg, var(--anthropic-accent), color-mix(in srgb, var(--anthropic-accent) 70%, var(--text-primary)));
 }
 
 /* ============================================================================
@@ -2549,46 +2604,56 @@ textarea {
   font-variant-numeric: tabular-nums;
 }
 
-/* --- Stat strip (Dashboard overview) --------------------------------------
-   One surface holding several stats separated by hairline dividers, instead
-   of a row of identical floating cards. Breaks the uniform card grid and
-   reads as a single intentional overview panel. */
-.stat-strip {
+/* --- Bento stat grid (Dashboard overview) -----------------------------------
+   Four differentiated stat cards. Each card sets its own --bento-tint (a
+   per-metric semantic accent token) which drives its subtle gradient, icon
+   tint, and hover border — so no two cards share identical styling. This is
+   an intentional overview panel, not a uniform row of identical tinted cards:
+   the tints are semantic per metric, and only cards with a real secondary
+   dimension (ring) differentiate further. */
+.bento-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  padding: 0;
-  overflow: hidden;
+  gap: 16px;
 }
 
-.stat-strip-cell {
-  display: block;
-  width: 100%;
+.bento-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 20px;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(
+      130% 130% at 100% 0%,
+      color-mix(in srgb, var(--bento-tint) 15%, transparent) 0%,
+      color-mix(in srgb, var(--bento-tint) 4%, transparent) 42%,
+      transparent 72%
+    ),
+    var(--bg-secondary);
   text-align: left;
-  padding: 18px 22px;
-  border: none;
-  border-left: 1px solid var(--border-primary);
-  background: transparent;
   font: inherit;
   color: inherit;
   appearance: none;
   cursor: pointer;
-  transition: background var(--transition-fast);
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-normal);
 }
 
-.stat-strip-cell:first-child {
-  border-left: none;
+.bento-card:hover {
+  border-color: color-mix(in srgb, var(--bento-tint) 45%, var(--border-primary));
+  box-shadow: var(--shadow-sm);
 }
 
-.stat-strip-cell:hover {
-  background: var(--bg-hover);
+.bento-card:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
 }
 
-.stat-strip-cell:focus-visible {
-  outline: 2px solid var(--accent-primary);
-  outline-offset: -2px;
-}
-
-.stat-strip-label {
+.bento-card-label {
   display: flex;
   align-items: center;
   gap: 7px;
@@ -2597,12 +2662,27 @@ textarea {
   color: var(--text-secondary);
 }
 
-.stat-strip-label svg {
-  color: var(--accent-primary);
+.bento-card-label svg {
+  color: color-mix(in srgb, var(--bento-tint) 80%, var(--text-secondary));
   flex-shrink: 0;
 }
 
-.stat-strip-trend {
+.bento-card-body {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 40px;
+}
+
+.bento-card-value {
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1.05;
+  color: var(--text-primary);
+}
+
+.bento-card-caption {
   font-size: 12px;
   color: var(--text-tertiary);
   margin-top: 7px;
@@ -2611,15 +2691,34 @@ textarea {
   text-overflow: ellipsis;
 }
 
+/* Ring — real ratio only (installed/known agents). Track + fill are color-
+   mixed from the semantic token so both themes inherit correct values. */
+.bento-ring {
+  flex-shrink: 0;
+  display: block;
+}
+
+.bento-ring-track {
+  stroke: var(--bg-tertiary);
+}
+
+.bento-ring-track-success {
+  stroke: var(--bg-tertiary);
+}
+
+.bento-ring-fill {
+  stroke: var(--accent-primary);
+  transition: stroke-dashoffset 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.bento-ring-fill-success {
+  stroke: var(--accent-success);
+  transition: stroke-dashoffset 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 @media (max-width: 900px) {
-  .stat-strip {
+  .bento-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .stat-strip-cell:nth-child(3) {
-    border-left: none;
-  }
-  .stat-strip-cell:nth-child(n + 3) {
-    border-top: 1px solid var(--border-primary);
   }
 }
 
