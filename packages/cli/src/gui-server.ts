@@ -979,8 +979,10 @@ export async function startGuiServer(
     }
   });
 
-  // ---- Bind: the dashboard owns port 4321, period ----
-  const preferred = options.port && options.port > 0 ? options.port : DEFAULT_GUI_PORT;
+  // ---- Bind: the dashboard owns port 4321 by default. Pass `port: 0` to get
+  // an ephemeral loopback port (used by tests so a leaked/leftover server can
+  // never collide with a later run). ----
+  const preferred = options.port ?? DEFAULT_GUI_PORT;
   try {
     await new Promise<void>((resolve, reject) => {
       const onError = (err: Error) => {

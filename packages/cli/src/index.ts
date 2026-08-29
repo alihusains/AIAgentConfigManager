@@ -9,45 +9,37 @@ import chalk from 'chalk';
 import ora from 'ora';
 import inquirer from 'inquirer';
 import { table } from 'table';
-import { AgentConfigManager, ModelProvider, ModelConfig, MCPServerConfig, PermissionConfig } from '@ai-agent-config/core';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import {
+  AgentConfigManager,
+  type ModelProvider,
+  type ModelConfig,
+  type MCPServerConfig,
+  type PermissionConfig,
+  getAgentCatalog,
+  detectCatalogEntry,
+  catalogEntryToDetected,
+} from '@ai-agent-config/core';
+import { DEFAULT_GUI_PORT } from './gui-server.js';
 
 const manager = new AgentConfigManager();
 
 program
-  .name('ai-config')
-  .description('AI Agent Configuration Manager - Manage models, providers, MCP servers, and permissions across AI coding agents')
+  .name('acm')
+  .description(
+    'AI Agent Configuration Manager - Manage models, providers, MCP servers, and permissions across AI coding agents'
+  )
   .version('0.1.0');
 
 // ============================================================================
 // Helper Functions
 // ============================================================================
 
-async function selectAgent(message: string = 'Select an agent:'): Promise<string | null> {
-  const agents = manager.getAvailableAgents();
-  if (agents.length === 0) {
-    console.log(chalk.red('No agents available'));
-    return null;
-  }
-
-  const { agentId } = await inquirer.prompt([{
-    type: 'list',
-    name: 'agentId',
-    message,
-    choices: agents.map(a => ({
-      name: `${a.name} (${a.id})`,
-      value: a.id,
-    })),
-  }]);
-
-  return agentId;
-}
-
-/**
- * Multi-select for choosing target agents (used by "provider add").
- * Installed agents are listed first; uninstalled ones are still selectable
- * but clearly marked.
- */
-async function selectTargetAgents(message: string = 'Select target agent(s):'): Promise<string[]> {
+async function selectTargetAgents(message = 'Select target agent(s):'): Promise<string[]> {
   const detected = await manager.detectAgents();
   if (detected.length === 0) {
     console.log(chalk.red('No agents available'));
@@ -59,37 +51,41 @@ async function selectTargetAgents(message: string = 'Select target agent(s):'): 
     return a.name.localeCompare(b.name);
   });
 
-  const { agentIds } = await inquirer.prompt([{
-    type: 'checkbox',
-    name: 'agentIds',
-    message,
-    choices: sorted.map(a => ({
-      name: a.detection.installed
-        ? `${a.name} (${a.id})`
-        : `${a.name} (${a.id}) — not installed`,
-      value: a.id,
-      checked: a.detection.installed,
-    })),
-  }]);
+  const { agentIds } = await inquirer.prompt([
+    {
+      type: 'checkbox',
+      name: 'agentIds',
+      message,
+      choices: sorted.map((a) => ({
+        name: a.detection.installed ? `${a.name} (${a.id})` : `${a.name} (${a.id}) — not installed`,
+        value: a.id,
+        checked: a.detection.installed,
+      })),
+    },
+  ]);
 
   return agentIds as string[];
 }
 
 async function confirmAction(message: string): Promise<boolean> {
-  const { confirmed } = await inquirer.prompt([{
-    type: 'confirm',
-    name: 'confirmed',
-    message,
-    default: false,
-  }]);
+  const { confirmed } = await inquirer.prompt([
+    {
+      type: 'confirm',
+      name: 'confirmed',
+      message,
+      default: false,
+    },
+  ]);
   return confirmed;
 }
 
 function printTable(headers: string[], rows: string[][]): void {
-  console.log(table([headers, ...rows], {
-    header: { content: headers.join(' | ') },
-    columns: headers.map(() => ({ alignment: 'left' as const })),
-  }));
+  console.log(
+    table([headers, ...rows], {
+      header: { content: headers.join(' | ') },
+      columns: headers.map(() => ({ alignment: 'left' as const })),
+    })
+  );
 }
 
 function printSuccess(message: string): void {
@@ -125,19 +121,18 @@ program
       return;
     }
 
-    const rows = agents.map(a => [
+    const rows = agents.map((a) => [
       a.id,
       a.name,
-      a.detection.installed
-        ? chalk.green('✓ installed')
-        : chalk.gray('not found'),
+      a.detection.installed ? chalk.green('✓ installed') : chalk.gray('not found'),
       a.detection.version || '',
       a.configFormat,
       a.supports.modelProviders ? '✓' : '✗',
       a.supports.mcpServers ? '✓' : '✗',
+      a.detection.mcpPath || '—',
     ]);
 
-    printTable(['ID', 'Name', 'Status', 'Version', 'Format', 'Models', 'MCP'], rows);
+    printTable(['ID', 'Name', 'Status', 'Version', 'Format', 'Models', 'MCP', 'MCP Path'], rows);
   });
 
 program
@@ -149,19 +144,84 @@ program
     const agents = await manager.detectAgents();
     spinner.stop();
 
-    console.log(chalk.bold(`\nInstalled agent CLIs on this machine`));
+    console.log(chalk.bold('\nInstalled agent CLIs on this machine'));
     console.log(chalk.gray('─'.repeat(50)));
 
     for (const a of agents) {
       const status = a.detection.installed ? chalk.green('INSTALLED') : chalk.gray('not found');
       console.log(`\n${status}  ${chalk.bold(a.name)} (${a.id})`);
       if (a.detection.binaryPath) {
-        console.log(`  binary:   ${a.detection.binaryPath}`);
+        const via = a.detection.detectedBy ? ` [via ${a.detection.detectedBy}]` : '';
+        console.log(`  binary:   ${a.detection.binaryPath}${chalk.gray(via)}`);
       }
       if (a.detection.version) {
         console.log(`  version:  ${a.detection.version}`);
       }
-      console.log(`  config:   ${a.detection.configExists ? chalk.green(manager.getConfigPath(a.id) || '') : chalk.gray('(no config file yet)')}`);
+      console.log(
+        `  config:   ${a.detection.configExists ? chalk.green(manager.getConfigPath(a.id) || '') : chalk.gray('(no config file yet)')}`
+      );
+      // MCP config surface
+      if (a.detection.mcpPath) {
+        const count =
+          a.detection.mcpServerCount !== undefined
+            ? ` (${a.detection.mcpServerCount} server${a.detection.mcpServerCount === 1 ? '' : 's'})`
+            : '';
+        console.log(
+          `  mcp:      ${a.detection.mcpConfigExists ? chalk.green(`${a.detection.mcpPath}${count}`) : chalk.gray(`${a.detection.mcpPath} (not created yet)`)}`
+        );
+      }
+      // Model/provider config surface
+      if (a.detection.modelConfigPath) {
+        console.log(
+          `  model:    ${a.detection.modelConfigExists ? chalk.green(a.detection.modelConfigPath) : chalk.gray(`${a.detection.modelConfigPath} (not created yet)`)}`
+        );
+      }
+      // Separate credential store (e.g. reasonix's .env)
+      if (a.detection.modelCredentialPath) {
+        console.log(
+          `  keys:     ${a.detection.modelCredentialExists ? chalk.green(a.detection.modelCredentialPath) : chalk.gray(`${a.detection.modelCredentialPath} (not created yet)`)}`
+        );
+      }
+    }
+
+    // Catalog-only agents (no core adapter) are probed separately so
+    // installed CLIs like reasonix / little-coder show up here too.
+    const adapterIds = new Set(agents.map((a) => a.id));
+    const catalog = getAgentCatalog().filter((e) => !adapterIds.has(e.id));
+    if (catalog.length > 0) {
+      console.log(chalk.bold('\nCatalog agents (binary-only detection)'));
+      console.log(chalk.gray('─'.repeat(50)));
+      for (const entry of catalog) {
+        const probe = await detectCatalogEntry(entry);
+        const _detected = catalogEntryToDetected(entry, probe);
+        const status = probe.installed ? chalk.green('INSTALLED') : chalk.gray('not found');
+        console.log(`\n${status}  ${chalk.bold(entry.name)} (${entry.id})`);
+        if (probe.binaryPath) {
+          const via = probe.detectedBy ? ` [via ${probe.detectedBy}]` : '';
+          console.log(`  binary:   ${probe.binaryPath}${chalk.gray(via)}`);
+        }
+        if (probe.version) {
+          console.log(`  version:  ${probe.version}`);
+        }
+        const cfg = probe.settingsPaths.find((p) => probe.settingsExist && p);
+        console.log(
+          `  config:   ${probe.settingsExist ? chalk.green(cfg || '') : chalk.gray('(no config file yet)')}`
+        );
+        if (probe.mcpPath) {
+          const count =
+            probe.mcpServerCount !== undefined
+              ? ` (${probe.mcpServerCount} server${probe.mcpServerCount === 1 ? '' : 's'})`
+              : '';
+          console.log(
+            `  mcp:      ${probe.mcpConfigExists ? chalk.green(`${probe.mcpPath}${count}`) : chalk.gray(`${probe.mcpPath} (not created yet)`)}`
+          );
+        }
+        if (probe.modelCredentialPath) {
+          console.log(
+            `  keys:     ${probe.modelCredentialExists ? chalk.green(probe.modelCredentialPath) : chalk.gray(`${probe.modelCredentialPath} (not created yet)`)}`
+          );
+        }
+      }
     }
   });
 
@@ -180,7 +240,7 @@ program
     }
 
     const config = result.data!;
-    
+
     if (options.format === 'json') {
       console.log(JSON.stringify(config, null, 2));
       return;
@@ -188,12 +248,12 @@ program
 
     console.log(chalk.bold(`\nConfiguration for ${agentId}`));
     console.log(chalk.gray('─'.repeat(50)));
-    
+
     console.log(`\n${chalk.bold('Model Providers:')}`);
     if (config.modelProviders.length === 0) {
       console.log('  (none)');
     } else {
-      const rows = config.modelProviders.map(p => [
+      const rows = config.modelProviders.map((p) => [
         p.id,
         p.name,
         p.type,
@@ -207,12 +267,7 @@ program
     if (config.models.length === 0) {
       console.log('  (none)');
     } else {
-      const rows = config.models.map(m => [
-        m.id,
-        m.providerId,
-        m.name,
-        m.roles.join(', '),
-      ]);
+      const rows = config.models.map((m) => [m.id, m.providerId, m.name, m.roles.join(', ')]);
       printTable(['ID', 'Provider', 'Name', 'Roles'], rows);
     }
 
@@ -220,7 +275,7 @@ program
     if (config.mcpServers.length === 0) {
       console.log('  (none)');
     } else {
-      const rows = config.mcpServers.map(s => [
+      const rows = config.mcpServers.map((s) => [
         s.name,
         s.type,
         s.command || s.url || '',
@@ -233,7 +288,7 @@ program
     if (config.permissions.length === 0) {
       console.log('  (none)');
     } else {
-      const rows = config.permissions.map(p => [
+      const rows = config.permissions.map((p) => [
         p.id,
         p.type,
         p.scope,
@@ -287,63 +342,115 @@ providerCmd
     }
 
     // Interactive prompts for missing options
-    const providerId = options.id || (await inquirer.prompt([{
-      type: 'input',
-      name: 'id',
-      message: 'Provider ID:',
-      validate: v => v.length > 0 || 'Required',
-    }])).id;
+    const providerId =
+      options.id ||
+      (
+        await inquirer.prompt([
+          {
+            type: 'input',
+            name: 'id',
+            message: 'Provider ID:',
+            validate: (v) => v.length > 0 || 'Required',
+          },
+        ])
+      ).id;
 
-    const name = options.name || (await inquirer.prompt([{
-      type: 'input',
-      name: 'name',
-      message: 'Provider name:',
-      validate: v => v.length > 0 || 'Required',
-    }])).name;
+    const name =
+      options.name ||
+      (
+        await inquirer.prompt([
+          {
+            type: 'input',
+            name: 'name',
+            message: 'Provider name:',
+            validate: (v) => v.length > 0 || 'Required',
+          },
+        ])
+      ).name;
 
-    const type = options.type || (await inquirer.prompt([{
-      type: 'list',
-      name: 'type',
-      message: 'Provider type:',
-      choices: ['anthropic', 'bedrock', 'vertex', 'openai-compatible'],
-    }])).type;
+    const type =
+      options.type ||
+      (
+        await inquirer.prompt([
+          {
+            type: 'list',
+            name: 'type',
+            message: 'Provider type:',
+            choices: ['anthropic', 'bedrock', 'vertex', 'openai-compatible'],
+          },
+        ])
+      ).type;
 
     const config: Record<string, unknown> = {};
-    
+
     if (type === 'anthropic' || type === 'openai-compatible') {
-      config.apiKey = options.apiKey || (await inquirer.prompt([{
-        type: 'password',
-        name: 'apiKey',
-        message: 'API Key:',
-        mask: '*',
-      }])).apiKey;
-      config.baseUrl = options.baseUrl || (await inquirer.prompt([{
-        type: 'input',
-        name: 'baseUrl',
-        message: 'Base URL (optional):',
-      }])).baseUrl;
+      config.apiKey =
+        options.apiKey ||
+        (
+          await inquirer.prompt([
+            {
+              type: 'password',
+              name: 'apiKey',
+              message: 'API Key:',
+              mask: '*',
+            },
+          ])
+        ).apiKey;
+      config.baseUrl =
+        options.baseUrl ||
+        (
+          await inquirer.prompt([
+            {
+              type: 'input',
+              name: 'baseUrl',
+              message: 'Base URL (optional):',
+            },
+          ])
+        ).baseUrl;
     } else if (type === 'bedrock') {
-      config.region = options.region || (await inquirer.prompt([{
-        type: 'input',
-        name: 'region',
-        message: 'AWS Region:',
-      }])).region;
-      config.profile = (await inquirer.prompt([{
-        type: 'input',
-        name: 'profile',
-        message: 'AWS Profile (optional):',
-      }])).profile;
+      config.region =
+        options.region ||
+        (
+          await inquirer.prompt([
+            {
+              type: 'input',
+              name: 'region',
+              message: 'AWS Region:',
+            },
+          ])
+        ).region;
+      config.profile = (
+        await inquirer.prompt([
+          {
+            type: 'input',
+            name: 'profile',
+            message: 'AWS Profile (optional):',
+          },
+        ])
+      ).profile;
     } else if (type === 'vertex') {
-      config.project = options.project || (await inquirer.prompt([{
-        type: 'input',
-        name: 'project',
-        message: 'Google Cloud Project:',
-      }])).project;
-      config.region = options.region || (await inquirer.prompt([{
-        type: 'input',
-        name: 'region',
-        message: 'Region (optional):',
-      }])).region;
+      config.project =
+        options.project ||
+        (
+          await inquirer.prompt([
+            {
+              type: 'input',
+              name: 'project',
+              message: 'Google Cloud Project:',
+            },
+          ])
+        ).project;
+      config.region =
+        options.region ||
+        (
+          await inquirer.prompt([
+            {
+              type: 'input',
+              name: 'region',
+              message: 'Region (optional):',
+            },
+          ])
+        ).region;
     }
 
     const provider: ModelProvider = {
@@ -358,7 +465,10 @@ providerCmd
     // Optional: register model configurations with the provider
     const models: ModelConfig[] = [];
     if (options.models) {
-      const modelIds = String(options.models).split(',').map(m => m.trim()).filter(Boolean);
+      const modelIds = String(options.models)
+        .split(',')
+        .map((m) => m.trim())
+        .filter(Boolean);
       for (const modelId of modelIds) {
         models.push({
           id: modelId,
@@ -371,19 +481,21 @@ providerCmd
       }
     }
 
-    const spinner = ora(`Installing provider "${name}" into ${targetAgents.length} agent(s)...`).start();
+    const spinner = ora(
+      `Installing provider "${name}" into ${targetAgents.length} agent(s)...`
+    ).start();
     const result = await manager.installProvider(provider, models, targetAgents);
     spinner.stop();
 
     if (result.success) {
       printSuccess(`Provider "${name}" installed into: ${targetAgents.join(', ')}`);
       if (models.length > 0) {
-        printSuccess(`Models added: ${models.map(m => m.name).join(', ')}`);
+        printSuccess(`Models added: ${models.map((m) => m.name).join(', ')}`);
       }
     } else {
       printError(result.error || 'Failed to add provider');
       if (result.warnings) {
-        result.warnings.forEach(w => printWarning(w));
+        for (const w of result.warnings) printWarning(w);
       }
     }
   });
@@ -392,7 +504,7 @@ providerCmd
   .command('remove <agentId> <providerId>')
   .description('Remove a model provider')
   .action(async (agentId, providerId) => {
-    if (!await confirmAction(`Remove provider "${providerId}"?`)) return;
+    if (!(await confirmAction(`Remove provider "${providerId}"?`))) return;
 
     const spinner = ora('Removing provider...').start();
     const result = await manager.removeModelProvider(agentId, providerId);
@@ -421,7 +533,7 @@ providerCmd
       return;
     }
 
-    const rows = config.modelProviders.map(p => [
+    const rows = config.modelProviders.map((p) => [
       p.id,
       p.name,
       p.type,
@@ -453,41 +565,56 @@ modelCmd
       return;
     }
 
-    const { modelId } = await inquirer.prompt([{
-      type: 'input',
-      name: 'modelId',
-      message: 'Model ID:',
-      validate: v => v.length > 0 || 'Required',
-    }]);
+    const { modelId } = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'modelId',
+        message: 'Model ID:',
+        validate: (v) => v.length > 0 || 'Required',
+      },
+    ]);
 
-    const { providerId } = await inquirer.prompt([{
-      type: 'list',
-      name: 'providerId',
-      message: 'Provider:',
-      choices: config.modelProviders.map(p => ({ name: p.name, value: p.id })),
-    }]);
+    const { providerId } = await inquirer.prompt([
+      {
+        type: 'list',
+        name: 'providerId',
+        message: 'Provider:',
+        choices: config.modelProviders.map((p) => ({
+          name: p.name,
+          value: p.id,
+        })),
+      },
+    ]);
 
-    const { name } = await inquirer.prompt([{
-      type: 'input',
-      name: 'name',
-      message: 'Model name (e.g., gpt-4, claude-3-opus):',
-      validate: v => v.length > 0 || 'Required',
-    }]);
+    const { name } = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'name',
+        message: 'Model name (e.g., gpt-4, claude-3-opus):',
+        validate: (v) => v.length > 0 || 'Required',
+      },
+    ]);
 
-    const { displayName } = await inquirer.prompt([{
-      type: 'input',
-      name: 'displayName',
-      message: 'Display name:',
-      default: name,
-    }]);
+    const { displayName } = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'displayName',
+        message: 'Display name:',
+        default: name,
+      },
+    ]);
 
-    const { roles } = await inquirer.prompt([{
-      type: 'checkbox',
-      name: 'roles',
-      message: 'Roles:',
-      choices: ['chat', 'edit', 'apply', 'summarize', 'autocomplete', 'embed', 'rerank'].map(r => ({ name: r, value: r })),
-      default: ['chat', 'edit', 'apply', 'summarize'],
-    }]);
+    const { roles } = await inquirer.prompt([
+      {
+        type: 'checkbox',
+        name: 'roles',
+        message: 'Roles:',
+        choices: ['chat', 'edit', 'apply', 'summarize', 'autocomplete', 'embed', 'rerank'].map(
+          (r) => ({ name: r, value: r })
+        ),
+        default: ['chat', 'edit', 'apply', 'summarize'],
+      },
+    ]);
 
     const model: ModelConfig = {
       id: modelId,
@@ -513,7 +640,7 @@ modelCmd
   .command('remove <agentId> <modelId>')
   .description('Remove a model')
   .action(async (agentId, modelId) => {
-    if (!await confirmAction(`Remove model "${modelId}"?`)) return;
+    if (!(await confirmAction(`Remove model "${modelId}"?`))) return;
 
     const spinner = ora('Removing model...').start();
     const result = await manager.removeModel(agentId, modelId);
@@ -542,7 +669,7 @@ modelCmd
       return;
     }
 
-    const rows = config.models.map(m => [
+    const rows = config.models.map((m) => [
       m.id,
       m.providerId,
       m.name,
@@ -573,19 +700,23 @@ mcpCmd
       return;
     }
 
-    const { name } = await inquirer.prompt([{
-      type: 'input',
-      name: 'name',
-      message: 'Server name:',
-      validate: v => v.length > 0 || 'Required',
-    }]);
+    const { name } = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'name',
+        message: 'Server name:',
+        validate: (v) => v.length > 0 || 'Required',
+      },
+    ]);
 
-    const { type } = await inquirer.prompt([{
-      type: 'list',
-      name: 'type',
-      message: 'Server type:',
-      choices: ['stdio', 'http', 'streamable-http'],
-    }]);
+    const { type } = await inquirer.prompt([
+      {
+        type: 'list',
+        name: 'type',
+        message: 'Server type:',
+        choices: ['stdio', 'http', 'streamable-http'],
+      },
+    ]);
 
     const server: Partial<MCPServerConfig> = {
       name,
@@ -594,25 +725,31 @@ mcpCmd
     };
 
     if (type === 'stdio') {
-      const { command } = await inquirer.prompt([{
-        type: 'input',
-        name: 'command',
-        message: 'Command:',
-        validate: v => v.length > 0 || 'Required',
-      }]);
-      const { args } = await inquirer.prompt([{
-        type: 'input',
-        name: 'args',
-        message: 'Arguments (space-separated):',
-        default: '',
-      }]);
+      const { command } = await inquirer.prompt([
+        {
+          type: 'input',
+          name: 'command',
+          message: 'Command:',
+          validate: (v) => v.length > 0 || 'Required',
+        },
+      ]);
+      const { args } = await inquirer.prompt([
+        {
+          type: 'input',
+          name: 'args',
+          message: 'Arguments (space-separated):',
+          default: '',
+        },
+      ]);
       server.command = command;
       server.args = args.split(' ').filter(Boolean);
-      const { env } = await inquirer.prompt([{
-        type: 'input',
-        name: 'env',
-        message: 'Environment variables (KEY=VAL,KEY=VAL):',
-      }]);
+      const { env } = await inquirer.prompt([
+        {
+          type: 'input',
+          name: 'env',
+          message: 'Environment variables (KEY=VAL,KEY=VAL):',
+        },
+      ]);
       if (env) {
         server.env = {};
         for (const pair of env.split(',')) {
@@ -621,18 +758,22 @@ mcpCmd
         }
       }
     } else {
-      const { url } = await inquirer.prompt([{
-        type: 'input',
-        name: 'url',
-        message: 'Server URL:',
-        validate: v => v.length > 0 || 'Required',
-      }]);
+      const { url } = await inquirer.prompt([
+        {
+          type: 'input',
+          name: 'url',
+          message: 'Server URL:',
+          validate: (v) => v.length > 0 || 'Required',
+        },
+      ]);
       server.url = url;
-      const { headers } = await inquirer.prompt([{
-        type: 'input',
-        name: 'headers',
-        message: 'Headers (KEY=VAL,KEY=VAL):',
-      }]);
+      const { headers } = await inquirer.prompt([
+        {
+          type: 'input',
+          name: 'headers',
+          message: 'Headers (KEY=VAL,KEY=VAL):',
+        },
+      ]);
       if (headers) {
         server.headers = {};
         for (const pair of headers.split(',')) {
@@ -642,13 +783,15 @@ mcpCmd
       }
     }
 
-    const { approvalMode } = await inquirer.prompt([{
-      type: 'list',
-      name: 'approvalMode',
-      message: 'Approval mode:',
-      choices: ['prompt', 'auto', 'never'],
-      default: 'prompt',
-    }]);
+    const { approvalMode } = await inquirer.prompt([
+      {
+        type: 'list',
+        name: 'approvalMode',
+        message: 'Approval mode:',
+        choices: ['prompt', 'auto', 'never'],
+        default: 'prompt',
+      },
+    ]);
     server.approvalMode = approvalMode as MCPServerConfig['approvalMode'];
 
     const spinner = ora('Adding MCP server...').start();
@@ -666,7 +809,7 @@ mcpCmd
   .command('remove <agentId> <serverName>')
   .description('Remove an MCP server')
   .action(async (agentId, serverName) => {
-    if (!await confirmAction(`Remove MCP server "${serverName}"?`)) return;
+    if (!(await confirmAction(`Remove MCP server "${serverName}"?`))) return;
 
     const spinner = ora('Removing MCP server...').start();
     const result = await manager.removeMCPServer(agentId, serverName);
@@ -695,7 +838,7 @@ mcpCmd
       return;
     }
 
-    const rows = config.mcpServers.map(s => [
+    const rows = config.mcpServers.map((s) => [
       s.name,
       s.type,
       s.command || s.url || '',
@@ -725,53 +868,65 @@ permCmd
       return;
     }
 
-    const { type } = await inquirer.prompt([{
-      type: 'list',
-      name: 'type',
-      message: 'Permission type:',
-      choices: ['tool', 'directory', 'url', 'command', 'mcp', 'custom'],
-    }]);
+    const { type } = await inquirer.prompt([
+      {
+        type: 'list',
+        name: 'type',
+        message: 'Permission type:',
+        choices: ['tool', 'directory', 'url', 'command', 'mcp', 'custom'],
+      },
+    ]);
 
-    const { scope } = await inquirer.prompt([{
-      type: 'list',
-      name: 'scope',
-      message: 'Scope:',
-      choices: ['global', 'project'],
-    }]);
+    const { scope } = await inquirer.prompt([
+      {
+        type: 'list',
+        name: 'scope',
+        message: 'Scope:',
+        choices: ['global', 'project'],
+      },
+    ]);
 
     let projectPath: string | undefined;
     if (scope === 'project') {
-      const { path } = await inquirer.prompt([{
-        type: 'input',
-        name: 'path',
-        message: 'Project path:',
-        validate: v => v.length > 0 || 'Required',
-      }]);
+      const { path } = await inquirer.prompt([
+        {
+          type: 'input',
+          name: 'path',
+          message: 'Project path:',
+          validate: (v) => v.length > 0 || 'Required',
+        },
+      ]);
       projectPath = path;
     }
 
-    const { allowed } = await inquirer.prompt([{
-      type: 'list',
-      name: 'allowed',
-      message: 'Action:',
-      choices: [
-        { name: 'Allow', value: true },
-        { name: 'Deny', value: false },
-      ],
-    }]);
+    const { allowed } = await inquirer.prompt([
+      {
+        type: 'list',
+        name: 'allowed',
+        message: 'Action:',
+        choices: [
+          { name: 'Allow', value: true },
+          { name: 'Deny', value: false },
+        ],
+      },
+    ]);
 
-    const { pattern } = await inquirer.prompt([{
-      type: 'input',
-      name: 'pattern',
-      message: 'Pattern (tool name, path, URL, command):',
-      validate: v => v.length > 0 || 'Required',
-    }]);
+    const { pattern } = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'pattern',
+        message: 'Pattern (tool name, path, URL, command):',
+        validate: (v) => v.length > 0 || 'Required',
+      },
+    ]);
 
-    const { description } = await inquirer.prompt([{
-      type: 'input',
-      name: 'description',
-      message: 'Description (optional):',
-    }]);
+    const { description } = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'description',
+        message: 'Description (optional):',
+      },
+    ]);
 
     const permission: PermissionConfig = {
       id: `perm-${Date.now()}`,
@@ -798,7 +953,7 @@ permCmd
   .command('remove <agentId> <permissionId>')
   .description('Remove a permission')
   .action(async (agentId, permissionId) => {
-    if (!await confirmAction(`Remove permission "${permissionId}"?`)) return;
+    if (!(await confirmAction(`Remove permission "${permissionId}"?`))) return;
 
     const spinner = ora('Removing permission...').start();
     const result = await manager.removePermission(agentId, permissionId);
@@ -827,7 +982,7 @@ permCmd
       return;
     }
 
-    const rows = config.permissions.map(p => [
+    const rows = config.permissions.map((p) => [
       p.id,
       p.type,
       p.scope,
@@ -857,31 +1012,39 @@ program
 
     if (options.provider) {
       // Add provider to all
-      const { providerId } = await inquirer.prompt([{
-        type: 'input',
-        name: 'providerId',
-        message: 'Provider ID:',
-      }]);
-      const { name } = await inquirer.prompt([{
-        type: 'input',
-        name: 'name',
-        message: 'Provider name:',
-      }]);
-      const { type } = await inquirer.prompt([{
-        type: 'list',
-        name: 'type',
-        message: 'Provider type:',
-        choices: ['anthropic', 'bedrock', 'vertex', 'openai-compatible'],
-      }]);
+      const { providerId } = await inquirer.prompt([
+        {
+          type: 'input',
+          name: 'providerId',
+          message: 'Provider ID:',
+        },
+      ]);
+      const { name } = await inquirer.prompt([
+        {
+          type: 'input',
+          name: 'name',
+          message: 'Provider name:',
+        },
+      ]);
+      const { type } = await inquirer.prompt([
+        {
+          type: 'list',
+          name: 'type',
+          message: 'Provider type:',
+          choices: ['anthropic', 'bedrock', 'vertex', 'openai-compatible'],
+        },
+      ]);
 
       const config: Record<string, unknown> = {};
       if (type === 'anthropic' || type === 'openai-compatible') {
-        const { apiKey } = await inquirer.prompt([{
-          type: 'password',
-          name: 'apiKey',
-          message: 'API Key:',
-          mask: '*',
-        }]);
+        const { apiKey } = await inquirer.prompt([
+          {
+            type: 'password',
+            name: 'apiKey',
+            message: 'API Key:',
+            mask: '*',
+          },
+        ]);
         config.apiKey = apiKey;
       }
 
@@ -903,30 +1066,42 @@ program
       } else {
         printError(result.error || 'Failed to apply provider');
         if (result.warnings) {
-          result.warnings.forEach(w => printWarning(w));
+          for (const w of result.warnings) printWarning(w);
         }
       }
     }
 
     if (options.mcp) {
       // Add MCP to all
-      const { name } = await inquirer.prompt([{
-        type: 'input',
-        name: 'name',
-        message: 'Server name:',
-      }]);
-      const { type } = await inquirer.prompt([{
-        type: 'list',
-        name: 'type',
-        message: 'Server type:',
-        choices: ['stdio', 'http', 'streamable-http'],
-      }]);
+      const { name } = await inquirer.prompt([
+        {
+          type: 'input',
+          name: 'name',
+          message: 'Server name:',
+        },
+      ]);
+      const { type } = await inquirer.prompt([
+        {
+          type: 'list',
+          name: 'type',
+          message: 'Server type:',
+          choices: ['stdio', 'http', 'streamable-http'],
+        },
+      ]);
 
-      const server: Partial<MCPServerConfig> = { name, type: type as MCPServerConfig['type'], enabled: true };
-      
+      const server: Partial<MCPServerConfig> = {
+        name,
+        type: type as MCPServerConfig['type'],
+        enabled: true,
+      };
+
       if (type === 'stdio') {
-        const { command } = await inquirer.prompt([{ type: 'input', name: 'command', message: 'Command:' }]);
-        const { args } = await inquirer.prompt([{ type: 'input', name: 'args', message: 'Arguments:' }]);
+        const { command } = await inquirer.prompt([
+          { type: 'input', name: 'command', message: 'Command:' },
+        ]);
+        const { args } = await inquirer.prompt([
+          { type: 'input', name: 'args', message: 'Arguments:' },
+        ]);
         server.command = command;
         server.args = args.split(' ').filter(Boolean);
       } else {
@@ -943,30 +1118,39 @@ program
       } else {
         printError(result.error || 'Failed to apply MCP server');
         if (result.warnings) {
-          result.warnings.forEach(w => printWarning(w));
+          for (const w of result.warnings) printWarning(w);
         }
       }
     }
 
     if (options.permission) {
       // Add permission to all
-      const { type } = await inquirer.prompt([{
-        type: 'list',
-        name: 'type',
-        message: 'Permission type:',
-        choices: ['tool', 'directory', 'url', 'command', 'mcp', 'custom'],
-      }]);
-      const { allowed } = await inquirer.prompt([{
-        type: 'list',
-        name: 'allowed',
-        message: 'Action:',
-        choices: [{ name: 'Allow', value: true }, { name: 'Deny', value: false }],
-      }]);
-      const { pattern } = await inquirer.prompt([{
-        type: 'input',
-        name: 'pattern',
-        message: 'Pattern:',
-      }]);
+      const { type } = await inquirer.prompt([
+        {
+          type: 'list',
+          name: 'type',
+          message: 'Permission type:',
+          choices: ['tool', 'directory', 'url', 'command', 'mcp', 'custom'],
+        },
+      ]);
+      const { allowed } = await inquirer.prompt([
+        {
+          type: 'list',
+          name: 'allowed',
+          message: 'Action:',
+          choices: [
+            { name: 'Allow', value: true },
+            { name: 'Deny', value: false },
+          ],
+        },
+      ]);
+      const { pattern } = await inquirer.prompt([
+        {
+          type: 'input',
+          name: 'pattern',
+          message: 'Pattern:',
+        },
+      ]);
 
       const permission: PermissionConfig = {
         id: `perm-${Date.now()}`,
@@ -985,7 +1169,7 @@ program
       } else {
         printError(result.error || 'Failed to apply permission');
         if (result.warnings) {
-          result.warnings.forEach(w => printWarning(w));
+          for (const w of result.warnings) printWarning(w);
         }
       }
     }
@@ -1014,7 +1198,7 @@ program
   .command('restore <agentId> <backupPath>')
   .description('Restore agent configuration from backup')
   .action(async (agentId, backupPath) => {
-    if (!await confirmAction(`Restore config from "${backupPath}"?`)) return;
+    if (!(await confirmAction(`Restore config from "${backupPath}"?`))) return;
 
     const spinner = ora('Restoring config...').start();
     const result = await manager.restoreConfig(agentId, backupPath);
@@ -1045,16 +1229,80 @@ program
   });
 
 // ============================================================================
-// GUI Dashboard
+// Dashboard lifecycle: acm start | acm stop | acm health
 // ============================================================================
+
+/** Where the dashboard records its process id while it is running. */
+function pidFilePath(): string {
+  const home =
+    process.env.AI_CONFIG_HOME ||
+    (process.platform === 'win32'
+      ? path.join(process.env.APPDATA || '', 'ai-agent-config')
+      : path.join(os.homedir(), '.ai-agent-config'));
+  return path.join(home, 'acm-gui.pid');
+}
+
+function readPid(): number | null {
+  try {
+    const raw = fs.readFileSync(pidFilePath(), 'utf8').trim();
+    const pid = Number(raw);
+    return Number.isInteger(pid) && pid > 0 ? pid : null;
+  } catch {
+    return null;
+  }
+}
+
+function isAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function healthCheck(
+  timeoutMs = 2000
+): Promise<{ ok: boolean; pid?: number; uptimeSec?: number }> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`http://127.0.0.1:${DEFAULT_GUI_PORT}/api/health`, {
+      signal: controller.signal,
+    });
+    if (!res.ok) return { ok: false };
+    const json = (await res.json()) as {
+      ok?: boolean;
+      data?: { pid?: number; uptimeSec?: number };
+    };
+    return {
+      ok: Boolean(json.ok),
+      pid: json.data?.pid,
+      uptimeSec: json.data?.uptimeSec,
+    };
+  } catch {
+    return { ok: false };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+const formatUptime = (sec?: number) => {
+  if (!sec && sec !== 0) return '';
+  const m = Math.floor(sec / 60);
+  const h = Math.floor(m / 60);
+  return h > 0 ? `${h}h ${m % 60}m` : m > 0 ? `${m}m ${sec % 60}s` : `${sec}s`;
+};
 
 program
   .command('gui')
   .alias('dashboard')
-  .description('Open the configuration dashboard in your browser (local server)')
-  .option('-p, --port <port>', 'Preferred port (random conflict-free port used by default)')
+  .description('Run the configuration dashboard in the foreground (see also: acm start)')
+  .option('-p, --port <port>', `Port to bind (default: ${DEFAULT_GUI_PORT})`)
   .option('--no-open', 'Do not open the browser automatically')
   .option('--dist <dir>', 'Path to the built GUI (dist) directory')
+  .option('--pid-file <path>', 'Override where the dashboard records its pid')
+  .option('--daemon', 'Internal: launched by `acm start`; output goes to the log file', false)
   .action(async (options) => {
     const { startGuiServer } = await import('./gui-server.js');
     const port = options.port ? Number(options.port) : undefined;
@@ -1070,9 +1318,18 @@ program
         distDir: options.dist,
         openBrowser: options.open,
       });
+      // Record our pid so `acm stop` can find us regardless of how we were launched.
+      try {
+        fs.mkdirSync(path.dirname(options.pidFile || pidFilePath()), {
+          recursive: true,
+        });
+        fs.writeFileSync(options.pidFile || pidFilePath(), String(process.pid));
+      } catch {
+        /* non-fatal */
+      }
       console.log();
       printSuccess(`Dashboard running at ${chalk.underline(handle.url)}`);
-      printInfo(`Registry: ${chalk.cyan(handle.url.split('/?t=')[0] + ' (see Settings)')}`);
+      printInfo(`Registry: ${chalk.cyan(`http://127.0.0.1:${handle.port} (see Settings)`)}`);
       printInfo('Press Ctrl+C to stop the server.');
       console.log();
 
@@ -1081,14 +1338,149 @@ program
         if (closing) return;
         closing = true;
         await handle.close();
+        try {
+          fs.rmSync(options.pidFile || pidFilePath());
+        } catch {
+          /* ignore */
+        }
         process.exit(0);
       };
       process.on('SIGINT', shutdown);
       process.on('SIGTERM', shutdown);
+      process.on('exit', () => {
+        try {
+          fs.rmSync(options.pidFile || pidFilePath());
+        } catch {
+          /* ignore */
+        }
+      });
     } catch (error) {
       printError(error instanceof Error ? error.message : String(error));
       process.exit(1);
     }
+  });
+
+program
+  .command('start')
+  .description('Start the configuration dashboard in the background on http://127.0.0.1:4321')
+  .option('-p, --port <port>', `Port to bind (default: ${DEFAULT_GUI_PORT})`)
+  .option('--dist <dir>', 'Path to the built GUI (dist) directory')
+  .option('-f, --foreground', 'Run attached to this terminal instead of the background')
+  .action(async (options) => {
+    // Already up?
+    const health = await healthCheck();
+    if (health.ok) {
+      printSuccess(
+        `Dashboard already running at ${chalk.underline(`http://127.0.0.1:${DEFAULT_GUI_PORT}`)} (pid ${health.pid})`
+      );
+      return;
+    }
+    const stalePid = readPid();
+    if (stalePid && !isAlive(stalePid)) {
+      try {
+        fs.rmSync(pidFilePath());
+      } catch {
+        /* ignore */
+      }
+    }
+
+    const passthrough = [
+      ...(options.port ? ['--port', String(options.port)] : []),
+      ...(options.dist ? ['--dist', options.dist] : []),
+      '--no-open',
+    ];
+    const selfEntry = fileURLToPath(import.meta.url);
+
+    if (options.foreground) {
+      // Run `acm gui` attached to this terminal, without the browser pop-up.
+      const child = spawn(process.execPath, [selfEntry, 'gui', ...passthrough], {
+        stdio: 'inherit',
+      });
+      child.on('exit', (code) => process.exit(code ?? 1));
+      return;
+    }
+
+    // Detach: relaunch ourselves as `acm gui --daemon`, logs to a file.
+    const logPath = path.join(path.dirname(pidFilePath()), 'acm-gui.log');
+    const logFd = fs.openSync(logPath, 'a');
+    const child = spawn(process.execPath, [selfEntry, 'gui', '--daemon', ...passthrough], {
+      detached: true,
+      stdio: ['ignore', logFd, logFd],
+    });
+    child.unref();
+    fs.closeSync(logFd);
+
+    // Wait for the health probe so we only report success when it is real.
+    for (let i = 0; i < 40; i++) {
+      await new Promise((r) => setTimeout(r, 250));
+      if ((await healthCheck(1000)).ok) {
+        printSuccess(
+          `Dashboard started at ${chalk.underline(`http://127.0.0.1:${DEFAULT_GUI_PORT}`)}`
+        );
+        printInfo(`Logs: ${chalk.cyan(logPath)} · stop it with ${chalk.cyan('acm stop')}`);
+        return;
+      }
+      if (child.exitCode !== null || child.signalCode !== null) break;
+    }
+    printError(`Dashboard did not become healthy — check ${logPath}`);
+    process.exit(1);
+  });
+
+program
+  .command('stop')
+  .description('Stop a backgrounded configuration dashboard')
+  .action(async () => {
+    const health = await healthCheck(1500);
+    if (!health.ok) {
+      const pid = readPid();
+      if (pid && isAlive(pid)) {
+        process.kill(pid, 'SIGTERM');
+        printInfo(`Sent SIGTERM to pid ${pid} (it had not opened its health endpoint yet).`);
+      } else {
+        printInfo('Dashboard is not running.');
+      }
+      try {
+        fs.rmSync(pidFilePath());
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
+
+    const pid = health.pid ?? readPid();
+    if (!pid || !isAlive(pid)) {
+      printInfo('Dashboard is not running.');
+      return;
+    }
+    process.kill(pid, 'SIGTERM');
+    for (let i = 0; i < 20; i++) {
+      await new Promise((r) => setTimeout(r, 250));
+      if (!(await healthCheck(800)).ok) {
+        printSuccess(`Dashboard stopped (pid ${pid}).`);
+        return;
+      }
+    }
+    printWarning(`Dashboard pid ${pid} did not stop within 5s — kill it manually.`);
+    process.exit(1);
+  });
+
+program
+  .command('health')
+  .description(`Check whether the configuration dashboard is up on port ${DEFAULT_GUI_PORT}`)
+  .action(async () => {
+    const health = await healthCheck();
+    if (health.ok) {
+      const uptime = formatUptime(health.uptimeSec);
+      printSuccess(
+        `Healthy — http://127.0.0.1:${DEFAULT_GUI_PORT} (pid ${health.pid}${uptime ? `, up ${uptime}` : ''})`
+      );
+      return;
+    }
+    printError(
+      `Not running — nothing answered on http://127.0.0.1:${DEFAULT_GUI_PORT}/api/health.`
+    );
+    printInfo(`Start it with ${chalk.cyan('acm start')}.`);
+    process.exit(1);
   });
 
 // ============================================================================

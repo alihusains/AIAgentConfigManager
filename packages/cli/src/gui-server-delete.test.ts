@@ -18,8 +18,6 @@ import { AgentConfigManager } from '@ai-agent-config/core';
 import type { ModelConfig, ModelProvider } from '@ai-agent-config/core';
 import { startGuiServer, type GUIServerHandle } from './gui-server';
 
-const PORT = 42117;
-
 let tmpHome: string;
 let manager: AgentConfigManager;
 let handle: GUIServerHandle;
@@ -48,7 +46,7 @@ function makeModel(providerId: string): ModelConfig {
 
 /** Issue a request exactly the way packages/gui/src/api.ts does. */
 async function api(method: string, urlPath: string, body?: unknown) {
-  const res = await fetch(`http://127.0.0.1:${PORT}${urlPath}?t=${handle.token}`, {
+  const res = await fetch(`http://127.0.0.1:${handle.port}${urlPath}?t=${handle.token}`, {
     method,
     headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
     body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -57,10 +55,14 @@ async function api(method: string, urlPath: string, body?: unknown) {
   return { status: res.status, json };
 }
 
-/** Registry providers as the dashboard sees them (GET /api/state). */
+/** Registry providers as the server's own /api/state sees them (same registry
+ *  source, read via the manager so we skip the unrelated detectAgents() scan
+ *  that /api/state bundles — that scan is slow and irrelevant to the delete
+ *  regression, and it is what pushed the suite over vitest's timeout under
+ *  load). The DELETE calls still go over HTTP as the dashboard sends them. */
 async function dashboardProviders(): Promise<any[]> {
-  const { json } = await api('GET', '/api/state');
-  return json.data.registry.providers;
+  const state = await manager.getRegistryState();
+  return state.providers;
 }
 
 beforeAll(async () => {
@@ -80,7 +82,7 @@ beforeAll(async () => {
     expect(added.success).toBe(true);
   }
 
-  handle = await startGuiServer(manager, { port: PORT, openBrowser: false });
+  handle = await startGuiServer(manager, { port: 0, openBrowser: false });
 });
 
 afterAll(async () => {

@@ -6,7 +6,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { startAgentJob } from './gui-server.js';
-import type { AgentJob } from '@ai-agent-config/core';
+import { getToolUpdateCommand, isSafeCommand, type AgentJob } from '@ai-agent-config/core';
 
 function awaitCompletion(job: AgentJob, timeoutMs = 8000): Promise<AgentJob> {
   return new Promise((resolve) => {
@@ -51,5 +51,25 @@ describe('startAgentJob', () => {
     const done = await awaitCompletion(job, 5000);
     expect(done.status).toBe('failed');
     expect(done.error).toContain('timeout');
+  });
+});
+
+describe('tool update commands pass the server safety gate', () => {
+  it('npm-distributed tools get an allow-listed command that isSafeCommand accepts', () => {
+    for (const name of ['npm', 'pnpm', 'yarn', 'bun']) {
+      const command = getToolUpdateCommand(name);
+      expect(command, name).toBeTruthy();
+      expect(isSafeCommand(command!)).toBe(true);
+    }
+  });
+
+  it('non-npm tools are rejected (no auto-update path)', () => {
+    for (const name of ['node', 'deno', 'git', 'cargo', 'rustc', 'python3', 'go', 'uv']) {
+      expect(getToolUpdateCommand(name)).toBeUndefined();
+    }
+  });
+
+  it('unknown tool names are rejected', () => {
+    expect(getToolUpdateCommand('curl')).toBeUndefined();
   });
 });
