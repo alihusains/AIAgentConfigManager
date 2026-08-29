@@ -41,7 +41,7 @@ export function MCPView() {
             One definition per server — installed into the agents listed on each row.
           </p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowAdd(true)} disabled={loading}>
+        <button className="btn-primary" onClick={() => setShowAdd(true)} disabled={loading}>
           <Plus size={16} />
           Add MCP Server
         </button>
@@ -457,8 +457,8 @@ function MCPServerModal({ onClose, agents, initial }: MCPServerModalProps) {
             )}
           </div>
           <div className="modal-footer">
-            <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn btn-primary" disabled={submitting}>
+            <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+            <button type="submit" className="btn-primary" disabled={submitting}>
               <Plus size={16} />
               {isEdit ? 'Save Changes' : 'Add Server'}
             </button>
