@@ -2594,6 +2594,167 @@ textarea {
 }
 
 /* ============================================================================
+   Providers table (ProvidersView) — hybrid card/table treatment (M033)
+   The semantic <table> stays; rows get card-like breathing room, a
+   surface-2/glow hover elevation (not a hard color change), and
+   hover-revealed tertiary actions. All colors are M029 tokens.
+   ===========================================================================*/
+
+/* Card-like row groups: breathing room, no harsh spreadsheet gridlines. */
+.providers-table .table tbody td {
+  padding: 14px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-primary) 55%, transparent);
+}
+
+.providers-table .table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Hover elevation: --bg-secondary (surface-2) plus a soft accent glow on the
+   leading edge. Subtle on purpose — it must read as "interactive", not as a
+   row state change. */
+.providers-table .table tbody tr {
+  transition: background var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.providers-table .table tbody tr:hover td {
+  background: var(--bg-secondary);
+}
+
+.providers-table .table tbody tr:hover td:first-child {
+  box-shadow: inset 2px 0 0 var(--accent-primary);
+}
+
+/* Primary identity: provider name dominates the row. */
+.provider-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+/* Tertiary actions: hidden by default, revealed on row hover (and kept
+   reachable via keyboard focus within the row). */
+.providers-table .row-actions {
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.providers-table .table tbody tr:hover .row-actions,
+.providers-table .table tbody tr:focus-within .row-actions {
+  opacity: 1;
+}
+
+/* Avatar stack — overlapping agent icon circles replacing the chip wall. */
+.avatar-stack {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--bg-tertiary);
+  border: 1.5px solid var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 600;
+  overflow: hidden;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.avatar + .avatar {
+  margin-left: -8px;
+}
+
+/* Agents whose config format cannot store model providers read as muted. */
+.avatar-dim {
+  opacity: 0.45;
+}
+
+.avatar-more {
+  background: color-mix(in srgb, var(--accent-primary) 12%, var(--bg-tertiary));
+  color: var(--accent-primary-text);
+  font-size: 10px;
+}
+
+.avatar-initials {
+  line-height: 1;
+}
+
+/* Full agent list — expands on hover/focus of the stack (CSS-only popover). */
+.avatar-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 60;
+  display: none;
+  min-width: 190px;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: 6px;
+}
+
+.avatar-stack:hover .avatar-pop,
+.avatar-stack:focus-within .avatar-pop {
+  display: block;
+}
+
+.avatar-pop-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.avatar-pop-row:hover {
+  background: var(--bg-hover);
+}
+
+.avatar-pop-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.avatar-pop-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  border-radius: 50%;
+  padding: 0;
+  line-height: 1;
+  font-size: 13px;
+}
+
+.avatar-pop-remove:hover {
+  background: var(--bg-active);
+  color: var(--accent-error-text);
+}
+
+/* ============================================================================
    Protocol coverage (Dashboard) — how many agents speak each wire protocol
    ============================================================================ */
 
