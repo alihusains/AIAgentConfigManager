@@ -784,6 +784,12 @@ export class AgentConfigManager {
     const registry = await this.requireRegistry();
     const id = def.id.trim();
     if (!id) return { success: false, error: 'Agent id is required' };
+    // Reject path-traversal-style ids: they would be stored decoded in the
+    // registry yet addressable only percent-encoded in URLs, making them
+    // permanently undeletable via the API (QA finding C1).
+    if (id.includes('/') || id.includes('\\') || id === '.' || id === '..' || id.includes('\0')) {
+      return { success: false, error: `Invalid agent id: ${JSON.stringify(id)}` };
+    }
     if (!def.configPath.trim()) return { success: false, error: 'Config path is required' };
     if (registry.customAgents.some((a) => a.id === id) || this.adapters.has(id)) {
       return { success: false, error: `Agent "${id}" already exists` };

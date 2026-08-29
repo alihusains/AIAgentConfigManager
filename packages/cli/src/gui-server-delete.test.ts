@@ -93,25 +93,21 @@ afterAll(async () => {
 });
 
 describe('provider delete through the gui-server', () => {
-  it(
-    'control: delete of a clean-id provider in two agents cascades everywhere',
-    async () => {
-      const reg = await manager.registerProvider(
-        makeProvider('clean-provider'),
-        [makeModel('clean-provider')],
-        ['agent-a', 'agent-b']
-      );
-      expect(reg.success).toBe(true);
+  it('control: delete of a clean-id provider in two agents cascades everywhere', async () => {
+    const reg = await manager.registerProvider(
+      makeProvider('clean-provider'),
+      [makeModel('clean-provider')],
+      ['agent-a', 'agent-b']
+    );
+    expect(reg.success).toBe(true);
 
-      const { status, json } = await api('DELETE', '/api/providers/clean-provider');
-      expect(status).toBe(200);
-      expect(json.ok).toBe(true);
+    const { status, json } = await api('DELETE', '/api/providers/clean-provider');
+    expect(status).toBe(200);
+    expect(json.ok).toBe(true);
 
-      const providers = await dashboardProviders();
-      expect(providers.find((p) => p.provider.id === 'clean-provider')).toBeUndefined();
-    },
-    15000
-  );
+    const providers = await dashboardProviders();
+    expect(providers.find((p) => p.provider.id === 'clean-provider')).toBeUndefined();
+  }, 15000);
 
   it('SYMPTOM 2: remove-from-agent with a spaced id (GUI-encoded URL) actually removes', async () => {
     const id = 'icm llm router';
@@ -166,5 +162,50 @@ describe('provider delete through the gui-server', () => {
     expect(json.ok).toBe(false);
     expect(status).toBeGreaterThanOrEqual(400);
     expect(String(json.error)).toContain('agent-b');
+  });
+});
+
+describe('custom agent delete with percent-encoded ids (QA finding C1)', () => {
+  it('the exact QA repro: create ../evil, percent-encoded delete is rejected at creation', async () => {
+    // QA repro step 1: POST /api/agents/custom with a traversal id.
+    const created = await api('POST', '/api/agents/custom', {
+      id: '../evil',
+      name: 'x',
+      configPath: path.join(tmpHome, 'evil.json'),
+    });
+    // Creation-time validation now rejects the id, so the zombie entry is
+    // never created in the first place.
+    expect(created.status).toBe(400);
+    expect(created.json.ok).toBe(false);
+    expect(String(created.json.error)).toContain('Invalid agent id');
+
+    // The registry (in-memory AND on-disk) holds no trace of it.
+    const state = await manager.getRegistryState();
+    expect(state.customAgents.some((a) => a.id === '../evil')).toBe(false);
+
+    // QA repro step 2: the GUI-style percent-encoded DELETE cannot 400 with
+    // a misleading "not found" for a stored entry — nothing was stored.
+    const del = await api('DELETE', `/api/agents/custom/${encodeURIComponent('../evil')}`);
+    expect(del.status).toBe(400);
+    expect(del.json.ok).toBe(false);
+  });
+
+  it('well-formed but special-character ids (spaces) round-trip: create, delete via encoded URL', async () => {
+    const id = 'my custom agent';
+    const created = await api('POST', '/api/agents/custom', {
+      id,
+      name: 'My Custom Agent',
+      configPath: path.join(tmpHome, 'my-custom-agent.json'),
+    });
+    expect(created.status).toBe(200);
+    expect(created.json.ok).toBe(true);
+
+    // GUI-style delete: encodeURIComponent('my custom agent') === 'my%20custom%20agent'.
+    const del = await api('DELETE', `/api/agents/custom/${encodeURIComponent(id)}`);
+    expect(del.status).toBe(200);
+    expect(del.json.ok).toBe(true);
+
+    const state = await manager.getRegistryState();
+    expect(state.customAgents.some((a) => a.id === id)).toBe(false);
   });
 });
