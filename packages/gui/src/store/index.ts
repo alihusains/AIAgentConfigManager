@@ -24,6 +24,7 @@ export type View =
   | 'agent-detail'
   | 'skills'
   | 'tools'
+  | 'env-vars'
   | 'settings';
 
 export interface Toast {

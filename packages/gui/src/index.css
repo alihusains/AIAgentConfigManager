@@ -3514,3 +3514,153 @@ textarea {
 .tab-btn-active:hover {
   color: var(--accent-primary);
 }
+
+/* ============================================================================
+   Environment Variables view (M049) — same table visual language as the
+   Providers/MCP tables (row hierarchy, hover-reveal actions, sticky header),
+   scoped to .env-table so it never leaks into other views. Tokens only.
+   ============================================================================ */
+
+/* Search box: icon sits inside the shared .input chrome. */
+.env-vars-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  max-width: 420px;
+}
+
+.env-vars-search-icon {
+  position: absolute;
+  left: 12px;
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+
+.env-vars-search-input {
+  width: 100%;
+  padding-left: 34px;
+}
+
+/* Windowed list: the page owns horizontal overflow (none), the table owns
+   vertical scroll — long lists scroll inside the card, never the page width. */
+.env-vars-scroll {
+  max-height: calc(100vh - 280px);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.env-table th {
+  background: var(--bg-primary);
+  box-shadow: inset 0 -1px 0 var(--border-primary);
+}
+
+.env-table td {
+  padding: var(--space-3) var(--space-3);
+  vertical-align: middle;
+}
+
+.env-table tr:hover td {
+  background: var(--bg-hover);
+  box-shadow: inset 3px 0 0 var(--accent-primary);
+}
+
+/* Group header rows (one per source) */
+.env-group-row td {
+  padding-top: var(--space-4);
+  padding-bottom: var(--space-1);
+  background: var(--bg-secondary);
+  box-shadow: inset 0 -1px 0 var(--border-primary);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.env-group-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+}
+
+.env-group-count {
+  font-weight: 500;
+  color: var(--text-tertiary);
+}
+
+/* Primary identity — variable name + source file */
+.env-row-identity {
+  min-width: 0;
+}
+
+.env-var-name {
+  font-size: var(--text-size-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 280px;
+  display: inline-block;
+  vertical-align: bottom;
+}
+
+/* Secondary metadata — one quiet tertiary line (source file) */
+.env-meta {
+  font-size: var(--text-size-xs);
+  color: var(--text-tertiary);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 280px;
+}
+
+/* Values: mono, wrap long ones vertically (never horizontally) */
+.env-var-value {
+  font-size: var(--text-size-xs);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-width: 0;
+}
+
+/* Reveal toggle sits inline after the value */
+.env-reveal-btn {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.env-reveal-btn:hover:not(:disabled) {
+  color: var(--accent-primary);
+}
+
+/* Tertiary actions — hidden until row hover (or keyboard focus) */
+.env-row-actions {
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.env-table tr:hover .env-row-actions,
+.env-table tr:focus-within .env-row-actions {
+  opacity: 1;
+}
+
+/* Read-only rows: the reason is always visible (honesty principle — a
+   disabled control never appears without an explanation). */
+.env-readonly-reason {
+  font-size: var(--text-size-xs);
+  color: var(--text-tertiary);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.env-vars-footer {
+  padding: var(--space-2) var(--space-4);
+  border-top: 1px solid var(--border-primary);
+  font-size: var(--text-size-xs);
+  color: var(--text-tertiary);
+}

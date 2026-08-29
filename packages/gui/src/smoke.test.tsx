@@ -19,6 +19,7 @@ import { ProvidersView } from './components/ProvidersView';
 import { AgentsView } from './components/AgentsView';
 import { SettingsView } from './components/SettingsView';
 import { SkillsView } from './components/SkillsView';
+import { EnvVarsView } from './components/EnvVarsView';
 import { useStore } from './store';
 
 // ---------------------------------------------------------------------------
@@ -64,6 +65,10 @@ const { apiMock } = vi.hoisted(() => {
     getAgentJob: vi.fn(),
     checkAgentUpdate: vi.fn(),
     updateAgent: vi.fn(),
+    getEnvVars: vi.fn(),
+    setEnvVar: vi.fn(),
+    revealEnvVar: vi.fn(),
+    removeEnvVar: vi.fn(),
   };
   return { apiMock: fns };
 });
@@ -450,6 +455,128 @@ describe('SkillsView', () => {
     await waitFor(() => {
       expect(apiMock.copySkillToAgent).toHaveBeenCalledWith('test-skill', 'claude-code', 'codex');
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// EnvVarsView (M049)
+// ---------------------------------------------------------------------------
+describe('EnvVarsView', () => {
+  // Mirrors M048's listEnvVars() output: sensitive-looking values arrive
+  // already redacted by the server (first 3 + last 4).
+  const envVars = [
+    {
+      name: 'MY_API_KEY',
+      value: 'sk-...wxyz',
+      source: 'shell-profile',
+      sourceFile: '/tmp/home/.zshrc',
+      looksSensitive: true,
+      editable: true,
+    },
+    {
+      name: 'PATH',
+      value: '/usr/local/bin:/usr/bin',
+      source: 'shell-profile',
+      sourceFile: '/tmp/home/.zshrc',
+      looksSensitive: false,
+      editable: true,
+    },
+    {
+      name: 'LANG',
+      value: 'en_US.UTF-8',
+      source: 'process',
+      looksSensitive: false,
+      editable: false,
+      note: 'Only present in this process (e.g. exported by a parent shell or launchd) — not in any shell profile file, so this tool will not edit it.',
+    },
+  ] as never;
+
+  beforeEach(() => {
+    apiMock.getEnvVars.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { platform: 'darwin', vars: envVars },
+    });
+  });
+
+  it('renders the view with rows grouped by source', async () => {
+    render(<EnvVarsView />);
+    await screen.findByRole('heading', { name: 'Environment Variables' });
+    expect(screen.getByText('MY_API_KEY')).toBeInTheDocument();
+    expect(screen.getByText('PATH')).toBeInTheDocument();
+    expect(screen.getByText('LANG')).toBeInTheDocument();
+    // Group headers (labels + counts)
+    expect(screen.getByText('Shell profile')).toBeInTheDocument();
+    expect(screen.getByText('Process (this tool)')).toBeInTheDocument();
+  });
+
+  it('hides a sensitive-looking value by default (shows the redacted form)', async () => {
+    render(<EnvVarsView />);
+    await screen.findByText('MY_API_KEY');
+    // The server-sent redacted value is visible…
+    expect(screen.getByText('sk-...wxyz')).toBeInTheDocument();
+    // …and no unredacted value is shown anywhere.
+    expect(screen.queryByText('sk-my-secret-key-1234wxyz')).not.toBeInTheDocument();
+  });
+
+  it('reveals the real value only after the explicit eye action', async () => {
+    apiMock.revealEnvVar.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { name: 'MY_API_KEY', value: 'sk-my-secret-key-1234wxyz' },
+    });
+    render(<EnvVarsView />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByTitle('Reveal value'));
+    await waitFor(() => {
+      expect(screen.getByText('sk-my-secret-key-1234wxyz')).toBeInTheDocument();
+    });
+    expect(apiMock.revealEnvVar).toHaveBeenCalledWith('MY_API_KEY');
+  });
+
+  it('search narrows the list', async () => {
+    render(<EnvVarsView />);
+    const user = userEvent.setup();
+    await screen.findByText('MY_API_KEY');
+    const input = screen.getByRole('textbox', { name: 'Filter environment variables' });
+    await user.type(input, 'lang');
+    await waitFor(() => {
+      expect(screen.getByText('LANG')).toBeInTheDocument();
+      expect(screen.queryByText('MY_API_KEY')).not.toBeInTheDocument();
+    });
+  });
+
+  it('shows the reason a read-only entry cannot be edited', async () => {
+    render(<EnvVarsView />);
+    await screen.findByText('LANG');
+    // The row explains WHY (honesty principle) instead of a bare disabled control.
+    expect(
+      screen.getByText(/not in any shell profile file, so this tool will not edit it/)
+    ).toBeInTheDocument();
+    // No edit/remove controls on a read-only row.
+    expect(screen.queryByRole('button', { name: 'Edit LANG' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Remove LANG' })).not.toBeInTheDocument();
+  });
+
+  it('offers add/edit for editable entries and saves via the API', async () => {
+    render(<EnvVarsView />);
+    const user = userEvent.setup();
+    await screen.findByText('PATH');
+
+    // Edit an existing entry (name is locked, value starts blank on purpose).
+    await user.click(screen.getByRole('button', { name: 'Edit PATH' }));
+    await screen.findByRole('dialog');
+    const nameInput = screen.getByLabelText('Name');
+    expect(nameInput).toBeDisabled();
+    const valueInput = screen.getByLabelText('Value');
+    expect((valueInput as HTMLInputElement).value).toBe('');
+    await user.type(valueInput, '/opt/bin:/usr/bin');
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }));
+    await waitFor(() => {
+      expect(apiMock.setEnvVar).toHaveBeenCalledWith('PATH', '/opt/bin:/usr/bin');
+    });
+    // The add flow is also reachable from the header.
+    expect(screen.getByRole('button', { name: /Add Variable/ })).toBeInTheDocument();
   });
 });
 

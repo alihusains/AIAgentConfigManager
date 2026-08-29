@@ -21,6 +21,8 @@ import type {
   ToolUpdateStatus,
   SkillDef,
   SkillsSnapshot,
+  EnvVarEntry,
+  MutateEnvVarResult,
 } from '@ai-agent-config/core';
 
 // ============================================================================
@@ -330,6 +332,24 @@ export const api = {
     request<{ jobId: string }>('POST', `/api/agents/${encodeURIComponent(id)}/uninstall`, {}),
   getAgentJob: (jobId: string) =>
     request<AgentJob>('GET', `/api/agents/jobs/${encodeURIComponent(jobId)}`),
+
+  // --- Environment variables (M048 backend: read/categorize/redact/edit) ---
+  /** List env vars; sensitive-looking values arrive redacted by the server. */
+  getEnvVars: () =>
+    request<{ platform: string; vars: EnvVarEntry[] }>('GET', '/api/env'),
+  /** Set (create or update) a user-level env var. */
+  setEnvVar: (name: string, value: string) =>
+    request<MutateEnvVarResult>('POST', '/api/env', { name, value }),
+  /** Deliberate, per-variable unredaction — the only path to a real value. */
+  revealEnvVar: (name: string) =>
+    request<{ name: string; value: string }>(
+      'POST',
+      `/api/env/${encodeURIComponent(name)}/reveal`,
+      {}
+    ),
+  /** Remove a user-level env var. */
+  removeEnvVar: (name: string) =>
+    request<MutateEnvVarResult>('DELETE', `/api/env/${encodeURIComponent(name)}`),
 
   // --- Update checking ---
   checkAgentUpdate: (id: string) =>
