@@ -80,7 +80,10 @@ const SkillCard = memo(function SkillCard({
               .filter((a) => a.agentId !== agent.agentId && !assigned.has(a.agentId))
               .concat(agents.filter((a) => a.agentId !== agent.agentId && assigned.has(a.agentId)));
             return (
-              <span key={agent.agentId} className="badge badge-success badge-chip flex items-center gap-1">
+              <span
+                key={agent.agentId}
+                className="badge badge-success badge-chip flex items-center gap-1"
+              >
                 <span className="badge-chip-remove-wrap">
                   <button
                     type="button"
@@ -90,7 +93,11 @@ const SkillCard = memo(function SkillCard({
                     aria-label={`Remove ${skill.name} from ${agent.name}`}
                     onClick={() => onUnassign(skill.id, agent.agentId)}
                   >
-                    {busy === key ? <RefreshCw size={12} className="animate-spin" /> : <X size={12} />}
+                    {busy === key ? (
+                      <RefreshCw size={12} className="animate-spin" />
+                    ) : (
+                      <X size={12} />
+                    )}
                   </button>
                   <button
                     type="button"
@@ -106,7 +113,7 @@ const SkillCard = memo(function SkillCard({
                 </span>
                 {agent.name}
                 {copyOpen && (
-                  <span className="copy-menu" role="menu" aria-label={`Copy to`}> 
+                  <span className="copy-menu" role="menu" aria-label={`Copy to`}>
                     {copyTargets.length === 0 && (
                       <span className="copy-menu-empty">No other agents</span>
                     )}
@@ -229,7 +236,11 @@ export function SkillsView() {
       try {
         const res = await api.unassignSkill(skillId, agentId);
         if (!res.ok) throw new Error(res.error ?? 'Remove failed');
-        addToast({ type: 'success', title: 'Skill removed', message: `${skillId} removed from ${agentId}` });
+        addToast({
+          type: 'success',
+          title: 'Skill removed',
+          message: `${skillId} removed from ${agentId}`,
+        });
         await load();
       } catch (e) {
         addToast({
