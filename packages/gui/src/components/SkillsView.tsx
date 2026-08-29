@@ -97,9 +97,7 @@ const SkillRow = memo(function SkillRow({
           )}
           <span className="skill-row-meta flex-shrink-0">{skill.fileCount} files</span>
         </div>
-        <p className="skill-row-desc truncate">
-          {skill.description ?? 'No description.'}
-        </p>
+        <p className="skill-row-desc truncate">{skill.description ?? 'No description.'}</p>
       </div>
 
       <div className="skill-row-locs flex-wrap gap-2">
@@ -376,14 +374,22 @@ export function SkillsView() {
     async (skillId: string) => {
       // Confirmation before the destructive action — same pattern as the
       // provider/MCP delete flows (plain confirm, agent-copy notice included).
-      if (!confirm(`Delete skill "${skillId}" from the shared library?\n\nCopies already assigned to agents are not touched.`)) {
+      if (
+        !confirm(
+          `Delete skill "${skillId}" from the shared library?\n\nCopies already assigned to agents are not touched.`
+        )
+      ) {
         return;
       }
       setBusy(busyKey(skillId, 'library', 'delete'));
       try {
         const res = await api.deleteSkill(skillId);
         if (!res.ok) throw new Error(res.error ?? 'Delete failed');
-        addToast({ type: 'success', title: 'Skill deleted', message: `${skillId} removed from the library` });
+        addToast({
+          type: 'success',
+          title: 'Skill deleted',
+          message: `${skillId} removed from the library`,
+        });
         await load();
       } catch (e) {
         addToast({
@@ -448,7 +454,10 @@ export function SkillsView() {
     );
   }, [allSkills, search]);
 
-  const { containerRef, onScroll, range } = useWindowedList(filteredSkills.length, SKILL_ROW_HEIGHT);
+  const { containerRef, onScroll, range } = useWindowedList(
+    filteredSkills.length,
+    SKILL_ROW_HEIGHT
+  );
   const visibleSkills = filteredSkills.slice(range.start, range.end);
 
   return (
@@ -550,62 +559,60 @@ export function SkillsView() {
           </div>
         </Card>
       ) : (
-        snapshot != null && allSkills.length > 0 && (
-        <Card
-          title={`All skills (${allSkills.length})`}
-          actions={
-            <div className="skill-search relative w-64 max-w-full">
-              <Search
-                size={14}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-tertiary pointer-events-none"
-              />
-              <input
-                className="input pl-8"
-                type="search"
-                placeholder="Filter skills…"
-                aria-label="Filter skills"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
-          }
-        >
-          <div
-            ref={containerRef}
-            onScroll={onScroll}
-            className="skill-window"
-            style={{ maxHeight: '65vh' }}
+        snapshot != null &&
+        allSkills.length > 0 && (
+          <Card
+            title={`All skills (${allSkills.length})`}
+            actions={
+              <div className="skill-search relative w-64 max-w-full">
+                <Search
+                  size={14}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-tertiary pointer-events-none"
+                />
+                <input
+                  className="input pl-8"
+                  type="search"
+                  placeholder="Filter skills…"
+                  aria-label="Filter skills"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+            }
           >
             <div
-              className="skill-window-viewport"
-              style={{ height: range.totalHeight }}
+              ref={containerRef}
+              onScroll={onScroll}
+              className="skill-window"
+              style={{ maxHeight: '65vh' }}
             >
-              <div
-                className="skill-window-slice"
-                style={{ transform: `translateY(${range.offsetTop}px)` }}
-              >
-                {visibleSkills.map((skill) => (
-                  <SkillRow
-                    key={skill.id}
-                    skill={skill}
-                    agents={snapshot.agents}
-                    isLibrarySkill={librarySkillIds.has(skill.id)}
-                    busy={busy}
-                    onAssign={handleAssign}
-                    onUnassign={handleUnassign}
-                    onCopy={handleCopy}
-                    onDeleteFromLibrary={handleDeleteFromLibrary}
-                  />
-                ))}
+              <div className="skill-window-viewport" style={{ height: range.totalHeight }}>
+                <div
+                  className="skill-window-slice"
+                  style={{ transform: `translateY(${range.offsetTop}px)` }}
+                >
+                  {visibleSkills.map((skill) => (
+                    <SkillRow
+                      key={skill.id}
+                      skill={skill}
+                      agents={snapshot.agents}
+                      isLibrarySkill={librarySkillIds.has(skill.id)}
+                      busy={busy}
+                      onAssign={handleAssign}
+                      onUnassign={handleUnassign}
+                      onCopy={handleCopy}
+                      onDeleteFromLibrary={handleDeleteFromLibrary}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
-          {filteredSkills.length === 0 && (
-            <p className="text-sm text-tertiary py-4 text-center">
-              No skills match “{search.trim()}”.
-            </p>
-          )}
-        </Card>
+            {filteredSkills.length === 0 && (
+              <p className="text-sm text-tertiary py-4 text-center">
+                No skills match “{search.trim()}”.
+              </p>
+            )}
+          </Card>
         )
       )}
 

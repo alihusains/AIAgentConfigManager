@@ -176,7 +176,9 @@ describe('skills routes through the gui-server', () => {
     // Create a throwaway skill via the API and assign it to an agent first.
     const create = await api('POST', '/api/skills', { name: 'qa-delete-skill' });
     expect(create.status).toBe(200);
-    const assign = await api('POST', '/api/skills/qa-delete-skill/assign', { agentId: 'claude-code' });
+    const assign = await api('POST', '/api/skills/qa-delete-skill/assign', {
+      agentId: 'claude-code',
+    });
     expect(assign.status).toBe(200);
 
     const { status, json } = await api('DELETE', '/api/skills/qa-delete-skill');
@@ -184,9 +186,9 @@ describe('skills routes through the gui-server', () => {
     expect(json.ok).toBe(true);
 
     // Gone from disk and from the library listing…
-    expect(
-      fs.existsSync(path.join(getSkillsLibraryDir(), 'qa-delete-skill', 'SKILL.md'))
-    ).toBe(false);
+    expect(fs.existsSync(path.join(getSkillsLibraryDir(), 'qa-delete-skill', 'SKILL.md'))).toBe(
+      false
+    );
     const list = await api('GET', '/api/skills');
     expect(list.json.data.skills.map((s: any) => s.id)).not.toContain('qa-delete-skill');
     // …but the agent's own copy is untouched (no cascade).
@@ -205,10 +207,7 @@ describe('skills routes through the gui-server', () => {
   });
 
   it('QA H1: DELETE /api/skills/:id returns 400 for an unsafe id', async () => {
-    const { status, json } = await api(
-      'DELETE',
-      `/api/skills/${encodeURIComponent('../escape')}`
-    );
+    const { status, json } = await api('DELETE', `/api/skills/${encodeURIComponent('../escape')}`);
     expect(status).toBe(400);
     expect(json.ok).toBe(false);
     expect(String(json.error)).toContain('Invalid skill id');
