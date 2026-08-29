@@ -54,9 +54,14 @@ export function SettingsView() {
   const mcpServers = registry?.mcpServers || [];
   const customAgents = registry?.customAgents || [];
 
-  const handleExport = useCallback(() => {
-    if (!registry) return;
-    const blob = new Blob([JSON.stringify(registry, null, 2)], {
+  const handleExport = useCallback(async () => {
+    // QA finding M2: export the server's authoritative registry, not the GUI's
+    // in-memory copy (which can be stale after a failed refresh). The local
+    // copy is only a fallback when the server cannot be reached.
+    const res = await api.exportRegistry();
+    const payload = res.ok && res.data ? res.data : registry;
+    if (!payload) return;
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
       type: 'application/json',
     });
     const url = URL.createObjectURL(blob);
@@ -65,7 +70,13 @@ export function SettingsView() {
     a.download = `registry-${new Date().toISOString().split('T')[0]}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    addToast({ type: 'success', title: 'Exported', message: 'Registry exported as JSON' });
+    addToast({
+      type: res.ok ? 'success' : 'warning',
+      title: 'Exported',
+      message: res.ok
+        ? 'Registry exported from the server as JSON'
+        : 'Server unreachable — exported the last known registry state',
+    });
   }, [registry, addToast]);
 
   const handleImportFile = useCallback(

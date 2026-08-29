@@ -40,6 +40,7 @@ const { apiMock } = vi.hoisted(() => {
     assignSkill: vi.fn(),
     unassignSkill: vi.fn(),
     copySkillToAgent: vi.fn(),
+    exportRegistry: vi.fn(),
     importRegistry: vi.fn(),
     addProvider: vi.fn(),
     updateProvider: vi.fn(),
@@ -659,6 +660,54 @@ describe('SettingsView', () => {
     await screen.findByRole('heading', { name: 'Settings' });
     expect(screen.getByRole('button', { name: /Export Registry/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Import Registry/ })).toBeInTheDocument();
+  });
+
+  // QA finding M2: export must hit the server-side endpoint, not just
+  // serialize the GUI's in-memory registry.
+  it('Export Registry downloads the server-side registry (QA M2)', async () => {
+    const serverRegistry = {
+      path: '/tmp/server-registry.json',
+      providers: [],
+      mcpServers: [],
+      customAgents: [{ id: 'server-only-agent', name: 'Server Only', configPath: '/x.json' }],
+      updatedAt: 1,
+    };
+    apiMock.exportRegistry.mockResolvedValue({ ok: true, status: 200, data: serverRegistry });
+
+    // Capture the string SettingsView serializes into the download Blob —
+    // intercepting at the Blob constructor keeps the test off jsdom's broken
+    // Blob internals (no text()/parts()).
+    let capturedText: string | null = null;
+    const OrigBlob = globalThis.Blob;
+    globalThis.Blob = vi.fn(function (this: unknown, parts: BlobPart[], init?: BlobPropertyBag) {
+      if (parts.length === 1 && typeof parts[0] === 'string') {
+        capturedText = parts[0];
+      }
+      return new OrigBlob(parts, init);
+    }) as unknown as typeof Blob;
+    const origCreateObjectURL = URL.createObjectURL;
+    URL.createObjectURL = vi.fn(() => 'blob:mock');
+    const origRevoke = URL.revokeObjectURL;
+    URL.revokeObjectURL = vi.fn();
+    const origClick = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = vi.fn();
+
+    try {
+      const user = userEvent.setup();
+      render(<SettingsView />);
+      const button = await screen.findByRole('button', { name: /Export Registry/ });
+      await user.click(button);
+
+      await vi.waitFor(() => expect(capturedText).not.toBeNull());
+      const exported = JSON.parse(capturedText as unknown as string);
+      expect(exported.path).toBe('/tmp/server-registry.json');
+      expect(exported.customAgents[0].id).toBe('server-only-agent');
+      expect(apiMock.exportRegistry).toHaveBeenCalled();
+    } finally {
+      URL.createObjectURL = origCreateObjectURL;
+      URL.revokeObjectURL = origRevoke;
+      HTMLAnchorElement.prototype.click = origClick;
+    }
   });
 });
 

@@ -233,7 +233,12 @@ export const api = {
       targetAgentId,
     }),
 
-  // --- Registry import ---
+  // --- Registry import/export ---
+  /**
+   * Download the server's authoritative registry (QA finding M2: the export
+   * used to serialize the GUI's in-memory copy, which can be stale).
+   */
+  exportRegistry: () => request<RegistryState>('GET', '/api/registry/export'),
   importRegistry: (registry: unknown) =>
     request<{ registry: RegistryState; warnings?: string[] }>('POST', '/api/registry/import', {
       registry,
