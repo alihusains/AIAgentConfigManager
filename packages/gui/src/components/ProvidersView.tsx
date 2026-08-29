@@ -1,14 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useStore } from '../store';
 import { AgentPicker } from './AgentPicker';
+import { AgentIcon } from './AgentIcon';
 import { ModelChecklist } from './ModelChecklist';
 import { Status } from '../ui';
-import {
-  ApiVerifier,
-  providerApiLabel,
-  providerApiBadgeClass,
-  ProtocolTicks,
-} from './ProviderVerify';
+import { ApiVerifier, providerApiLabel, ProtocolTicks } from './ProviderVerify';
 import type {
   ModelProvider,
   ModelConfig,
@@ -44,6 +40,105 @@ const PROVIDER_TYPES = [
 
 const DEFAULT_ROLES: ModelConfig['roles'] = ['chat', 'edit', 'apply', 'summarize'];
 
+/** How many agent circles render before the stack collapses to "+N". */
+const AVATAR_STACK_MAX = 4;
+
+function initialsFor(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() || '')
+    .join('');
+}
+
+/**
+ * Compact avatar stack for the "Installed On" column: overlapping agent
+ * icon circles (capped at AVATAR_STACK_MAX + a "+N" count) that expand to the
+ * full, per-agent removable list on hover/focus. Replaces the old chip wall
+ * one pill per agent (E3: pills → avatars). Dimmed agents use a config
+ * format that cannot store model providers — they stay registered but their
+ * files are never written, so they read as muted.
+ */
+function AgentAvatarStack({
+  agentIds,
+  agents,
+  onToggle,
+}: {
+  agentIds: string[];
+  agents: DetectedAgent[];
+  onToggle: (agentId: string) => void;
+}) {
+  if (agentIds.length === 0) {
+    return <span className="text-xs text-tertiary">none</span>;
+  }
+  const visible = agentIds.slice(0, AVATAR_STACK_MAX);
+  const remaining = agentIds.length - visible.length;
+  return (
+    <div className="avatar-stack">
+      {visible.map((id) => {
+        const agent = agents.find((a) => a.id === id);
+        const supported = agentTakesModels(agents, id);
+        const name = agent?.name || id;
+        return (
+          <span
+            key={id}
+            className={`avatar${supported ? '' : ' avatar-dim'}`}
+            title={
+              supported
+                ? name
+                : `${name} — config format cannot store model providers (not written to its files)`
+            }
+          >
+            {agent ? (
+              <AgentIcon id={agent.id} size={14} />
+            ) : (
+              <span className="avatar-initials">{initialsFor(name)}</span>
+            )}
+          </span>
+        );
+      })}
+      {remaining > 0 && (
+        <span className="avatar avatar-more" title={`${remaining} more agent(s)`}>
+          +{remaining}
+        </span>
+      )}
+      <div className="avatar-pop">
+        {agentIds.map((id) => {
+          const agent = agents.find((a) => a.id === id);
+          const supported = agentTakesModels(agents, id);
+          const name = agent?.name || id;
+          return (
+            <span
+              key={id}
+              className={`avatar-pop-row${supported ? '' : ' avatar-dim'}`}
+              title={
+                supported
+                  ? undefined
+                  : `${name}'s config format cannot store model providers — nothing was written to its files`
+              }
+            >
+              {agent ? (
+                <AgentIcon id={agent.id} size={14} />
+              ) : (
+                <span className="avatar-initials">{initialsFor(name)}</span>
+              )}
+              <span className="avatar-pop-name">{name}</span>
+              <button
+                className="avatar-pop-remove"
+                title={`Remove from ${name}`}
+                onClick={() => onToggle(id)}
+              >
+                ×
+              </button>
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /**
  * Some agent config formats cannot store model providers at all (Pi, Junie,
  * FreeBuff, OMP manage their own model lists). Registry entries still record
@@ -61,7 +156,6 @@ export function ProvidersView() {
   const [details, setDetails] = useState<RegistryProvider | null>(null);
 
   const providers = registry?.providers || [];
-  const agentName = (id: string) => agents.find((a) => a.id === id)?.name || id;
 
   const handleDelete = async (provider: ModelProvider) => {
     const installed =
@@ -113,7 +207,7 @@ export function ProvidersView() {
         </div>
       ) : (
         <div className="card">
-          <div className="table-container">
+          <div className="table-container providers-table">
             <table className="table">
               <thead>
                 <tr>
@@ -132,15 +226,15 @@ export function ProvidersView() {
                   const Icon = typeInfo?.icon || Database;
                   const ptypeClass = `ptype-${typeInfo?.id ?? 'default'}`;
                   return (
-                    <tr key={provider.id}>
+                    <tr key={provider.id} className="provider-row">
                       <td>
                         <div className="flex items-center gap-3 min-w-0">
                           <div className={`p-2 rounded-lg flex-shrink-0 ptype-icon ${ptypeClass}`}>
                             <Icon size={18} />
                           </div>
                           <div className="min-w-0">
-                            <p className="font-medium truncate">{provider.name}</p>
-                            <p className="text-xs text-tertiary">{provider.id}</p>
+                            <p className="provider-name truncate">{provider.name}</p>
+                            <p className="text-xs text-tertiary font-mono">{provider.id}</p>
                           </div>
                         </div>
                       </td>
@@ -156,68 +250,33 @@ export function ProvidersView() {
                         ) : apiCapabilities.supported.length === 0 ? (
                           <span className="text-xs text-error">no API confirmed</span>
                         ) : (
-                          <div
-                            className="flex gap-1 flex-wrap items-center"
+                          <span
+                            className="text-xs text-secondary"
                             title={`Verified ${new Date(apiCapabilities.verifiedAt).toLocaleString()}`}
                           >
-                            {apiCapabilities.supported.map((k) => (
-                              <span key={k} className={`badge ${providerApiBadgeClass(k)}`}>
-                                {providerApiLabel(k)}
-                              </span>
-                            ))}
-                            {(() => {
-                              const days = Math.floor(
-                                (Date.now() - new Date(apiCapabilities.verifiedAt).getTime()) /
-                                  86400000
-                              );
-                              return days > 30 ? (
-                                <span className="text-xs text-tertiary">{days} days ago</span>
-                              ) : null;
-                            })()}
-                          </div>
+                            {apiCapabilities.supported.map((k) => providerApiLabel(k)).join(' · ')}
+                          </span>
                         )}
                       </td>
                       <td>
                         {models.length === 0 ? (
                           <span className="text-xs text-tertiary">no models</span>
                         ) : (
-                          <div className="flex flex-wrap gap-1" style={{ maxWidth: 220 }}>
-                            {models.slice(0, 4).map((m) => (
-                              <span key={m.id} className="badge badge-neutral">
-                                {m.name}
-                              </span>
-                            ))}
-                            {models.length > 4 && (
-                              <span className="badge badge-neutral">+{models.length - 4}</span>
-                            )}
-                          </div>
+                          <span
+                            className="text-xs text-secondary"
+                            title={models.map((m) => m.name).join('\n')}
+                          >
+                            {models.length} model{models.length > 1 ? 's' : ''}
+                          </span>
                         )}
                       </td>
                       <td>
-                        <div className="flex items-center gap-1 flex-wrap">
-                          {agentIds.map((id) => {
-                            const supported = agentTakesModels(agents, id);
-                            return (
-                              <span
-                                key={id}
-                                className="chip"
-                                style={supported ? undefined : { opacity: 0.55 }}
-                                title={
-                                  supported
-                                    ? undefined
-                                    : `${agentName(id)}'s config format cannot store model providers — nothing was written to its files`
-                                }
-                              >
-                                {agentName(id)}
-                                <button
-                                  title={`Remove from ${agentName(id)}`}
-                                  onClick={() => toggleProviderAgent(provider.id, id)}
-                                >
-                                  ×
-                                </button>
-                              </span>
-                            );
-                          })}
+                        <div className="flex items-center gap-1.5">
+                          <AgentAvatarStack
+                            agentIds={agentIds}
+                            agents={agents}
+                            onToggle={(agentId) => toggleProviderAgent(provider.id, agentId)}
+                          />
                           <AgentPicker
                             kind="provider"
                             targets={agentIds}
@@ -249,7 +308,7 @@ export function ProvidersView() {
                         </button>
                       </td>
                       <td>
-                        <div className="flex items-center gap-1">
+                        <div className="row-actions flex items-center gap-1">
                           <button
                             className="btn-ghost btn-icon btn-sm"
                             title="Details"
