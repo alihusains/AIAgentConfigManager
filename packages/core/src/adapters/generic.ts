@@ -289,8 +289,10 @@ export class GenericAdapter implements AgentAdapter {
       return servers.map(({ name, ...rest }) => ({ name, ...rest }));
     }
 
-    // keyed per-tool map: { "<name>": {...} }. Existing entries are MERGED
-    // so tool-specific keys survive (pi's `directTools`, junie's `type`
+    // keyed per-tool map: { "<name>": {...} }. The unified list is
+    // authoritative: names absent from it are dropped (QA H4 — a deleted
+    // server must leave the file). Existing entries are MERGED so
+    // tool-specific keys survive (pi's `directTools`, junie's `type`
     // field) and brand-new servers use the intersection-safe minimal shape:
     // string command + separate args[]; URL entries without a type — every
     // tool in this family (pi/junie/gemini) defaults URL entries to remote.

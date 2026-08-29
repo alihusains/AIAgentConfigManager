@@ -345,6 +345,13 @@ export class CodexAdapter implements AgentAdapter {
       delete (entry as unknown as { _raw?: unknown })._raw;
       mcp_servers[server.name] = entry;
     }
+    // The unified list is authoritative: entries on disk that are no longer
+    // in the list are dropped (QA H4 — a deleted server must leave the file).
+    for (const name of Object.keys(raw.mcp_servers || {})) {
+      if (!config.mcpServers.some((s) => s.name === name)) {
+        delete raw.mcp_servers![name];
+      }
+    }
 
     const next: CodexConfig = {
       ...raw,

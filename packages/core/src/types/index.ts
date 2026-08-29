@@ -248,6 +248,14 @@ export interface AgentAdapter {
     entry: RegistryProvider
   ): { provider: ModelProvider; models: ModelConfig[] }[];
 
+  /**
+   * Raw config entries the unified model cannot express, preserved on disk
+   * as-is (QA H4). Adapters report them here so materialization can surface
+   * an explicit warning instead of a bare ok that leaves the file
+   * unverifiable.
+   */
+  getPreservedRawEntries?(): { key: string; name: string }[];
+
   // Model/Provider operations
   listModelProviders(): ModelProvider[];
   addModelProvider(provider: ModelProvider): Promise<void>;

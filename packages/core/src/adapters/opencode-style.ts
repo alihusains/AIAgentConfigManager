@@ -381,6 +381,10 @@ export class OpenCodeStyleAdapter implements AgentAdapter {
           enabled: server.enabled,
           ...(server.tools ? { tools: server.tools } : {}),
         };
+      } else if (Object.keys(existing).length > 0) {
+        // No expressible fields for this server but it exists on disk —
+        // keep the entry untouched (e.g. a server the tool owns itself).
+        mcp[server.name] = { ...existing };
       }
     }
 

@@ -916,7 +916,7 @@ export class AgentConfigManager {
     agentId: string,
     staleProviderIds: ReadonlySet<string> = new Set(),
     staleServerNames: ReadonlySet<string> = new Set()
-  ): Promise<{ agentId: string; ok: boolean; error?: string }> {
+  ): Promise<{ agentId: string; ok: boolean; error?: string; warning?: string }> {
     const adapter = this.adapters.get(agentId);
     if (!adapter) return { agentId, ok: false, error: 'Agent not found' };
     // Detect-only agents (e.g. OMP) have their own YAML config and inherit
@@ -975,6 +975,19 @@ export class AgentConfigManager {
             };
           })
         );
+
+      // The unified model cannot express malformed entries that the adapter
+      // preserved on disk (QA H4): surface them explicitly instead of a bare
+      // ok that leaves the file unverifiable.
+      const preserved = adapter.getPreservedRawEntries?.() ?? [];
+      if (preserved.length > 0) {
+        const names = preserved.map((e) => e.name).join(', ');
+        return {
+          agentId,
+          ok: true,
+          warning: `${agentId}: preserved unrecognized raw config entries: ${names}`,
+        };
+      }
 
       const merged: AgentConfig = {
         ...current,
