@@ -27,6 +27,9 @@ export * from './provider-test';
 // Environment variables (read, categorize, redact, edit user-level env vars)
 export * from './env-vars';
 
+// OS keychain access (Secrets)
+export * from './keychain';
+
 // Binary resolution (robust CLI detection)
 export * from './detect/binary';
 export * from './detect/version';
@@ -1120,7 +1123,10 @@ export class AgentConfigManager {
             'Re-register without keychain storage (or delete and re-add the provider) to change its key storage.',
         };
       }
-      if (typeof provider.config.apiKey !== 'string' || (provider.config.apiKey as string).length === 0) {
+      if (
+        typeof provider.config.apiKey !== 'string' ||
+        (provider.config.apiKey as string).length === 0
+      ) {
         return {
           success: false,
           error: `Keychain storage requires the provider's API key (config.apiKey) — none supplied for "${provider.id}".`,

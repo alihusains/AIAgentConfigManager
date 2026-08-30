@@ -13,14 +13,8 @@ import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import type { AgentConfigManager } from '@ai-agent-config/core';
-// M057: `isKeychainAvailable` is not (yet) re-exported from the core package
-// entry point (M056 kept the keychain module internal to core). Import it
-// from the built module file — core is a workspace package, so this resolves
-// to packages/core/dist/keychain.js.
-// eslint-disable-next-line import/no-relative-packages -- core's exports map
-// only exposes the entry point; the keychain module is a sibling file.
-import { isKeychainAvailable } from '../../core/dist/keychain.js';
 import {
+  isKeychainAvailable,
   probeProviderAPIs,
   getAgentCatalog,
   getAgentCatalogEntry,
