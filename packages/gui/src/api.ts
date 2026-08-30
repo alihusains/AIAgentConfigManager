@@ -301,6 +301,12 @@ export const api = {
     request<ProviderVerificationResult>('POST', `/api/providers/${encodeURIComponent(id)}/test`, {
       apiKey,
     }),
+  /**
+   * Phase 1 (Secrets): move an EXISTING provider's plaintext API key into
+   * the OS keychain (one provider at a time, explicit user action only).
+   */
+  migrateProviderToKeychain: (id: string) =>
+    request<RegistryState>('POST', `/api/providers/${encodeURIComponent(id)}/migrate-to-keychain`, {}),
   addProviderAgents: (id: string, agentIds: string[]) =>
     request('POST', `/api/providers/${encodeURIComponent(id)}/agents`, {
       agentIds,

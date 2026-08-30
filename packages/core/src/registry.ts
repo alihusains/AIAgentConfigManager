@@ -10,13 +10,13 @@
  * files as usual. One definition per provider / MCP server — no duplicates.
  */
 
-import {
-  type Registry,
-  type RegistryProvider,
-  type MCPServerConfig,
-  type ModelProvider,
-  type ModelConfig,
-  type MaterializeResult,
+import type {
+  Registry,
+  RegistryProvider,
+  MCPServerConfig,
+  ModelProvider,
+  ModelConfig,
+  MaterializeResult,
 } from './types';
 import { fileExists, writeFileSafe, readFileSafe } from './utils';
 import { getSecret, setSecret, deleteSecret, isKeychainAvailable } from './keychain';
@@ -217,6 +217,67 @@ export async function storeProviderApiKeyInKeychain(
   const config = { ...provider.config };
   config.apiKey = '';
   return { keychainSecretRef, provider: { ...provider, config } };
+}
+
+/**
+ * Migrate an EXISTING provider's plaintext API key into the OS keychain —
+ * one provider at a time, only on explicit user action.
+ *
+ * Moves `provider.config.apiKey` from registry.json into the keychain using
+ * the SAME primitive as new-provider keychain storage
+ * (`storeProviderApiKeyInKeychain`), then blanks `config.apiKey` and stamps
+ * the entry's `keychainSecretRef`.
+ *
+ * Fails safe: when the keychain is unavailable or the write throws, the
+ * registry is NOT modified at all — the plaintext key stays in place and a
+ * clear error is returned. The key can never end up missing from both
+ * places. Already-migrated and nothing-to-migrate entries return clear
+ * errors without touching the registry either.
+ */
+export async function migrateProviderApiKeyToKeychain(
+  registryPath: string,
+  providerId: string
+): Promise<{ keychainSecretRef: string } | { error: string }> {
+  const registry = await loadRegistry(registryPath);
+  if (!registry) {
+    return { error: `No registry found at ${registryPath} — nothing to migrate.` };
+  }
+  const entry = registry.providers.find((p) => p.provider.id === providerId);
+  if (!entry) {
+    return { error: `Provider "${providerId}" not found in registry` };
+  }
+  if (entry.keychainSecretRef) {
+    return {
+      error:
+        `Provider "${providerId}" is already stored in the OS keychain — ` +
+        'nothing to migrate.',
+    };
+  }
+  const apiKey = entry.provider.config.apiKey as unknown;
+  if (typeof apiKey !== 'string' || apiKey.length === 0) {
+    return {
+      error:
+        `Provider "${providerId}" has no plaintext API key to migrate ` +
+        '(config.apiKey is empty).',
+    };
+  }
+  try {
+    const stored = await storeProviderApiKeyInKeychain(entry.provider);
+    // The keychain write succeeded — only NOW does the registry change.
+    const config = { ...entry.provider.config };
+    config.apiKey = '';
+    entry.provider = { ...entry.provider, config };
+    entry.keychainSecretRef = stored.keychainSecretRef;
+    await saveRegistry(registryPath, registry);
+    return { keychainSecretRef: stored.keychainSecretRef };
+  } catch (err) {
+    return {
+      error:
+        `Failed to migrate the API key for provider "${providerId}" to the OS keychain: ` +
+        `${err instanceof Error ? err.message : String(err)}. ` +
+        'The registry was NOT modified — the plaintext key is still in place.',
+    };
+  }
 }
 
 /**

@@ -90,6 +90,7 @@ import {
   upsertProvider,
   upsertMCPServer,
   storeProviderApiKeyInKeychain,
+  migrateProviderApiKeyToKeychain,
   deleteProviderKeychainSecret,
   addProviderAgents,
   removeProviderAgent,
@@ -1265,6 +1266,30 @@ export class AgentConfigManager {
     await saveRegistry(this.registryFilePath, registry);
     this.registry = registry;
     return { success: true, data: true };
+  }
+
+  /**
+   * Migrate an EXISTING provider's plaintext API key into the OS keychain
+   * (Phase 1 Secrets) — one provider at a time, explicit action only. The
+   * keychain write happens BEFORE any registry change: on a keychain failure
+   * the registry is left byte-for-byte unchanged and the plaintext key stays
+   * in place. No agent configs are touched (the resolved key is unchanged by
+   * the move, so nothing needs re-materializing).
+   */
+  async migrateProviderApiKeyToKeychain(
+    providerId: string
+  ): Promise<OperationResult<RegistryState>> {
+    await this.requireRegistry();
+    const result = await migrateProviderApiKeyToKeychain(
+      this.registryFilePath,
+      providerId
+    );
+    if ('error' in result) return { success: false, error: result.error };
+    // The registry file was rewritten by the migration; refresh the in-memory
+    // copy so subsequent reads see the new keychainSecretRef.
+    this.registry = await loadRegistry(this.registryFilePath);
+    const data = await this.getRegistryState();
+    return { success: true, data };
   }
 
   /** Delete a provider from the registry and from every agent config. */
