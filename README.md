@@ -38,8 +38,26 @@ a local registry, then install it into any agent you pick. The tool rewrites eac
 agent's config file for you, in its native format, without touching the keys and
 structure it doesn't understand.
 
-Everything runs on your machine. No cloud, no accounts, no telemetry. Your API keys
-stay in the registry file on disk.
+Everything runs on your machine. No cloud, no accounts, no telemetry.
+
+> **Why secrets are a first-class concern here:** agent configs are exactly where
+> credentials get leaked. GitGuardian's *The State of Secrets Sprawl 2026* report
+> (a vendor blog post, not a peer-reviewed study — treat the figures as directional)
+> found **24,008 unique secrets** exposed in MCP-related configuration files across
+> public GitHub, and reported a **3.2% secret-leak rate in Claude Code-assisted
+> commits versus a 1.5% baseline** across all public GitHub commits — roughly double.
+> That is the failure mode this tool is designed around: one registry, keychain
+> storage for new provider keys, and redacted-by-default views, so the same key is
+> never hand-pasted into five config files.
+>
+> What's actually shipped today: new providers can opt into OS-keychain storage
+> (macOS Keychain, Windows Credential Manager, Linux libsecret/KWallet) — the real
+> key goes to the keychain and only an empty placeholder is written to
+> `registry.json`; existing plaintext providers are left untouched and there is no
+> automatic migration yet. Environment variables are listed with sensitive-looking
+> values masked, and unmasking is a deliberate per-variable action. Keychain
+> storage never silently falls back to plaintext: if the keychain is unavailable,
+> the save fails with a clear error instead of writing the key to disk.
 
 ## What it does today
 
@@ -52,6 +70,7 @@ stay in the registry file on disk.
 | 📊 **Dashboard (GUI)** | Point-and-click management, light/dark themes, copy-to-clipboard credentials, per-provider API badges, one-click connectivity tests |
 | 🖥️ **CLI** | Full command surface for scripting: `detect`, `provider`, `model`, `mcp`, `permission`, `backup`, `gui` |
 | 🧬 **Format-aware writing** | Adapters preserve unknown keys, `imports`, headers, and JSONC comments; your existing config never gets clobbered |
+| 🔐 **Secrets handling** | Opt-in OS-keychain storage for new provider API keys (the real key never lands in `registry.json`), and redacted-by-default listing of your environment variables with a deliberate per-variable reveal |
 
 ### Supported agents
 
