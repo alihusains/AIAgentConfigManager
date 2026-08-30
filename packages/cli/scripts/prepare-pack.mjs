@@ -69,12 +69,7 @@ function resolveModule(name, fromDir) {
         .readdirSync(pnpmDir)
         .filter((d) => d.startsWith(`${flat}@`) && d.endsWith('/node_modules'));
       if (matches.length > 0) {
-        const candidate = path.join(
-          pnpmDir,
-          matches[0],
-          'node_modules',
-          ...name.split('/')
-        );
+        const candidate = path.join(pnpmDir, matches[0], 'node_modules', ...name.split('/'));
         if (fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) {
           return candidate;
         }

@@ -7,10 +7,7 @@
   "bin": {
     "agm": "./dist/bundle-entry.js"
   },
-  "files": [
-    "dist",
-    "vendor"
-  ],
+  "files": ["dist", "vendor"],
   "scripts": {
     "build": "tsc",
     "prepack": "node scripts/prepare-pack.mjs",
