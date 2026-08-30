@@ -1,10 +1,23 @@
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { Sparkles, Plus, RefreshCw, FolderOpen, Bot, X, Link2, Search, Trash2 } from 'lucide-react';
+import {
+  Sparkles,
+  Plus,
+  RefreshCw,
+  FolderOpen,
+  Bot,
+  X,
+  Link2,
+  Search,
+  Trash2,
+  Store,
+  ExternalLink,
+} from 'lucide-react';
 import type {
   AggregatedSkill,
   SkillDef,
   SkillCapableAgent,
   SkillsSnapshot,
+  MarketplaceSkillSummary,
 } from '@ai-agent-config/core';
 import { api } from '../api';
 import { useStore } from '../store';
@@ -43,6 +56,9 @@ const busyKey = (
   agentId: string,
   action: 'assign' | 'unassign' | 'copy' | 'delete'
 ) => `${skillId}->${agentId}:${action}`;
+
+/** Identifies a busy marketplace install button. */
+const marketBusyKey = (skillId: string) => `marketplace:${skillId}:install`;
 
 /** Fixed row height for the windowed skill list (see useWindowedList). */
 const SKILL_ROW_HEIGHT = 92;
@@ -259,6 +275,62 @@ const SkillRow = memo(function SkillRow({
 });
 
 /* ------------------------------------------------------------------ */
+/* Marketplace section (M066 backend: alihusains/enterprise-skills)    */
+/* ------------------------------------------------------------------ */
+
+interface MarketplaceRowProps {
+  skill: MarketplaceSkillSummary;
+  busy: boolean;
+  /** True when a local skill with this id already exists in the library. */
+  inLibrary: boolean;
+  onInstall: (skillId: string, overwrite: boolean) => void;
+}
+
+const MarketplaceRow = memo(function MarketplaceRow({
+  skill,
+  busy,
+  inLibrary,
+  onInstall,
+}: MarketplaceRowProps) {
+  return (
+    <div className="marketplace-row">
+      <div className="marketplace-row-main">
+        <div className="marketplace-row-title">
+          <span className="marketplace-row-name truncate">{skill.name}</span>
+          <a
+            className="marketplace-row-link"
+            href={skill.htmlUrl}
+            target="_blank"
+            rel="noreferrer"
+            aria-label={`View ${skill.name} on GitHub`}
+          >
+            <ExternalLink size={13} />
+            <span className="truncate">GitHub</span>
+          </a>
+        </div>
+        <p className="marketplace-row-desc">{skill.description ?? 'No description.'}</p>
+      </div>
+      <div className="marketplace-row-actions">
+        {inLibrary && (
+          <span className="marketplace-row-warning text-xs">
+            Already in your library — installing replaces it.
+          </span>
+        )}
+        <Button
+          variant="secondary"
+          size="sm"
+          icon={<Plus size={13} />}
+          loading={busy}
+          onClick={() => onInstall(skill.id, false)}
+        >
+          Install
+        </Button>
+      </div>
+    </div>
+  );
+});
+
+/* ------------------------------------------------------------------ */
 /* Main view                                                           */
 /* ------------------------------------------------------------------ */
 
@@ -277,6 +349,14 @@ export function SkillsView() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [body, setBody] = useState('');
+
+  // Marketplace (M066): collapsed AND unfetched by default — the first
+  // "Browse marketplace" click is what fires the network request.
+  const [marketOpen, setMarketOpen] = useState(false);
+  const [marketSkills, setMarketSkills] = useState<MarketplaceSkillSummary[] | null>(null);
+  const [marketLoading, setMarketLoading] = useState(false);
+  const [marketError, setMarketError] = useState<string | null>(null);
+  const [marketBusyId, setMarketBusyId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -402,6 +482,65 @@ export function SkillsView() {
       }
     },
     [addToast, load]
+  );
+
+  const loadMarketplace = useCallback(async (force: boolean) => {
+    setMarketLoading(true);
+    setMarketError(null);
+    try {
+      const res = await api.listMarketplaceSkills(force);
+      if (res.ok && res.data) {
+        setMarketSkills(res.data.skills);
+      } else {
+        // Show the server's honest error verbatim (rate limits, network).
+        setMarketError(res.error ?? 'Failed to load the marketplace');
+      }
+    } catch (e) {
+      setMarketError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setMarketLoading(false);
+    }
+  }, []);
+
+  const handleMarketBrowse = useCallback(() => {
+    setMarketOpen(true);
+    if (marketSkills == null) void loadMarketplace(false);
+  }, [marketSkills, loadMarketplace]);
+
+  const handleMarketInstall = useCallback(
+    async (skillId: string, overwrite: boolean) => {
+      if (!overwrite) {
+        const exists = (snapshot?.skills ?? []).some((s) => s.id === skillId);
+        if (
+          exists &&
+          !confirm(
+            `Skill "${skillId}" is already in your library.\n\nReplace it with the marketplace version?`
+          )
+        ) {
+          return;
+        }
+      }
+      setMarketBusyId(marketBusyKey(skillId));
+      try {
+        const res = await api.installMarketplaceSkill(skillId, overwrite);
+        if (!res.ok) throw new Error(res.error ?? 'Install failed');
+        addToast({
+          type: 'success',
+          title: 'Skill installed',
+          message: `${skillId} added to the library`,
+        });
+        await load(); // the installed skill now shows up in the local list
+      } catch (e) {
+        addToast({
+          type: 'error',
+          title: 'Install failed',
+          message: e instanceof Error ? e.message : String(e),
+        });
+      } finally {
+        setMarketBusyId(null);
+      }
+    },
+    [snapshot, addToast, load]
   );
 
   const handleCreate = useCallback(async () => {
@@ -657,6 +796,95 @@ export function SkillsView() {
           </div>
         </Card>
       )}
+
+      {/* Marketplace — collapsed and unfetched until the user browses it */}
+      <Card
+        className="mb-6"
+        title={
+          <span className="flex items-center gap-2">
+            <Store size={16} />
+            Marketplace
+          </span>
+        }
+      >
+        {marketOpen ? (
+          <div>
+            <div className="marketplace-toolbar">
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={<RefreshCw size={13} />}
+                loading={marketLoading}
+                onClick={() => void loadMarketplace(true)}
+              >
+                Refresh
+              </Button>
+              <span className="text-xs text-tertiary">
+                {marketSkills != null &&
+                  `${marketSkills.length} skills from alihusains/enterprise-skills`}
+              </span>
+            </div>
+            {marketError != null && (
+              <div className="error-banner mb-4">
+                <p className="text-sm text-error">{marketError}</p>
+              </div>
+            )}
+            {marketLoading && marketSkills == null && marketError == null ? (
+              <div className="space-y-2" aria-busy="true">
+                {Array.from({ length: 4 }, (_, i) => (
+                  <Skeleton
+                    key={`marketplace-skeleton-${i}`}
+                    className="block"
+                    width="100%"
+                    height={64}
+                  />
+                ))}
+              </div>
+            ) : marketSkills != null ? (
+              marketSkills.length === 0 ? (
+                <p className="text-sm text-tertiary py-4 text-center">
+                  The marketplace has no skills right now.
+                </p>
+              ) : (
+                <div className="marketplace-list">
+                  {marketSkills.map((skill) => (
+                    <MarketplaceRow
+                      key={skill.id}
+                      skill={skill}
+                      busy={marketBusyId === skill.id}
+                      inLibrary={(snapshot?.skills ?? []).some((s) => s.id === skill.id)}
+                      onInstall={(id, overwrite) => void handleMarketInstall(id, overwrite)}
+                    />
+                  ))}
+                </div>
+              )
+            ) : null}
+          </div>
+        ) : (
+          <div className="marketplace-collapsed">
+            <p className="text-sm text-secondary">
+              Browse and install skills from the public{' '}
+              <a
+                className="marketplace-row-link"
+                href="https://github.com/alihusains/enterprise-skills"
+                target="_blank"
+                rel="noreferrer"
+              >
+                alihusains/enterprise-skills
+              </a>{' '}
+              repo. Nothing is fetched until you browse.
+            </p>
+            <Button
+              variant="primary"
+              size="sm"
+              icon={<Store size={14} />}
+              onClick={handleMarketBrowse}
+            >
+              Browse marketplace
+            </Button>
+          </div>
+        )}
+      </Card>
 
       {/* Library location footer */}
       {snapshot != null && (
