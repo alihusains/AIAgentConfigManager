@@ -21,6 +21,7 @@ import type {
   ToolUpdateStatus,
   SkillDef,
   SkillsSnapshot,
+  MarketplaceSkillSummary,
   EnvVarEntry,
   MutateEnvVarResult,
 } from '@ai-agent-config/core';
@@ -235,6 +236,21 @@ export const api = {
   /** Delete a skill's folder from the shared library (agent copies are untouched). */
   deleteSkill: (skillId: string) =>
     request<{ ok: boolean }>('DELETE', `/api/skills/${encodeURIComponent(skillId)}`),
+
+  // --- Skill marketplace (M066 backend; every call is user-triggered) ---
+  /** List marketplace skills. `force` bypasses the server's 10-min cache. */
+  listMarketplaceSkills: (force = false) =>
+    request<{ skills: MarketplaceSkillSummary[] }>(
+      'GET',
+      `/api/marketplace/skills${force ? '?force=1' : ''}`
+    ),
+  /** Install a marketplace skill into the shared library (never overwrites silently). */
+  installMarketplaceSkill: (skillId: string, overwrite = false) =>
+    request<{ targetPath: string }>(
+      'POST',
+      `/api/marketplace/skills/${encodeURIComponent(skillId)}/install`,
+      { overwrite }
+    ),
 
   // --- Registry import/export ---
   /**

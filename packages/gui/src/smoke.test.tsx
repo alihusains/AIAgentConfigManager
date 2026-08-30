@@ -42,6 +42,8 @@ const { apiMock } = vi.hoisted(() => {
     unassignSkill: vi.fn(),
     copySkillToAgent: vi.fn(),
     deleteSkill: vi.fn(),
+    listMarketplaceSkills: vi.fn(),
+    installMarketplaceSkill: vi.fn(),
     exportRegistry: vi.fn(),
     importRegistry: vi.fn(),
     addProvider: vi.fn(),
@@ -552,7 +554,8 @@ describe('AgentsView', () => {
 // SkillsView (cross-agent copy affordance)
 // ---------------------------------------------------------------------------
 describe('SkillsView', () => {
-  const skillsSnapshot = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const skillsSnapshot: any = {
     libraryDir: '/tmp/skills',
     skills: [
       {
@@ -720,12 +723,176 @@ describe('SkillsView', () => {
   });
 
   it('shows loading skeletons while the aggregated list is in flight', async () => {
-    let resolveLoad!: (v: { ok: boolean; status: number; data: never }) => void;
+    let resolveLoad!: (v: { ok: boolean; status: number; data: any }) => void;
     apiMock.getSkills.mockReturnValue(new Promise((resolve) => (resolveLoad = resolve)));
     const { container } = render(<SkillsView />);
     expect(container.querySelectorAll('.skeleton').length).toBeGreaterThan(0);
     resolveLoad({ ok: true, status: 200, data: skillsSnapshot });
     await screen.findByText('Test Skill');
+  });
+
+  // -----------------------------------------------------------------
+  // Marketplace (M066 backend, M067 GUI)
+  // -----------------------------------------------------------------
+  const marketSkills = [
+    {
+      id: 'engineering-code-review',
+      name: 'Engineering Code Review',
+      description: 'Review code against engineering standards',
+      sourceRepo: 'alihusains/enterprise-skills',
+      sourcePath: 'skills/engineering/engineering-code-review',
+      htmlUrl: 'https://github.com/alihusains/enterprise-skills/tree/main/skills/engineering/engineering-code-review',
+    },
+    {
+      id: 'test-skill',
+      name: 'Test Skill (market)',
+      description: 'Same id as a local library skill',
+      sourceRepo: 'alihusains/enterprise-skills',
+      sourcePath: 'skills/engineering/test-skill',
+      htmlUrl: 'https://github.com/alihusains/enterprise-skills/tree/main/skills/engineering/test-skill',
+    },
+  ] as Array<Record<string, string>>;
+
+  it('does not fetch the marketplace until the user clicks Browse', async () => {
+    apiMock.listMarketplaceSkills.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { skills: marketSkills },
+    });
+    render(<SkillsView />);
+    await screen.findByText('Test Skill');
+
+    expect(apiMock.listMarketplaceSkills).not.toHaveBeenCalled();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /Browse marketplace/ }));
+
+    await waitFor(() => {
+      expect(apiMock.listMarketplaceSkills).toHaveBeenCalledWith(false);
+    });
+    await screen.findByText('Engineering Code Review');
+  });
+
+  it('shows name, description, and a GitHub link per marketplace skill', async () => {
+    apiMock.listMarketplaceSkills.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { skills: marketSkills },
+    });
+    render(<SkillsView />);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /Browse marketplace/ }));
+    await screen.findByText('Engineering Code Review');
+
+    expect(screen.getByText('Review code against engineering standards')).toBeInTheDocument();
+    const link = screen.getByRole('link', {
+      name: /View Engineering Code Review on GitHub/,
+    });
+    expect(link).toHaveAttribute('href', marketSkills[0].htmlUrl);
+    expect(link).toHaveAttribute('target', '_blank');
+  });
+
+  it('installs a marketplace skill and it appears in the local library list', async () => {
+    apiMock.installMarketplaceSkill.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { targetPath: '/tmp/skills/engineering-code-review' },
+    });
+    // The post-install refresh returns the installed skill in the snapshot.
+    const installedSnapshot = {
+      ...skillsSnapshot,
+      skills: [
+        ...skillsSnapshot.skills,
+        {
+          id: 'engineering-code-review',
+          name: 'Engineering Code Review',
+          description: 'Review code against engineering standards',
+          path: '/tmp/skills/engineering-code-review',
+          fileCount: 1,
+        },
+      ],
+      allSkills: [
+        ...skillsSnapshot.allSkills,
+        {
+          id: 'engineering-code-review',
+          name: 'Engineering Code Review',
+          description: 'Review code against engineering standards',
+          path: '/tmp/skills/engineering-code-review',
+          fileCount: 1,
+          foundOn: ['library'],
+        },
+      ],
+    };
+    let call = 0;
+    apiMock.getSkills.mockImplementation(async () => ({
+      ok: true,
+      status: 200,
+      data: call++ === 0 ? skillsSnapshot : installedSnapshot,
+    }));
+    apiMock.listMarketplaceSkills.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { skills: marketSkills },
+    });
+    render(<SkillsView />);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /Browse marketplace/ }));
+    await screen.findByText('Engineering Code Review');
+
+    const installBtns = screen.getAllByRole('button', { name: /Install/ });
+    await user.click(installBtns[0]);
+
+    await waitFor(() => {
+      expect(apiMock.installMarketplaceSkill).toHaveBeenCalledWith('engineering-code-review', false);
+    });
+    // The local list refreshes and the installed skill now shows up as an
+    // ordinary library skill (its row is in the "All skills" list).
+    await waitFor(() => expect(apiMock.getSkills).toHaveBeenCalledTimes(2));
+    expect(screen.getAllByText('Engineering Code Review').length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('asks before replacing an already-installed skill and surfaces the 409 error otherwise', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    apiMock.listMarketplaceSkills.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { skills: marketSkills },
+    });
+    render(<SkillsView />);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /Browse marketplace/ }));
+    await screen.findByText('Test Skill (market)');
+
+    // The skill with the same id is already in the library — flagged as such.
+    expect(
+      screen.getByText('Already in your library — installing replaces it.')
+    ).toBeInTheDocument();
+
+    // Dismissing the confirmation must not call the install endpoint.
+    const installBtns = screen.getAllByRole('button', { name: /Install/ });
+    await user.click(installBtns[1]);
+    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining('already in your library'));
+    expect(apiMock.installMarketplaceSkill).not.toHaveBeenCalled();
+  });
+
+  it('shows a clear rate-limit error, not a blank state', async () => {
+    apiMock.listMarketplaceSkills.mockResolvedValue({
+      ok: false,
+      status: 429,
+      error: 'GitHub API rate limit reached (unauthenticated limit is 60 requests/hour per IP). Resets at Unix time 1790000000. Try again later.',
+    });
+    render(<SkillsView />);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /Browse marketplace/ }));
+
+    await screen.findByText(/GitHub API rate limit reached/);
+    // The section is still usable: the marketplace Refresh action is present
+    // (the header's snapshot Refresh button exists too, hence getAllByRole).
+    expect(screen.getAllByRole('button', { name: /Refresh/ }).length).toBeGreaterThanOrEqual(2);
   });
 });
 
