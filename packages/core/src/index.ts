@@ -82,6 +82,8 @@ import {
   migrateFromAgentConfigs,
   upsertProvider,
   upsertMCPServer,
+  storeProviderApiKeyInKeychain,
+  deleteProviderKeychainSecret,
   addProviderAgents,
   removeProviderAgent,
   addMCPServerAgents,
@@ -1091,18 +1093,57 @@ export class AgentConfigManager {
     return { ...provider, config: cfg };
   }
 
+  /**
+   * Register (or update) a provider, with an optional opt-in to OS-keychain
+   * storage of its API key (Phase 1 Secrets). Pass
+   * `keychainStorage: true` ONLY for a NEW provider: the real key is written
+   * to the keychain, `registry.json` stores an empty `apiKey` plus a
+   * `keychainSecretRef`, and a keychain failure fails the registration
+   * cleanly (no silent plaintext fallback). Omitting the option — or
+   * registering an existing provider — behaves exactly as before.
+   */
   async registerProvider(
     provider: ModelProvider,
     models: ModelConfig[] = [],
     agentIds: string[] = [],
-    apiCapabilities?: ProviderApiCapabilities
+    apiCapabilities?: ProviderApiCapabilities,
+    keychainStorage?: boolean
   ): Promise<OperationResult<RegistryState>> {
+    let keychainSecretRef: string | undefined;
+    if (keychainStorage) {
+      const registry = await this.requireRegistry();
+      if (registry.providers.some((p) => p.provider.id === provider.id)) {
+        return {
+          success: false,
+          error:
+            `Keychain storage is opt-in for NEW providers only — "${provider.id}" is already registered. ` +
+            'Re-register without keychain storage (or delete and re-add the provider) to change its key storage.',
+        };
+      }
+      if (typeof provider.config.apiKey !== 'string' || (provider.config.apiKey as string).length === 0) {
+        return {
+          success: false,
+          error: `Keychain storage requires the provider's API key (config.apiKey) — none supplied for "${provider.id}".`,
+        };
+      }
+      try {
+        const stored = await storeProviderApiKeyInKeychain(provider);
+        provider = stored.provider;
+        keychainSecretRef = stored.keychainSecretRef;
+      } catch (err) {
+        return {
+          success: false,
+          error: err instanceof Error ? err.message : String(err),
+        };
+      }
+    }
     const registry = await this.requireRegistry();
     upsertProvider(
       registry,
       this.applyWireApiPreference(provider, apiCapabilities),
       models,
-      apiCapabilities
+      apiCapabilities,
+      keychainSecretRef
     );
     const added = addProviderAgents(registry, provider.id, agentIds);
     if (!added.ok) return { success: false, error: added.error };
@@ -1207,6 +1248,10 @@ export class AgentConfigManager {
           staleProviderIds.add(alt.provider.id);
         }
       }
+      // Phase 1 (Secrets): a keychain-backed key must not outlive its
+      // registry entry. Best-effort — a keychain-deletion failure only warns
+      // and never blocks the registry deletion itself.
+      await deleteProviderKeychainSecret(entry);
     }
     return this.registryMutation(
       (r) => {

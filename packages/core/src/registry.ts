@@ -20,6 +20,7 @@ import {
   type MaterializeResult,
 } from './types';
 import { fileExists, writeFileSafe, readFileSafe } from './utils';
+import { getSecret, setSecret, deleteSecret, isKeychainAvailable } from './keychain';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
@@ -97,12 +98,17 @@ export async function saveRegistry(registryPath: string, registry: Registry): Pr
 // Merge / mutation helpers (immutable-ish: return updated registry copies)
 // ============================================================================
 
-/** Upsert a provider definition + its models; returns the updated registry. */
+/**
+ * Upsert a provider definition + its models; returns the updated registry.
+ * `keychainSecretRef` is passed through for existing entries (it is an
+ * entry-level field, never derived from the provider payload).
+ */
 export function upsertProvider(
   registry: Registry,
   provider: ModelProvider,
   models: ModelConfig[],
-  apiCapabilities?: RegistryProvider['apiCapabilities']
+  apiCapabilities?: RegistryProvider['apiCapabilities'],
+  keychainSecretRef?: string
 ): Registry {
   const index = registry.providers.findIndex((p) => p.provider.id === provider.id);
   if (index === -1) {
@@ -111,6 +117,7 @@ export function upsertProvider(
       models,
       agentIds: [],
       ...(apiCapabilities ? { apiCapabilities } : {}),
+      ...(keychainSecretRef ? { keychainSecretRef } : {}),
     });
   } else {
     registry.providers[index] = {
@@ -118,9 +125,111 @@ export function upsertProvider(
       provider,
       models,
       ...(apiCapabilities ? { apiCapabilities } : {}),
+      ...(keychainSecretRef !== undefined
+        ? { keychainSecretRef }
+        : registry.providers[index].keychainSecretRef
+          ? { keychainSecretRef: registry.providers[index].keychainSecretRef }
+          : {}),
     };
   }
   return registry;
+}
+
+// ============================================================================
+// Phase 1 (Secrets): opt-in OS-keychain-backed provider API keys
+//
+// A NEW provider may opt into keychain storage: the real key goes to the OS
+// keychain (account `provider:<providerId>`), the registry entry carries
+// `keychainSecretRef`, and `provider.config.apiKey` in registry.json is an
+// empty string — the real key never lands in the JSON file. Existing
+// plaintext providers are untouched: every path below is additive and only
+// active when a caller explicitly opts in (or an entry already carries a
+// `keychainSecretRef`).
+// ============================================================================
+
+/** Deterministic keychain account reference for a provider's API key. */
+export function keychainRefForProvider(providerId: string): string {
+  return `provider:${providerId}`;
+}
+
+/**
+ * Resolve a provider's real API key.
+ *
+ * - With `keychainSecretRef`: fetches the value from the OS keychain. Returns
+ *   `null` (never throws) when the entry is missing or the keychain is
+ *   unavailable — the caller decides how to surface that.
+ * - Without: returns the plaintext `provider.config.apiKey` unchanged
+ *   (full backward compatibility).
+ */
+export async function resolveProviderApiKey(
+  provider: RegistryProvider
+): Promise<string | null> {
+  if (provider.keychainSecretRef) {
+    return getSecret(provider.keychainSecretRef);
+  }
+  const value = provider.provider.config.apiKey as unknown;
+  return typeof value === 'string' ? value : null;
+}
+
+/**
+ * Opt-in keychain storage for a NEW provider's API key.
+ *
+ * Stores `realKey` in the OS keychain under `provider:<providerId>`, blanks
+ * `provider.config.apiKey` (the real key must never be persisted in
+ * registry.json on this path) and returns the secret reference to stamp on
+ * the registry entry.
+ *
+ * Fails cleanly — with a clear error — when the keychain is unavailable or
+ * the write throws. It NEVER falls back to plaintext storage: silently
+ * degrading would be a security regression, not a UX convenience.
+ */
+export async function storeProviderApiKeyInKeychain(
+  provider: ModelProvider
+): Promise<{ keychainSecretRef: string; provider: ModelProvider }> {
+  const available = await isKeychainAvailable();
+  if (!available) {
+    throw new Error(
+      'OS keychain is unavailable in this environment — cannot store the API key in the keychain. '
+        + 'Registration was NOT saved with a plaintext key. '
+        + 'Unlock the keychain (or run on a machine with a keychain) and retry, '
+        + 'or register without keychain storage.'
+    );
+  }
+  const keychainSecretRef = keychainRefForProvider(provider.id);
+  try {
+    await setSecret(keychainSecretRef, provider.config.apiKey as string);
+  } catch (err) {
+    throw new Error(
+      `Failed to write the API key to the OS keychain for provider "${provider.id}": ` +
+        `${err instanceof Error ? err.message : String(err)}. ` +
+        + 'No plaintext copy was written to the registry.'
+    );
+  }
+  // The real key never lands in registry.json on this path.
+  const config = { ...provider.config };
+  config.apiKey = '';
+  return { keychainSecretRef, provider: { ...provider, config } };
+}
+
+/**
+ * Best-effort keychain cleanup for a deleted provider. A keychain-deletion
+ * failure must NOT block the registry deletion (the registry is the source
+ * of truth for what exists) — it only logs a warning about the orphaned
+ * entry. Returns `true` when the entry was deleted (or already absent).
+ */
+export async function deleteProviderKeychainSecret(
+  provider: RegistryProvider
+): Promise<boolean> {
+  if (!provider.keychainSecretRef) return true;
+  const deleted = await deleteSecret(provider.keychainSecretRef);
+  if (!deleted) {
+    console.warn(
+      `[registry] warning: could not delete keychain entry "${provider.keychainSecretRef}" ` +
+        `for provider "${provider.provider.id}" — the credential may be orphaned in the OS keychain. ` +
+        + 'Registry deletion proceeded.'
+    );
+  }
+  return deleted;
 }
 
 /** Upsert an MCP server definition; returns the updated registry. */
