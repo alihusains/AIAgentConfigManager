@@ -112,7 +112,14 @@ export interface ModelProvider {
     | 'azure'
     | 'bedrock'
     | 'vertex';
-  config: Record<string, unknown>;
+  /**
+   * Freeform per-provider settings (baseUrl, wireApi, ...). `apiKey` is the
+   * well-known key: a plaintext string for legacy providers. For providers
+   * that opted into OS-keychain storage (Phase 1 Secrets, see
+   * `RegistryProvider.keychainSecretRef`) it is an empty string — the real
+   * key lives in the keychain and is resolved via `resolveProviderApiKey()`.
+   */
+  config: Record<string, unknown> & { apiKey?: string };
   enabled: boolean;
   priority: number;
 }
