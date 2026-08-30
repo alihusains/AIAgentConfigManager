@@ -458,4 +458,49 @@ describe('AgentConfigManager keychain opt-in registration', () => {
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
   });
+
+  it('M069: migrateProviderApiKeyToKeychain works as the FIRST registry call on a fresh manager', async () => {
+    // The registry file already exists on disk with a plaintext-key provider,
+    // but the manager instance has NOT called initRegistry/getRegistryState/
+    // registerProvider yet — registryFilePath must be resolved lazily via
+    // requireRegistry() inside the method itself.
+    const realKey = `sk-m069-first-call-${Date.now()}`;
+    const registryPath = path.join(process.env.AI_CONFIG_HOME!, 'registry.json');
+    fs.writeFileSync(
+      registryPath,
+      JSON.stringify(
+        {
+          version: 1,
+          providers: [
+            {
+              provider: makeProvider('p-m069', realKey),
+              models: [],
+              agentIds: [],
+            },
+          ],
+          mcpServers: [],
+          customAgents: [],
+          updatedAt: 0,
+        },
+        null,
+        2
+      )
+    );
+
+    const freshManager = new AgentConfigManager();
+    const result = await freshManager.migrateProviderApiKeyToKeychain('p-m069');
+
+    // Before the M069 fix this returned { success: false, error:
+    // "No registry found at  — nothing to migrate." } (empty path).
+    expect(result.success).toBe(true);
+    if (!result.success) throw new Error('expected success');
+    expect(result.data.providers.find((p: any) => p.provider.id === 'p-m069')?.keychainSecretRef).toBe('provider:p-m069');
+    expect(store.get('provider:p-m069')).toBe(realKey);
+
+    const file = JSON.parse(fs.readFileSync(registryPath, 'utf8'));
+    const entry = file.providers.find((p: any) => p.provider.id === 'p-m069');
+    expect(entry.keychainSecretRef).toBe('provider:p-m069');
+    expect(entry.provider.config.apiKey).toBe('');
+    expect(JSON.stringify(file)).not.toContain(realKey);
+  });
 });

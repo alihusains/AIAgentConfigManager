@@ -1279,6 +1279,7 @@ export class AgentConfigManager {
   async migrateProviderApiKeyToKeychain(
     providerId: string
   ): Promise<OperationResult<RegistryState>> {
+    await this.requireRegistry();
     const result = await migrateProviderApiKeyToKeychain(
       this.registryFilePath,
       providerId
