@@ -102,6 +102,11 @@ export function SettingsView() {
             message: res.error || 'Invalid registry file',
           });
         } else {
+          // Same convention as the store's run(): one warning toast per
+          // warning, then the success toast (M061 portability warnings).
+          for (const warning of res.data?.warnings || []) {
+            addToast({ type: 'warning', title: 'Warning', message: warning });
+          }
           addToast({
             type: 'success',
             title: 'Registry Imported',
