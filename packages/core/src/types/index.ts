@@ -515,6 +515,15 @@ export interface RegistryProvider {
   migrated?: boolean;
   /** Live API verification (probed when the provider was added or on demand) */
   apiCapabilities?: ProviderApiCapabilities;
+  /**
+   * Phase 1 (Secrets): present when this provider's API key is stored in the
+   * OS keychain instead of plaintext in `provider.config.apiKey`. The value is
+   * the keychain account reference (e.g. `provider:<providerId>`); the service
+   * namespace is fixed by the keychain module. Additive/optional — legacy
+   * entries without this field keep working exactly as before. Resolution
+   * (fetching the real key from the keychain) is wired in a later task.
+   */
+  keychainSecretRef?: string;
 }
 
 /**
