@@ -12,7 +12,7 @@ import * as fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import type { AgentConfigManager } from '@ai-agent-config/core';
+import type { AgentConfigManager } from './core-shim.js';
 import {
   isKeychainAvailable,
   probeProviderAPIs,
@@ -37,7 +37,7 @@ import {
   setEnvVar,
   removeEnvVar,
   revealEnvVar,
-} from '@ai-agent-config/core';
+} from './core-shim.js';
 import type {
   ModelProvider,
   ModelConfig,
@@ -46,7 +46,7 @@ import type {
   ProviderApiCapabilities,
   Platform,
   AgentJob,
-} from '@ai-agent-config/core';
+} from './core-shim.js';
 
 // ============================================================================
 // Port selection
@@ -162,9 +162,17 @@ export interface GUIServerHandle {
 function resolveDistDir(override?: string): string {
   if (override) return path.resolve(override);
   if (process.env.AI_CONFIG_DIST) return path.resolve(process.env.AI_CONFIG_DIST);
-  // <cli>/dist/gui-server.js -> <repo>/packages/gui/dist
   const here = path.dirname(fileURLToPath(import.meta.url));
-  return path.resolve(here, '../../gui/dist');
+  // 1. Standalone npm install: the packed tarball bundles the built GUI at
+  //    <package>/vendor/gui-dist (created by scripts/prepare-pack.mjs).
+  const vendored = path.resolve(here, '../vendor/gui-dist');
+  if (fs.existsSync(path.join(vendored, 'index.html'))) return vendored;
+  // 2. Monorepo dev: <repo>/packages/cli/dist -> <repo>/packages/gui/dist
+  const monorepo = path.resolve(here, '../../gui/dist');
+  if (fs.existsSync(path.join(monorepo, 'index.html'))) return monorepo;
+  // 3. Fallback: the monorepo path, so the "GUI build not found" error
+  //    still points at the expected location inside this repo.
+  return monorepo;
 }
 
 // ============================================================================

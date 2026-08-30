@@ -4,6 +4,7 @@
   "description": "Core library for AI Agent Configuration Manager",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": ["dist"],
   "exports": {
     ".": {
       "import": "./dist/index.js",
