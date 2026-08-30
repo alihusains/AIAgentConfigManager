@@ -305,6 +305,47 @@ describe('setEnvVar (macOS/Linux, temp HOME)', () => {
     const content = await fs.readFile(expected, 'utf-8');
     expect(content).toContain("export FRESH_VAR='fresh'");
   });
+
+  // M058: a variable that exists ONLY in process.env (no shell profile backs
+  // it) is reported read-only by listEnvVars, but setEnvVar adopts it into the
+  // default profile file — after which listEnvVars reports it as
+  // shell-profile-backed and editable. This exercises the exact "Edit
+  // anyway (add to profile)" path the GUI offers for process-only rows.
+  it('adopts a process-only var into the default profile (M058)', async () => {
+    await writeZshrc('export PROFILE_ONLY=pp\n');
+    process.env.PROCESS_ONLY_ADOPT = 'proc-value';
+
+    // Before the write: process-only, not editable.
+    const before = await listEnvVars({ platform: 'linux' });
+    const beforeEntry = before.find((e) => e.name === 'PROCESS_ONLY_ADOPT');
+    expect(beforeEntry).toBeDefined();
+    expect(beforeEntry!.source).toBe('process');
+    expect(beforeEntry!.editable).toBe(false);
+
+    // The adopt write: appends an export line to the shell-appropriate
+    // default profile (same file-selection logic as a brand-new var).
+    const result = await setEnvVar('PROCESS_ONLY_ADOPT', 'adopted-value', {
+      platform: 'linux',
+    });
+    expect(result.ok).toBe(true);
+    const shell = (process.env.SHELL || '').toLowerCase();
+    const target = path.join(tmpHome, shell.includes('bash') ? '.bashrc' : '.zshrc');
+    const content = await fs.readFile(target, 'utf-8');
+    expect(content).toContain("export PROCESS_ONLY_ADOPT='adopted-value'");
+
+    // After the write: the same name is now shell-profile-backed and
+    // editable — no signature change, purely a state transition.
+    const after = await listEnvVars({ platform: 'linux' });
+    const afterEntry = after.find((e) => e.name === 'PROCESS_ONLY_ADOPT');
+    expect(afterEntry).toBeDefined();
+    expect(afterEntry!.source).toBe('shell-profile');
+    expect(afterEntry!.sourceFile).toBe(target);
+    expect(afterEntry!.editable).toBe(true);
+    // Sensitive-looking? No — the unredacted value is the profile one.
+    expect(afterEntry!.value).toBe('adopted-value');
+
+    delete process.env.PROCESS_ONLY_ADOPT;
+  });
 });
 
 describe('removeEnvVar (macOS/Linux, temp HOME)', () => {
