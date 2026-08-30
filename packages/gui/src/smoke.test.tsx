@@ -969,6 +969,62 @@ describe('SettingsView', () => {
       HTMLAnchorElement.prototype.click = origClick;
     }
   });
+
+  // M061: registry-import warnings (keychain-backed key, foreign-OS path) must
+  // be surfaced as warning toasts, not silently swallowed.
+  it('Import Registry surfaces server warnings as warning toasts (M061)', async () => {
+    const warnings = [
+      "Provider 'Keychain Provider' was exported with a keychain-stored key. The real key does not travel with the export; you'll need to re-enter it.",
+      "Custom agent 'Foreign Agent's config path looks like it's from a different OS. Update it before it's used.",
+    ];
+    apiMock.importRegistry.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { registry: fakeRegistry, warnings },
+    });
+
+    // Drive the hidden file input directly — no real file picker needed.
+    // jsdom (24.x) has no File.prototype.text, so patch it for this test.
+    const registryJson = JSON.stringify(fakeRegistry);
+    const file = new File([registryJson], 'registry.json', { type: 'application/json' });
+    const origConfirm = window.confirm;
+    const origFileText = (File.prototype as { text?: unknown }).text;
+    (File.prototype as { text?: unknown }).text = function (this: { __data?: string }) {
+      return Promise.resolve(this.__data ?? '');
+    };
+    (file as unknown as { __data: string }).__data = registryJson;
+    window.confirm = () => true;
+
+    try {
+      const user = userEvent.setup();
+      render(
+        <>
+          <SettingsView />
+          <ToastContainer />
+        </>
+      );
+      const button = await screen.findByRole('button', { name: /Import Registry/ });
+      await user.click(button);
+      const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+      // jsdom's change event does not sync `target.files` (a read-only
+      // property) — set it explicitly so the handler sees the file.
+      Object.defineProperty(input, 'files', {
+        value: [file],
+        configurable: true,
+      });
+      fireEvent.change(input);
+
+      await waitFor(() => expect(apiMock.importRegistry).toHaveBeenCalled());
+      // Both warnings appear verbatim as toast messages…
+      await screen.findByText(warnings[0]);
+      expect(screen.getByText(warnings[1])).toBeInTheDocument();
+      // …and the import itself still succeeded.
+      expect(screen.getByText('Registry Imported')).toBeInTheDocument();
+    } finally {
+      window.confirm = origConfirm;
+      (File.prototype as { text?: unknown }).text = origFileText;
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------

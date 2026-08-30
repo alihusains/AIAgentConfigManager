@@ -68,6 +68,7 @@ import {
 import {
   backupFile,
   fileExists,
+  getCurrentPlatform,
   getCommandVersion,
   parseConfig,
   readFileSafe,
@@ -756,26 +757,53 @@ export class AgentConfigManager {
         error: 'Registry entries must carry agentIds[]',
       };
     }
+    const providers = candidate.providers as RegistryProvider[];
+    const customAgents = Array.isArray(candidate.customAgents)
+      ? (candidate.customAgents as CustomAgentDef[])
+      : [];
     const next: Registry = {
       version: 1,
-      providers: candidate.providers as RegistryProvider[],
+      providers,
       mcpServers: candidate.mcpServers as RegistryMCPServer[],
-      customAgents: Array.isArray(candidate.customAgents)
-        ? (candidate.customAgents as CustomAgentDef[])
-        : [],
+      customAgents,
       updatedAt: Date.now(),
     };
+    // Portability warnings: a keychain-backed key never travels with the
+    // export, and an absolute config path from another OS is stale here.
+    // Neither blocks the import — the user fixes the flagged entries after.
+    const warnings: string[] = [];
+    for (const entry of providers) {
+      if (entry.keychainSecretRef) {
+        warnings.push(
+          `Provider '${entry.provider.name}' was exported with a keychain-stored key. The real key does not travel with the export; you'll need to re-enter it.`,
+        );
+      }
+    }
+    const platform = getCurrentPlatform();
+    for (const agent of customAgents) {
+      const p = agent.configPath;
+      const looksForeign =
+        platform === 'win32'
+          ? p.startsWith('/')
+          : p.startsWith('C:\\') || p.includes('\\');
+      if (looksForeign) {
+        warnings.push(
+          `Custom agent '${agent.name}'s config path looks like it's from a different OS. Update it before it's used.`,
+        );
+      }
+    }
     this.registry = next;
     this.registerCustomAdapters();
     await saveRegistry(this.registryFilePath, next);
     const materialize = await this.syncAgents(Array.from(this.adapters.keys()));
     const state = await this.getRegistryState();
+    const allWarnings = [...warnings, ...materialize.errors];
     return {
       // The registry itself is authoritative and has been replaced; sync
       // problems are surfaced as warnings, not as an import failure.
       success: true,
       data: state,
-      warnings: materialize.errors.length > 0 ? materialize.errors : undefined,
+      warnings: allWarnings.length > 0 ? allWarnings : undefined,
     };
   }
 

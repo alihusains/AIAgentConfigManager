@@ -99,6 +99,73 @@ describe('resolveProviderApiKey', () => {
   });
 });
 
+describe('AgentConfigManager importRegistry portability warnings (M061)', () => {
+  let manager: AgentConfigManager;
+
+  beforeEach(async () => {
+    store.clear();
+    keychainAvailable = true;
+    vi.clearAllMocks();
+    tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'aion-m061-'));
+    process.env.HOME = tmpHome;
+    process.env.AI_CONFIG_HOME = path.join(tmpHome, '.ai-agent-config');
+    manager = new AgentConfigManager();
+    await manager.initRegistry();
+  });
+
+  afterEach(() => {
+    delete process.env.HOME;
+    delete process.env.AI_CONFIG_HOME;
+    fs.rmSync(tmpHome, { recursive: true, force: true });
+  });
+
+  it('warns for a keychain-backed provider but still succeeds the import', async () => {
+    const result = await manager.importRegistry({
+      providers: [
+        {
+          provider: makeProvider('p-kc', ''),
+          models: [],
+          agentIds: [],
+          keychainSecretRef: 'provider:p-kc',
+        },
+      ],
+      mcpServers: [],
+      customAgents: [],
+    });
+    expect(result.success).toBe(true);
+    expect(result.warnings).toEqual([
+      "Provider 'Test Provider' was exported with a keychain-stored key. The real key does not travel with the export; you'll need to re-enter it.",
+    ]);
+  });
+
+  it('warns for a custom agent whose config path is from a different OS, but still succeeds', async () => {
+    const foreignPath =
+      process.platform === 'win32' ? '/Users/someone/.agent/config.json' : 'C:\\Users\\someone\\.agent\\config.json';
+    const result = await manager.importRegistry({
+      providers: [],
+      mcpServers: [],
+      customAgents: [{ id: 'foreign-agent', name: 'Foreign Agent', configPath: foreignPath }],
+    });
+    expect(result.success).toBe(true);
+    expect(result.warnings).toEqual([
+      "Custom agent 'Foreign Agent's config path looks like it's from a different OS. Update it before it's used.",
+    ]);
+  });
+
+  it('produces no portability warnings for a clean same-OS registry', async () => {
+    // A path under the test's own tmp home: same-OS (no foreign-path warning)
+    // AND writable (no materialize error), so the import is fully clean.
+    const localPath = path.join(tmpHome, 'local-agent-config.json');
+    const result = await manager.importRegistry({
+      providers: [{ provider: makeProvider('p-plain', 'sk-plain'), models: [], agentIds: [] }],
+      mcpServers: [],
+      customAgents: [{ id: 'local-agent', name: 'Local Agent', configPath: localPath }],
+    });
+    expect(result.success).toBe(true);
+    expect(result.warnings ?? []).toEqual([]);
+  });
+});
+
 describe('keychainRefForProvider', () => {
   it('is deterministic and names the provider', () => {
     expect(keychainRefForProvider('openai-main')).toBe('provider:openai-main');
