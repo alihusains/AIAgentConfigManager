@@ -27,6 +27,9 @@ export * from './provider-test';
 // Environment variables (read, categorize, redact, edit user-level env vars)
 export * from './env-vars';
 
+// OS keychain access (Secrets)
+export * from './keychain';
+
 // Binary resolution (robust CLI detection)
 export * from './detect/binary';
 export * from './detect/version';
