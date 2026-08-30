@@ -7,7 +7,7 @@
 - Owner: Pi
 - Lead: Claude (PiTaskDispatch)
 - Repository: /Users/a.sorathiya/Documents/Ali/AIAgentConfigManager
-- Base revision: <set at dispatch — branch AFTER M066 is merged>
+- Base revision: 58ba5ef (main, after M066 merged)
 - Branch: pi/M067-skill-marketplace-gui
 - Worktree: /Users/a.sorathiya/Documents/Ali/pi-worktrees/task-M067-skill-marketplace-gui
 - Type: feature
