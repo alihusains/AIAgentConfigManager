@@ -33,6 +33,10 @@ import {
   removeSkillFromLibrary,
   copySkillBetweenAgents,
   createSkill,
+  listMarketplaceSkills,
+  fetchMarketplaceSkillContent,
+  installMarketplaceSkill,
+  MarketplaceRateLimitError,
   listEnvVars,
   setEnvVar,
   removeEnvVar,
@@ -579,6 +583,73 @@ export async function startGuiServer(
             }
             clearSkillsCache();
             return { data: result };
+          });
+        }
+      }
+
+      // ---- Skill marketplace ----
+      // Browse/install skills from the public alihusains/enterprise-skills repo.
+      // Every call here is user-triggered (the GUI fires these on explicit
+      // Browse/Refresh/Install actions); the core module caches the listing so
+      // repeated loads don't re-hit GitHub's unauthenticated rate limit.
+      if (parts[1] === 'marketplace' && parts[2] === 'skills') {
+        // GET /api/marketplace/skills — list available marketplace skills.
+        // ?force=1 bypasses the in-memory cache for an explicit refresh.
+        if (method === 'GET' && parts.length === 3) {
+          const force = new URL(req.url || '', 'http://localhost').searchParams.get('force') === '1';
+          return handle(async () => {
+            try {
+              return { data: { skills: await listMarketplaceSkills({ force }) } };
+            } catch (error) {
+              return {
+                error: String(error).replace(/^Error: /, ''),
+                // Rate limits are a transient external condition, not a client
+                // or server bug — 429 says "try again later" honestly.
+                status: error instanceof MarketplaceRateLimitError ? 429 : 502,
+              };
+            }
+          });
+        }
+        // GET /api/marketplace/skills/:id — one skill's files for preview.
+        if (method === 'GET' && parts.length === 4) {
+          return handle(async () => {
+            try {
+              const content = await fetchMarketplaceSkillContent(
+                decodeURIComponent(parts[3])
+              );
+              if (!content) {
+                return { error: `Skill not found in marketplace: ${parts[3]}`, status: 404 };
+              }
+              return { data: content };
+            } catch (error) {
+              const status = error instanceof MarketplaceRateLimitError ? 429 : 400;
+              return { error: String(error).replace(/^Error: /, ''), status };
+            }
+          });
+        }
+        // POST /api/marketplace/skills/:id/install { overwrite? } — copy a
+        // marketplace skill into the shared library. Never overwrites silently:
+        // an existing skill is 409 unless the client sends overwrite: true.
+        if (method === 'POST' && parts.length === 5 && parts[4] === 'install') {
+          const body = await readBody();
+          return handle(async () => {
+            try {
+              const result = await installMarketplaceSkill(
+                decodeURIComponent(parts[3]),
+                { overwrite: body.overwrite === true }
+              );
+              clearSkillsCache();
+              return { data: result };
+            } catch (error) {
+              const message = String(error).replace(/^Error: /, '');
+              const status =
+                error instanceof MarketplaceRateLimitError
+                  ? 429
+                  : message.includes('already exists')
+                    ? 409
+                    : 400;
+              return { error: message, status };
+            }
           });
         }
       }
