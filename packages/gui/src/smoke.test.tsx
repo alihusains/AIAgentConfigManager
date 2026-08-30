@@ -987,13 +987,20 @@ describe('SettingsView', () => {
     // jsdom (24.x) has no File.prototype.text, so patch it for this test.
     const registryJson = JSON.stringify(fakeRegistry);
     const file = new File([registryJson], 'registry.json', { type: 'application/json' });
-    const origConfirm = window.confirm;
     const origFileText = (File.prototype as { text?: unknown }).text;
     (File.prototype as { text?: unknown }).text = function (this: { __data?: string }) {
       return Promise.resolve(this.__data ?? '');
     };
     (file as unknown as { __data: string }).__data = registryJson;
-    window.confirm = () => true;
+    // A prior test may have vi.spyOn(window, 'confirm'), which makes the
+    // property non-writable — a plain assignment would be a silent no-op.
+    // Object.defineProperty works regardless.
+    const origConfirmDesc = Object.getOwnPropertyDescriptor(window, 'confirm');
+    Object.defineProperty(window, 'confirm', {
+      value: () => true,
+      writable: true,
+      configurable: true,
+    });
 
     try {
       const user = userEvent.setup();
@@ -1021,7 +1028,7 @@ describe('SettingsView', () => {
       // …and the import itself still succeeded.
       expect(screen.getByText('Registry Imported')).toBeInTheDocument();
     } finally {
-      window.confirm = origConfirm;
+      if (origConfirmDesc) Object.defineProperty(window, 'confirm', origConfirmDesc);
       (File.prototype as { text?: unknown }).text = origFileText;
     }
   });
