@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../store';
 import { api, type CatalogAgent } from '../api';
 import { AgentIconTile } from './AgentIcon';
@@ -43,6 +43,17 @@ export function Sidebar({ onClose }: SidebarProps) {
   }, []);
   const iconForAgent = (id: string) => catalog?.find((c) => c.id === id)?.icon;
 
+  // Real installed-agent count — the same metric the Agents page's
+  // "Installed Agents" stat trusts: the maintained catalog's installed
+  // entries once loaded, falling back to live detection from `getState`.
+  const installed = useMemo(
+    () =>
+      catalog
+        ? catalog.filter((a) => a.installed).length
+        : agents.filter((a) => a.detection.installed).length,
+    [catalog, agents]
+  );
+
   // Counters must reflect real registry state (not placeholders). Views
   // without a directly available count simply render no counter.
   const countFor = (viewId: string): number | undefined => {
@@ -52,13 +63,11 @@ export function Sidebar({ onClose }: SidebarProps) {
       case 'mcp':
         return registry?.mcpServers.length;
       case 'agents':
-        return registry?.customAgents.length;
+        return installed;
       default:
         return undefined;
     }
   };
-
-  const installed = agents.filter((a) => a.detection.installed).length;
 
   const renderNavItem = (view: (typeof REGISTRY_VIEWS)[number]) => {
     const Icon = view.icon;
