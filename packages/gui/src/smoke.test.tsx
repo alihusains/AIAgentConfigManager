@@ -741,7 +741,8 @@ describe('SkillsView', () => {
       description: 'Review code against engineering standards',
       sourceRepo: 'alihusains/enterprise-skills',
       sourcePath: 'skills/engineering/engineering-code-review',
-      htmlUrl: 'https://github.com/alihusains/enterprise-skills/tree/main/skills/engineering/engineering-code-review',
+      htmlUrl:
+        'https://github.com/alihusains/enterprise-skills/tree/main/skills/engineering/engineering-code-review',
     },
     {
       id: 'test-skill',
@@ -749,7 +750,8 @@ describe('SkillsView', () => {
       description: 'Same id as a local library skill',
       sourceRepo: 'alihusains/enterprise-skills',
       sourcePath: 'skills/engineering/test-skill',
-      htmlUrl: 'https://github.com/alihusains/enterprise-skills/tree/main/skills/engineering/test-skill',
+      htmlUrl:
+        'https://github.com/alihusains/enterprise-skills/tree/main/skills/engineering/test-skill',
     },
   ] as Array<Record<string, string>>;
 
@@ -845,7 +847,10 @@ describe('SkillsView', () => {
     await user.click(installBtns[0]);
 
     await waitFor(() => {
-      expect(apiMock.installMarketplaceSkill).toHaveBeenCalledWith('engineering-code-review', false);
+      expect(apiMock.installMarketplaceSkill).toHaveBeenCalledWith(
+        'engineering-code-review',
+        false
+      );
     });
     // The local list refreshes and the installed skill now shows up as an
     // ordinary library skill (its row is in the "All skills" list).
@@ -882,7 +887,8 @@ describe('SkillsView', () => {
     apiMock.listMarketplaceSkills.mockResolvedValue({
       ok: false,
       status: 429,
-      error: 'GitHub API rate limit reached (unauthenticated limit is 60 requests/hour per IP). Resets at Unix time 1790000000. Try again later.',
+      error:
+        'GitHub API rate limit reached (unauthenticated limit is 60 requests/hour per IP). Resets at Unix time 1790000000. Try again later.',
     });
     render(<SkillsView />);
 

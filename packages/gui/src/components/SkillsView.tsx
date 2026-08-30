@@ -1,5 +1,17 @@
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { Sparkles, Plus, RefreshCw, FolderOpen, Bot, X, Link2, Search, Trash2, Store, ExternalLink } from 'lucide-react';
+import {
+  Sparkles,
+  Plus,
+  RefreshCw,
+  FolderOpen,
+  Bot,
+  X,
+  Link2,
+  Search,
+  Trash2,
+  Store,
+  ExternalLink,
+} from 'lucide-react';
 import type {
   AggregatedSkill,
   SkillDef,
@@ -472,26 +484,23 @@ export function SkillsView() {
     [addToast, load]
   );
 
-  const loadMarketplace = useCallback(
-    async (force: boolean) => {
-      setMarketLoading(true);
-      setMarketError(null);
-      try {
-        const res = await api.listMarketplaceSkills(force);
-        if (res.ok && res.data) {
-          setMarketSkills(res.data.skills);
-        } else {
-          // Show the server's honest error verbatim (rate limits, network).
-          setMarketError(res.error ?? 'Failed to load the marketplace');
-        }
-      } catch (e) {
-        setMarketError(e instanceof Error ? e.message : String(e));
-      } finally {
-        setMarketLoading(false);
+  const loadMarketplace = useCallback(async (force: boolean) => {
+    setMarketLoading(true);
+    setMarketError(null);
+    try {
+      const res = await api.listMarketplaceSkills(force);
+      if (res.ok && res.data) {
+        setMarketSkills(res.data.skills);
+      } else {
+        // Show the server's honest error verbatim (rate limits, network).
+        setMarketError(res.error ?? 'Failed to load the marketplace');
       }
-    },
-    []
-  );
+    } catch (e) {
+      setMarketError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setMarketLoading(false);
+    }
+  }, []);
 
   const handleMarketBrowse = useCallback(() => {
     setMarketOpen(true);
@@ -502,7 +511,12 @@ export function SkillsView() {
     async (skillId: string, overwrite: boolean) => {
       if (!overwrite) {
         const exists = (snapshot?.skills ?? []).some((s) => s.id === skillId);
-        if (exists && !confirm(`Skill "${skillId}" is already in your library.\n\nReplace it with the marketplace version?`)) {
+        if (
+          exists &&
+          !confirm(
+            `Skill "${skillId}" is already in your library.\n\nReplace it with the marketplace version?`
+          )
+        ) {
           return;
         }
       }
@@ -784,12 +798,15 @@ export function SkillsView() {
       )}
 
       {/* Marketplace — collapsed and unfetched until the user browses it */}
-      <Card className="mb-6" title={
-        <span className="flex items-center gap-2">
-          <Store size={16} />
-          Marketplace
-        </span>
-      }>
+      <Card
+        className="mb-6"
+        title={
+          <span className="flex items-center gap-2">
+            <Store size={16} />
+            Marketplace
+          </span>
+        }
+      >
         {marketOpen ? (
           <div>
             <div className="marketplace-toolbar">
@@ -803,7 +820,8 @@ export function SkillsView() {
                 Refresh
               </Button>
               <span className="text-xs text-tertiary">
-                {marketSkills != null && `${marketSkills.length} skills from alihusains/enterprise-skills`}
+                {marketSkills != null &&
+                  `${marketSkills.length} skills from alihusains/enterprise-skills`}
               </span>
             </div>
             {marketError != null && (
@@ -814,7 +832,12 @@ export function SkillsView() {
             {marketLoading && marketSkills == null && marketError == null ? (
               <div className="space-y-2" aria-busy="true">
                 {Array.from({ length: 4 }, (_, i) => (
-                  <Skeleton key={`marketplace-skeleton-${i}`} className="block" width="100%" height={64} />
+                  <Skeleton
+                    key={`marketplace-skeleton-${i}`}
+                    className="block"
+                    width="100%"
+                    height={64}
+                  />
                 ))}
               </div>
             ) : marketSkills != null ? (
