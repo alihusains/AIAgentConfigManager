@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { api } from '../api';
 import { useStore } from '../store';
 import { AgentPicker } from './AgentPicker';
 import { AgentIcon } from './AgentIcon';
@@ -24,6 +25,7 @@ import {
   Zap,
   Globe,
   Cloud,
+  Lock,
 } from 'lucide-react';
 
 /**
@@ -221,127 +223,144 @@ export function ProvidersView() {
                 </tr>
               </thead>
               <tbody>
-                {providers.map(({ provider, models, agentIds, apiCapabilities }) => {
-                  const typeInfo = PROVIDER_TYPES.find((t) => t.id === provider.type);
-                  const Icon = typeInfo?.icon || Database;
-                  const ptypeClass = `ptype-${typeInfo?.id ?? 'default'}`;
-                  return (
-                    <tr key={provider.id} className="provider-row">
-                      <td>
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className={`p-2 rounded-lg flex-shrink-0 ptype-icon ${ptypeClass}`}>
-                            <Icon size={18} />
+                {providers.map(
+                  ({ provider, models, agentIds, apiCapabilities, keychainSecretRef }) => {
+                    const typeInfo = PROVIDER_TYPES.find((t) => t.id === provider.type);
+                    const Icon = typeInfo?.icon || Database;
+                    const ptypeClass = `ptype-${typeInfo?.id ?? 'default'}`;
+                    return (
+                      <tr key={provider.id} className="provider-row">
+                        <td>
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div
+                              className={`p-2 rounded-lg flex-shrink-0 ptype-icon ${ptypeClass}`}
+                            >
+                              <Icon size={18} />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="provider-name truncate">
+                                {provider.name}
+                                {keychainSecretRef && (
+                                  <span
+                                    className="badge badge-success ml-2 align-middle"
+                                    title="API key stored in OS keychain"
+                                  >
+                                    <Lock size={10} />
+                                    keychain
+                                  </span>
+                                )}
+                              </p>
+                              <p className="text-xs text-tertiary font-mono">{provider.id}</p>
+                            </div>
                           </div>
-                          <div className="min-w-0">
-                            <p className="provider-name truncate">{provider.name}</p>
-                            <p className="text-xs text-tertiary font-mono">{provider.id}</p>
+                        </td>
+                        <td>
+                          <span className={`badge type-badge ptype-badge ${ptypeClass}`}>
+                            <Icon size={11} />
+                            {typeInfo?.name || provider.type}
+                          </span>
+                        </td>
+                        <td>
+                          {!apiCapabilities ? (
+                            <span className="text-xs text-tertiary">not verified</span>
+                          ) : apiCapabilities.supported.length === 0 ? (
+                            <span className="text-xs text-error">no API confirmed</span>
+                          ) : (
+                            <span
+                              className="text-xs text-secondary"
+                              title={`Verified ${new Date(apiCapabilities.verifiedAt).toLocaleString()}`}
+                            >
+                              {apiCapabilities.supported
+                                .map((k) => providerApiLabel(k))
+                                .join(' · ')}
+                            </span>
+                          )}
+                        </td>
+                        <td>
+                          {models.length === 0 ? (
+                            <span className="text-xs text-tertiary">no models</span>
+                          ) : (
+                            <span
+                              className="text-xs text-secondary"
+                              title={models.map((m) => m.name).join('\n')}
+                            >
+                              {models.length} model{models.length > 1 ? 's' : ''}
+                            </span>
+                          )}
+                        </td>
+                        <td>
+                          <div className="flex items-center gap-1.5">
+                            <AgentAvatarStack
+                              agentIds={agentIds}
+                              agents={agents}
+                              onToggle={(agentId) => toggleProviderAgent(provider.id, agentId)}
+                            />
+                            <AgentPicker
+                              kind="provider"
+                              targets={agentIds}
+                              agents={agents}
+                              onToggle={(agentId) => toggleProviderAgent(provider.id, agentId)}
+                            />
                           </div>
-                        </div>
-                      </td>
-                      <td>
-                        <span className={`badge type-badge ptype-badge ${ptypeClass}`}>
-                          <Icon size={11} />
-                          {typeInfo?.name || provider.type}
-                        </span>
-                      </td>
-                      <td>
-                        {!apiCapabilities ? (
-                          <span className="text-xs text-tertiary">not verified</span>
-                        ) : apiCapabilities.supported.length === 0 ? (
-                          <span className="text-xs text-error">no API confirmed</span>
-                        ) : (
-                          <span
-                            className="text-xs text-secondary"
-                            title={`Verified ${new Date(apiCapabilities.verifiedAt).toLocaleString()}`}
-                          >
-                            {apiCapabilities.supported.map((k) => providerApiLabel(k)).join(' · ')}
-                          </span>
-                        )}
-                      </td>
-                      <td>
-                        {models.length === 0 ? (
-                          <span className="text-xs text-tertiary">no models</span>
-                        ) : (
-                          <span
-                            className="text-xs text-secondary"
-                            title={models.map((m) => m.name).join('\n')}
-                          >
-                            {models.length} model{models.length > 1 ? 's' : ''}
-                          </span>
-                        )}
-                      </td>
-                      <td>
-                        <div className="flex items-center gap-1.5">
-                          <AgentAvatarStack
-                            agentIds={agentIds}
-                            agents={agents}
-                            onToggle={(agentId) => toggleProviderAgent(provider.id, agentId)}
-                          />
-                          <AgentPicker
-                            kind="provider"
-                            targets={agentIds}
-                            agents={agents}
-                            onToggle={(agentId) => toggleProviderAgent(provider.id, agentId)}
-                          />
-                        </div>
-                      </td>
-                      <td>
-                        <button
-                          className="switch-row"
-                          onClick={() => handleToggleEnabled(provider)}
-                          title="Toggle enabled"
-                          role="switch"
-                          aria-checked={provider.enabled}
-                        >
-                          <span className={`switch ${provider.enabled ? 'switch-on' : ''}`}>
-                            <span className="switch-thumb" />
-                          </span>
-                          <span
-                            className={
-                              provider.enabled
-                                ? 'text-success text-sm font-medium'
-                                : 'text-tertiary text-sm'
-                            }
-                          >
-                            {provider.enabled ? 'Enabled' : 'Disabled'}
-                          </span>
-                        </button>
-                      </td>
-                      <td>
-                        <div className="row-actions flex items-center gap-1">
+                        </td>
+                        <td>
                           <button
-                            className="btn-ghost btn-icon btn-sm"
-                            title="Details"
-                            onClick={() =>
-                              setDetails({
-                                provider,
-                                models,
-                                agentIds,
-                                apiCapabilities,
-                              })
-                            }
+                            className="switch-row"
+                            onClick={() => handleToggleEnabled(provider)}
+                            title="Toggle enabled"
+                            role="switch"
+                            aria-checked={provider.enabled}
                           >
-                            <Eye size={14} />
+                            <span className={`switch ${provider.enabled ? 'switch-on' : ''}`}>
+                              <span className="switch-thumb" />
+                            </span>
+                            <span
+                              className={
+                                provider.enabled
+                                  ? 'text-success text-sm font-medium'
+                                  : 'text-tertiary text-sm'
+                              }
+                            >
+                              {provider.enabled ? 'Enabled' : 'Disabled'}
+                            </span>
                           </button>
-                          <button
-                            className="btn-ghost btn-icon btn-sm"
-                            title="Edit"
-                            onClick={() => setEditing(provider)}
-                          >
-                            <Edit size={14} />
-                          </button>
-                          <button
-                            className="btn-ghost btn-icon btn-sm text-error"
-                            title="Delete"
-                            onClick={() => handleDelete(provider)}
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                        </td>
+                        <td>
+                          <div className="row-actions flex items-center gap-1">
+                            <button
+                              className="btn-ghost btn-icon btn-sm"
+                              title="Details"
+                              onClick={() =>
+                                setDetails({
+                                  provider,
+                                  models,
+                                  agentIds,
+                                  apiCapabilities,
+                                })
+                              }
+                            >
+                              <Eye size={14} />
+                            </button>
+                            <button
+                              className="btn-ghost btn-icon btn-sm"
+                              title="Edit"
+                              onClick={() => setEditing(provider)}
+                            >
+                              <Edit size={14} />
+                            </button>
+                            <button
+                              className="btn-ghost btn-icon btn-sm text-error"
+                              title="Delete"
+                              onClick={() => handleDelete(provider)}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  }
+                )}
               </tbody>
             </table>
           </div>
@@ -379,7 +398,7 @@ interface AddProviderModalProps {
 const isFreeModel = (id: string): boolean => /free/i.test(id);
 
 export function AddProviderModal({ onClose, agents, existingIds }: AddProviderModalProps) {
-  const { addProvider } = useStore();
+  const { refreshAll } = useStore();
   const [form, setForm] = useState({
     type: 'openai-compatible' as ModelProvider['type'],
     id: '',
@@ -390,6 +409,7 @@ export function AddProviderModal({ onClose, agents, existingIds }: AddProviderMo
     project: '',
     modelNames: '',
     onlyFree: false,
+    keychainStorage: false,
     targetAgentIds: agents
       .filter((a) => a.detection.installed && a.supports.modelProviders)
       .map((a) => a.id),
@@ -399,6 +419,32 @@ export function AddProviderModal({ onClose, agents, existingIds }: AddProviderMo
   /** Live verification result (probed via the ApiVerifier below) */
   const [verified, setVerified] = useState<ProviderApiCapabilities | null>(null);
   const [knownModelIds, setKnownModelIds] = useState<string[]>([]);
+  const { addToast } = useStore();
+  // Pre-submit keychain-availability probe (Phase 1 Secrets): checked live
+  // when the toggle is turned on, so the user is told BEFORE submitting that
+  // the OS keychain is unusable in this environment.
+  const [keychainAvailable, setKeychainAvailable] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!form.keychainStorage) {
+      setKeychainAvailable(null);
+      return;
+    }
+    let cancelled = false;
+    // Guard: tests may reset api mocks between render cycles, leaving
+    // getKeychainAvailability returning undefined.
+    const p = api.getKeychainAvailability();
+    if (!p) {
+      setKeychainAvailable(false);
+      return;
+    }
+    p.then((res) => {
+      if (!cancelled) setKeychainAvailable(res.ok ? (res.data?.available ?? false) : false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [form.keychainStorage]);
 
   // A changed endpoint or key invalidates a previous verification.
   useEffect(() => {
@@ -411,6 +457,8 @@ export function AddProviderModal({ onClose, agents, existingIds }: AddProviderMo
     else if (existingIds.includes(form.id)) e.id = 'This ID already exists in the registry';
     if (!form.name.trim()) e.name = 'Display name is required';
     if (form.type === 'anthropic' && !form.apiKey.trim()) e.apiKey = 'API key is required';
+    if (form.keychainStorage && !form.apiKey.trim())
+      e.apiKey = 'API key is required to store it in the OS keychain';
     if (form.type === 'bedrock' && !form.region.trim()) e.region = 'Region is required';
     if (form.type === 'vertex' && !form.project.trim()) e.project = 'Project is required';
     if (form.targetAgentIds.length === 0) e.targetAgentIds = 'Pick at least one agent';
@@ -458,10 +506,57 @@ export function AddProviderModal({ onClose, agents, existingIds }: AddProviderMo
         capabilities: ['tool_use'],
       }));
 
+    // Pre-submit gate: if the OS keychain is confirmed unavailable, stop
+    // before the request instead of letting it fail server-side.
+    if (form.keychainStorage && keychainAvailable === false) {
+      addToast({
+        type: 'error',
+        title: 'OS keychain unavailable',
+        message:
+          'The OS keychain cannot be reached in this environment, so the API key ' +
+          'cannot be stored there. Unlock the keychain and retry, or save the ' +
+          'provider without keychain storage.',
+      });
+      return;
+    }
     setSubmitting(true);
-    const ok = await addProvider(provider, models, form.targetAgentIds, verified ?? undefined);
+    // Direct api call (not the store's addProvider) so the opt-in
+    // `keychainStorage` flag can reach the server; on failure the REAL
+    // server error (e.g. keychain write failure) is surfaced verbatim —
+    // never a generic message.
+    const res = await api.addProvider(
+      provider,
+      models,
+      form.targetAgentIds,
+      verified ?? undefined,
+      form.keychainStorage
+    );
     setSubmitting(false);
-    if (ok) onClose();
+    // Guard: tests may reset api mocks between render cycles, leaving
+    // addProvider returning undefined.
+    if (!res) {
+      addToast({
+        type: 'error',
+        title: 'Add Provider Failed',
+        message: 'The server returned an empty response. Please try again.',
+      });
+      return;
+    }
+    if (!res.ok) {
+      addToast({
+        type: 'error',
+        title: 'Add Provider Failed',
+        message: res.error || 'Unknown error',
+      });
+      return;
+    }
+    addToast({
+      type: 'success',
+      title: 'Provider Added',
+      message: `"${provider.name}" registered and installed into ${form.targetAgentIds.length} agent(s)`,
+    });
+    await refreshAll();
+    onClose();
   };
 
   const set = (patch: Partial<typeof form>) => setForm((f) => ({ ...f, ...patch }));
@@ -526,6 +621,28 @@ export function AddProviderModal({ onClose, agents, existingIds }: AddProviderMo
                   onChange={(e) => set({ apiKey: e.target.value })}
                 />
                 {errors.apiKey && <p className="form-help text-error">{errors.apiKey}</p>}
+                <label className="checkbox-wrapper" style={{ marginTop: 6 }}>
+                  <input
+                    type="checkbox"
+                    className="checkbox"
+                    checked={form.keychainStorage}
+                    onChange={(e) => set({ keychainStorage: e.target.checked })}
+                  />
+                  <span className="checkbox-label">Store in OS keychain</span>
+                </label>
+                <p className="form-help">
+                  Opt-in: the key is written to the OS keychain and only an empty placeholder is
+                  kept in registry.json. Off by default.
+                </p>
+                {form.keychainStorage && keychainAvailable === false && (
+                  <p className="form-help text-error">
+                    OS keychain is not available in this environment — saving with keychain storage
+                    is disabled until the keychain can be reached.
+                  </p>
+                )}
+                {form.keychainStorage && keychainAvailable === true && (
+                  <p className="form-help text-success">OS keychain is available.</p>
+                )}
               </div>
             )}
             {form.type === 'openai-compatible' && (
@@ -683,7 +800,11 @@ export function AddProviderModal({ onClose, agents, existingIds }: AddProviderMo
             <button type="button" className="btn-secondary" onClick={onClose}>
               Cancel
             </button>
-            <button type="submit" className="btn-primary" disabled={submitting}>
+            <button
+              type="submit"
+              className="btn-primary"
+              disabled={submitting || (form.keychainStorage && keychainAvailable === false)}
+            >
               <Plus size={16} />
               Add Provider
             </button>

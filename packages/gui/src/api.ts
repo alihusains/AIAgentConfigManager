@@ -248,17 +248,26 @@ export const api = {
     }),
 
   // --- Providers ---
+  /**
+   * OS-keychain capability probe (Phase 1 Secrets). The Add Provider form
+   * calls this BEFORE submitting with keychain storage opted in, so the user
+   * gets immediate feedback when the keychain is unusable in this
+   * environment instead of a failed submission.
+   */
+  getKeychainAvailability: () => request<{ available: boolean }>('GET', '/api/providers/keychain'),
   addProvider: (
     provider: ModelProvider,
     models: ModelConfig[],
     agentIds: string[],
-    apiCapabilities?: ProviderApiCapabilities
+    apiCapabilities?: ProviderApiCapabilities,
+    keychainStorage?: boolean
   ) =>
     request('POST', '/api/providers', {
       provider,
       models,
       agentIds,
       apiCapabilities,
+      ...(keychainStorage ? { keychainStorage: true } : {}),
     }),
   updateProvider: (
     id: string,

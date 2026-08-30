@@ -13,6 +13,13 @@ import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import type { AgentConfigManager } from '@ai-agent-config/core';
+// M057: `isKeychainAvailable` is not (yet) re-exported from the core package
+// entry point (M056 kept the keychain module internal to core). Import it
+// from the built module file — core is a workspace package, so this resolves
+// to packages/core/dist/keychain.js.
+// eslint-disable-next-line import/no-relative-packages -- core's exports map
+// only exposes the entry point; the keychain module is a sibling file.
+import { isKeychainAvailable } from '../../core/dist/keychain.js';
 import {
   probeProviderAPIs,
   getAgentCatalog,
@@ -45,7 +52,6 @@ import type {
   ProviderApiCapabilities,
   Platform,
   AgentJob,
-  ToolUpdateStatus,
 } from '@ai-agent-config/core';
 
 // ============================================================================
@@ -633,6 +639,13 @@ export async function startGuiServer(
 
       // ---- Providers ----
       if (parts[1] === 'providers') {
+        // GET /api/providers/keychain — Phase 1 (Secrets) capability probe:
+        // is the OS keychain usable in this environment? The Add Provider
+        // form calls this BEFORE submitting with keychain storage opted in,
+        // so the user gets immediate feedback instead of a failed submission.
+        if (method === 'GET' && parts.length === 3 && parts[2] === 'keychain') {
+          return handle(async () => ({ data: { available: await isKeychainAvailable() } }));
+        }
         // POST /api/providers/verify  { baseUrl, apiKey? } — probe a candidate
         // endpoint (models + chat completions + responses) WITHOUT touching
         // the registry. Used by the add/edit provider forms.
@@ -711,7 +724,8 @@ export async function startGuiServer(
               body.provider as ModelProvider,
               (body.models as ModelConfig[]) || [],
               (body.agentIds as string[]) || [],
-              body.apiCapabilities as ProviderApiCapabilities | undefined
+              body.apiCapabilities as ProviderApiCapabilities | undefined,
+              body.keychainStorage === true
             );
             if (!result.success) return { error: result.error, status: 400 };
             return {
