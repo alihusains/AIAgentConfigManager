@@ -15,6 +15,9 @@ export * from './utils';
 // Skill management (shared library + assignment to skill-capable agents)
 export * from './skills';
 
+// Skill marketplace (browse/install from the public alihusains/enterprise-skills repo)
+export * from './marketplace';
+
 // Adapters
 export * from './adapters';
 
