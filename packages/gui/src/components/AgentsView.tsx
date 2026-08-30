@@ -207,6 +207,58 @@ function AvailableList({
   );
 }
 
+/**
+ * M071: drift indicator for one agent. Amber badge when the agent's
+ * registry-managed providers/MCP servers were edited out-of-band; a
+ * "Re-sync" button pushes the registry's version back over the file.
+ * Renders nothing when there is no drift (or while the first check runs).
+ */
+function DriftBadge({
+  status,
+  onResync,
+}: {
+  status?: {
+    checking: boolean;
+    resyncing: boolean;
+    drifted: boolean;
+    changedProviders: string[];
+    changedServers: string[];
+  } | undefined;
+  onResync: () => void;
+}) {
+  if (!status || (!status.drifted && !status.resyncing)) return null;
+  const parts: string[] = [];
+  if (status.changedProviders.length > 0)
+    parts.push(`provider${status.changedProviders.length === 1 ? '' : 's'}: ${status.changedProviders.join(', ')}`);
+  if (status.changedServers.length > 0)
+    parts.push(`MCP server${status.changedServers.length === 1 ? '' : 's'}: ${status.changedServers.join(', ')}`);
+  const tooltip = status.drifted
+    ? `This agent's config was edited outside the registry. ${parts.join('; ')}. Re-syncing restores the registry's version.`
+    : 'Re-syncing…';
+  return (
+    <span className="flex items-center gap-1" title={tooltip}>
+      <span className="badge badge-warning" style={{ cursor: 'default' }}>
+        <AlertTriangle size={10} className="inline mr-1" />
+        drifted
+      </span>
+      {status.drifted && (
+        <button
+          className="btn-ghost btn-sm text-xs"
+          disabled={status.resyncing}
+          onClick={onResync}
+          title="Restore the registry's version of this agent's config"
+        >
+          {status.resyncing ? (
+            <div className="spinner" style={{ width: 12, height: 12 }} />
+          ) : (
+            'Re-sync'
+          )}
+        </button>
+      )}
+    </span>
+  );
+}
+
 export function AgentsView() {
   const {
     agents,
@@ -485,6 +537,89 @@ export function AgentsView() {
     ? catalog.filter((a) => a.known).length
     : agents.length;
 
+  // --------------------------------------------------------------------------
+  // M071 drift detection — per-agent result, keyed by agent id.
+  // --------------------------------------------------------------------------
+  interface DriftStatus {
+    checking: boolean;
+    resyncing: boolean;
+    drifted: boolean;
+    changedProviders: string[];
+    changedServers: string[];
+  }
+  const [driftStatus, setDriftStatus] = useState<Record<string, DriftStatus>>({});
+
+  const checkDrift = useCallback(async (agentId: string) => {
+    setDriftStatus((prev) => ({
+      ...prev,
+      [agentId]: {
+        checking: true,
+        resyncing: false,
+        drifted: prev[agentId]?.drifted ?? false,
+        changedProviders: prev[agentId]?.changedProviders ?? [],
+        changedServers: prev[agentId]?.changedServers ?? [],
+      },
+    }));
+    const res = await api.checkAgentDrift(agentId);
+    setDriftStatus((prev) => ({
+      ...prev,
+      [agentId]: res?.ok && res.data
+        ? {
+            checking: false,
+            resyncing: false,
+            drifted: res.data.drifted,
+            changedProviders: res.data.changedProviders,
+            changedServers: res.data.changedServers,
+          }
+        : {
+            checking: false,
+            resyncing: false,
+            drifted: false,
+            changedProviders: [],
+            changedServers: [],
+          },
+    }));
+  }, []);
+
+  // Cheap, read-only (one config-file read per agent, no network) — run once
+  // when the catalog lands, not on a timer.
+  const driftCheckedFor = useRef<string[] | null>(null);
+  useEffect(() => {
+    if (!catalog || driftCheckedFor.current) return;
+    driftCheckedFor.current = installedRows.map((r) => r.id);
+    for (const row of installedRows) void checkDrift(row.id);
+  }, [catalog, installedRows, checkDrift]);
+
+  // Re-sync pushes the registry's version back over the agent's file via the
+  // existing per-agent materialize path, then re-checks.
+  const resyncAgent = async (agentId: string, agentName: string) => {
+    setDriftStatus((prev) => ({
+      ...prev,
+      [agentId]: { ...prev[agentId], resyncing: true },
+    }));
+    const res = await api.updateCustomAgent(agentId, {});
+    const ok = res.ok;
+    setDriftStatus((prev) => ({
+      ...prev,
+      [agentId]: { ...prev[agentId], resyncing: false },
+    }));
+    if (!ok) {
+      addToast({
+        type: 'error',
+        title: 'Re-sync failed',
+        message: res.error || `Could not re-sync ${agentName}.`,
+      });
+      return;
+    }
+    addToast({
+      type: 'success',
+      title: 'Re-synced',
+      message: `${agentName}'s config was re-materialized from the registry.`,
+    });
+    void refreshAll();
+    void checkDrift(agentId);
+  };
+
   const jobDone = () => {
     void loadCatalog();
     void refreshAll();
@@ -603,6 +738,10 @@ export function AgentsView() {
                               new
                             </span>
                           )}
+                          <DriftBadge
+                            status={driftStatus[row.id]}
+                            onResync={() => void resyncAgent(row.id, row.name)}
+                          />
                         </div>
                         <p className="text-xs text-tertiary">{row.id}</p>
                       </div>

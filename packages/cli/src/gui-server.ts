@@ -1151,6 +1151,22 @@ export async function startGuiServer(
         });
       }
 
+      // ---- Drift detection (M071) — read-only: has anything edited this
+      // agent's registry-managed providers/servers out-of-band? ----
+      // GET /api/agents/:id/drift
+      if (
+        parts[1] === 'agents' &&
+        method === 'GET' &&
+        parts.length === 4 &&
+        parts[3] === 'drift'
+      ) {
+        return handle(async () => {
+          const drift = await manager.detectDrift(parts[2]);
+          if (drift.error) return { error: drift.error, status: 404 };
+          return { data: drift };
+        });
+      }
+
       // ---- Agent lifecycle: install / uninstall (catalog allow-list only) ----
       // GET /api/agents/jobs/:jobId — poll a launched job's live output.
       if (method === 'GET' && parts.length === 4 && parts[2] === 'jobs') {
