@@ -28,6 +28,7 @@ import { AgentIconTile } from './AgentIcon';
 import { CodeEditor } from './CodeEditor';
 import { ApiTypeBadges } from './ApiTypeBadges';
 import { useWindowedList } from '../hooks/useWindowedList';
+import { MCP_SERVER_WARNING_THRESHOLD } from './AgentDetailView';
 
 /** Which file an in-browser edit session is open on. */
 interface EditingFile {
@@ -577,6 +578,7 @@ export function AgentsView() {
                 <th>Config File</th>
                 <th>Config Path</th>
                 <th>MCP File</th>
+                <th>MCP Servers</th>
                 <th style={{ width: '130px' }}>Actions</th>
               </tr>
             </thead>
@@ -722,12 +724,23 @@ export function AgentsView() {
                     ) : (
                       <span className="text-tertiary">—</span>
                     )}
-                    {row.detection.mcpServerCount !== undefined && (
-                      <div className="text-xs text-tertiary mt-0.5">
-                        {row.detection.mcpServerCount} server
-                        {row.detection.mcpServerCount === 1 ? '' : 's'}
-                      </div>
-                    )}
+                  </td>
+                  <td>
+                    {(() => {
+                      const count = (registry?.mcpServers || []).filter(
+                        (m) => m.agentIds.includes(row.id)
+                      ).length;
+                      const over = count > MCP_SERVER_WARNING_THRESHOLD;
+                      return (
+                        <span
+                          className={`badge ${over ? 'badge-warning' : 'badge-neutral'}`}
+                          title={over ? `${count} MCP servers assigned — high server counts can slow an agent down or overwhelm its tool-selection` : `${count} MCP server${count === 1 ? '' : 's'} assigned`}
+                        >
+                          {over && <AlertTriangle size={11} className="inline mr-1" />}
+                          {count}
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td>
                     <div className="flex items-center gap-1">
@@ -779,7 +792,7 @@ export function AgentsView() {
               ))}
               {installedRows.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="text-center text-tertiary py-8">
+                  <td colSpan={8} className="text-center text-tertiary py-8">
                     No agents installed yet — pick one below to install.
                   </td>
                 </tr>
