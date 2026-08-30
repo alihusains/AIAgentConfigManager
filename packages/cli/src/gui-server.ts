@@ -842,6 +842,19 @@ export async function startGuiServer(
             return { data: result.data };
           });
         }
+  // POST /api/providers/:id/migrate-to-keychain — Phase 1 (Secrets): move an
+        // EXISTING provider's plaintext API key into the OS keychain (one
+        // provider at a time, explicit action only). The keychain write
+        // happens before any registry change, so a keychain failure leaves
+        // registry.json byte-for-byte unchanged.
+        if (method === 'POST' && parts.length === 4 && parts[3] === 'migrate-to-keychain') {
+          return handle(async () => {
+            const providerId = decodeURIComponent(parts[2]);
+            const result = await manager.migrateProviderApiKeyToKeychain(providerId);
+            if (!result.success) return { error: result.error, status: 400 };
+            return { data: result.data };
+          });
+        }
         // POST /api/providers/:id/agents  { agentIds }
         if (method === 'POST' && parts.length === 4 && parts[3] === 'agents') {
           const body = await readBody();

@@ -41,6 +41,7 @@ import {
   resolveProviderApiKey,
   keychainRefForProvider,
   storeProviderApiKeyInKeychain,
+  migrateProviderApiKeyToKeychain,
 } from './registry';
 import type { ModelProvider, RegistryProvider } from './types';
 
@@ -196,6 +197,127 @@ describe('storeProviderApiKeyInKeychain', () => {
     const provider = makeProvider('p1', 'sk-real-key');
     await expect(storeProviderApiKeyInKeychain(provider)).rejects.toThrow(/keychain/i);
     expect(provider.config.apiKey).toBe('sk-real-key'); // untouched, not persisted anywhere
+    expect(store.size).toBe(0);
+  });
+});
+
+describe('migrateProviderApiKeyToKeychain', () => {
+  let registryPath: string;
+
+  function writeRegistryFile(entry: Record<string, unknown>): string {
+    const registry = {
+      version: 1,
+      providers: [entry],
+      mcpServers: [],
+      customAgents: [],
+      updatedAt: 0,
+    };
+    fs.writeFileSync(registryPath, JSON.stringify(registry, null, 2));
+    return registryPath;
+  }
+
+  function readRegistryFile(): any {
+    return JSON.parse(fs.readFileSync(registryPath, 'utf8'));
+  }
+
+  beforeEach(() => {
+    store.clear();
+    keychainAvailable = true;
+    vi.clearAllMocks();
+    tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'aion-m068-'));
+    registryPath = path.join(tmpHome, 'registry.json');
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpHome, { recursive: true, force: true });
+  });
+
+  it('successful migration sets keychainSecretRef and empties config.apiKey', async () => {
+    const realKey = `sk-m068-real-${Date.now()}`;
+    writeRegistryFile({
+      provider: makeProvider('m1', realKey),
+      models: [],
+      agentIds: [],
+    });
+
+    const result = await migrateProviderApiKeyToKeychain(registryPath, 'm1');
+    expect('error' in result).toBe(false);
+    if ('error' in result) throw new Error('expected success');
+    expect(result.keychainSecretRef).toBe('provider:m1');
+
+    // The real key went to the (mocked) keychain…
+    expect(store.get('provider:m1')).toBe(realKey);
+    // …and is GONE from the serialized registry file.
+    const file = readRegistryFile();
+    const entry = file.providers.find((p: any) => p.provider.id === 'm1');
+    expect(entry.keychainSecretRef).toBe('provider:m1');
+    expect(entry.provider.config.apiKey).toBe('');
+    expect(JSON.stringify(file)).not.toContain(realKey);
+
+    // Resolution now round-trips through the keychain.
+    expect(await resolveProviderApiKey(entry)).toBe(realKey);
+  });
+
+  it('already-migrated returns a clear error and makes no changes', async () => {
+    const key = 'sk-m068-already';
+    const before = writeRegistryFile({
+      provider: makeProvider('m2', key),
+      models: [],
+      agentIds: [],
+      keychainSecretRef: 'provider:m2',
+    });
+    const beforeContent = fs.readFileSync(before, 'utf8');
+
+    const result = await migrateProviderApiKeyToKeychain(registryPath, 'm2');
+    expect(result).toEqual({
+      error: expect.stringMatching(/already stored in the OS keychain/i),
+    });
+    // No keychain write, no registry change.
+    expect(keychain.setSecret).not.toHaveBeenCalled();
+    expect(fs.readFileSync(before, 'utf8')).toBe(beforeContent);
+  });
+
+  it('nothing-to-migrate (empty apiKey) returns a clear error and makes no changes', async () => {
+    const before = writeRegistryFile({
+      provider: makeProvider('m3', ''),
+      models: [],
+      agentIds: [],
+    });
+    const beforeContent = fs.readFileSync(before, 'utf8');
+
+    const result = await migrateProviderApiKeyToKeychain(registryPath, 'm3');
+    expect(result).toEqual({
+      error: expect.stringMatching(/no plaintext API key to migrate/i),
+    });
+    expect(keychain.setSecret).not.toHaveBeenCalled();
+    expect(fs.readFileSync(before, 'utf8')).toBe(beforeContent);
+  });
+
+  it('returns a clear error for an unknown provider id', async () => {
+    writeRegistryFile({ provider: makeProvider('m4', 'sk-x'), models: [], agentIds: [] });
+    const result = await migrateProviderApiKeyToKeychain(registryPath, 'nope');
+    expect(result).toEqual({ error: expect.stringMatching(/not found in registry/i) });
+  });
+
+  it('a simulated keychain-write failure leaves the registry completely unchanged', async () => {
+    keychainAvailable = false;
+    const realKey = `sk-m068-fail-${Date.now()}`;
+    const before = writeRegistryFile({
+      provider: makeProvider('m5', realKey),
+      models: [],
+      agentIds: [],
+    });
+    const beforeContent = fs.readFileSync(before, 'utf8');
+
+    const result = await migrateProviderApiKeyToKeychain(registryPath, 'm5');
+    expect(result).toEqual({ error: expect.stringMatching(/keychain/i) });
+    // The plaintext key is still in place — the key can never be gone from
+    // both places — and the file is byte-for-byte unchanged (no partial state).
+    const file = readRegistryFile();
+    const entry = file.providers.find((p: any) => p.provider.id === 'm5');
+    expect(entry.provider.config.apiKey).toBe(realKey);
+    expect(entry.keychainSecretRef).toBeUndefined();
+    expect(fs.readFileSync(before, 'utf8')).toBe(beforeContent);
     expect(store.size).toBe(0);
   });
 });

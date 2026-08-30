@@ -50,6 +50,7 @@ const { apiMock } = vi.hoisted(() => {
     updateProvider: vi.fn(),
     verifyProvider: vi.fn(),
     testProvider: vi.fn(),
+    migrateProviderToKeychain: vi.fn(),
     getKeychainAvailability: vi.fn(),
     addProviderAgents: vi.fn(),
     removeProviderAgent: vi.fn(),
@@ -517,6 +518,228 @@ describe('ProvidersView', () => {
     // The real server error text is surfaced verbatim…
     await waitFor(() => expect(apiMock.addProvider).toHaveBeenCalled());
     await screen.findByText(/Failed to write the API key to the OS keychain/);
+    // …and no generic fallback message appears.
+    expect(screen.queryByText('Operation Failed')).not.toBeInTheDocument();
+    expect(screen.queryByText(/something went wrong/i)).not.toBeInTheDocument();
+  });
+
+  // M068 — move an EXISTING provider's plaintext API key into the OS keychain.
+  it('M068: the Move-to-keychain action appears only for eligible providers', async () => {
+    apiMock.getKeychainAvailability.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { available: true },
+    });
+    useStore.setState({
+      registry: {
+        path: '/tmp/r.json',
+        providers: [
+          {
+            // Eligible: plaintext key, no keychainSecretRef.
+            provider: {
+              id: 'm68-eligible',
+              name: 'Eligible',
+              type: 'openai-compatible',
+              config: { apiKey: 'sk-plaintext' },
+              enabled: true,
+              priority: 0,
+            },
+            models: [],
+            agentIds: [],
+          },
+          {
+            // Not eligible: already keychain-backed.
+            provider: {
+              id: 'm68-kc',
+              name: 'Already Keychain',
+              type: 'openai-compatible',
+              config: { apiKey: '' },
+              enabled: true,
+              priority: 0,
+            },
+            models: [],
+            agentIds: [],
+            keychainSecretRef: 'provider:m68-kc',
+          },
+          {
+            // Not eligible: nothing to migrate.
+            provider: {
+              id: 'm68-empty',
+              name: 'No Key',
+              type: 'openai-compatible',
+              config: { apiKey: '' },
+              enabled: true,
+              priority: 0,
+            },
+            models: [],
+            agentIds: [],
+          },
+        ],
+        mcpServers: [],
+        customAgents: [],
+        updatedAt: 0,
+      } as never,
+    });
+    render(<ProvidersView />);
+    await screen.findByText('Eligible');
+    await screen.findByText('Already Keychain');
+    await screen.findByText('No Key');
+    // Exactly ONE action for the whole table — the eligible provider's row.
+    const actions = screen.getAllByTitle('Move API key to OS keychain');
+    expect(actions).toHaveLength(1);
+  });
+
+  it('M068: the Move-to-keychain action is hidden when the keychain is unavailable', async () => {
+    apiMock.getKeychainAvailability.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { available: false },
+    });
+    render(<ProvidersView />);
+    // The default fixture provider has no plaintext key, so use one that does.
+    useStore.setState({
+      registry: {
+        path: '/tmp/r.json',
+        providers: [
+          {
+            provider: {
+              id: 'm68-avail',
+              name: 'Avail Check',
+              type: 'openai-compatible',
+              config: { apiKey: 'sk-plaintext' },
+              enabled: true,
+              priority: 0,
+            },
+            models: [],
+            agentIds: [],
+          },
+        ],
+        mcpServers: [],
+        customAgents: [],
+        updatedAt: 0,
+      } as never,
+    });
+    await screen.findByText('Avail Check');
+    expect(screen.queryByTitle('Move API key to OS keychain')).not.toBeInTheDocument();
+  });
+
+  it('M068: a successful migration refreshes the row to show the lock badge', async () => {
+    apiMock.getKeychainAvailability.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { available: true },
+    });
+    const migratedRegistry = {
+      path: '/tmp/r.json',
+      providers: [
+        {
+          provider: {
+            id: 'm68-ok',
+            name: 'Migrated Provider',
+            type: 'openai-compatible',
+            config: { apiKey: '' },
+            enabled: true,
+            priority: 0,
+          },
+          models: [],
+          agentIds: [],
+          keychainSecretRef: 'provider:m68-ok',
+        },
+      ],
+      mcpServers: [],
+      customAgents: [],
+      updatedAt: 0,
+    } as never;
+    useStore.setState({
+      registry: {
+        path: '/tmp/r.json',
+        providers: [
+          {
+            provider: {
+              id: 'm68-ok',
+              name: 'Migrated Provider',
+              type: 'openai-compatible',
+              config: { apiKey: 'sk-plaintext' },
+              enabled: true,
+              priority: 0,
+            },
+            models: [],
+            agentIds: [],
+          },
+        ],
+        mcpServers: [],
+        customAgents: [],
+        updatedAt: 0,
+      } as never,
+    });
+    // After migration the store refreshes from the server: the re-fetched
+    // state carries the keychainSecretRef and the emptied apiKey.
+    apiMock.getState.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { agents: [fakeAgent], registry: migratedRegistry, platform: 'darwin' },
+    });
+    apiMock.migrateProviderToKeychain.mockResolvedValue({ ok: true, status: 200, data: migratedRegistry });
+    const user = userEvent.setup();
+    render(<ProvidersView />);
+    const action = await screen.findByTitle('Move API key to OS keychain');
+    await user.click(action);
+    await waitFor(() => expect(apiMock.migrateProviderToKeychain).toHaveBeenCalledWith('m68-ok'));
+    // The row now shows the SAME lock indicator M057 built for keychain-backed
+    // providers, and the action is gone.
+    const indicator = await screen.findByTitle('API key stored in OS keychain');
+    expect(indicator).toHaveTextContent('keychain');
+    expect(screen.queryByTitle('Move API key to OS keychain')).not.toBeInTheDocument();
+  });
+
+  it('M068: a failed migration shows the REAL server error, not a generic one', async () => {
+    apiMock.getKeychainAvailability.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { available: true },
+    });
+    const realError =
+      'Failed to migrate the API key for provider "m68-bad" to the OS keychain: ' +
+      'could not connect to keychain service. The registry was NOT modified — the plaintext key is still in place.';
+    apiMock.migrateProviderToKeychain.mockResolvedValue({
+      ok: false,
+      status: 400,
+      error: realError,
+    } as never);
+    useStore.setState({
+      registry: {
+        path: '/tmp/r.json',
+        providers: [
+          {
+            provider: {
+              id: 'm68-bad',
+              name: 'Bad Migration',
+              type: 'openai-compatible',
+              config: { apiKey: 'sk-plaintext' },
+              enabled: true,
+              priority: 0,
+            },
+            models: [],
+            agentIds: [],
+          },
+        ],
+        mcpServers: [],
+        customAgents: [],
+        updatedAt: 0,
+      } as never,
+    });
+    const user = userEvent.setup();
+    render(
+      <>
+        <ProvidersView />
+        <ToastContainer />
+      </>
+    );
+    const action = await screen.findByTitle('Move API key to OS keychain');
+    await user.click(action);
+    await waitFor(() => expect(apiMock.migrateProviderToKeychain).toHaveBeenCalledWith('m68-bad'));
+    // The real server error text is surfaced verbatim…
+    await screen.findByText(/could not connect to keychain service/);
     // …and no generic fallback message appears.
     expect(screen.queryByText('Operation Failed')).not.toBeInTheDocument();
     expect(screen.queryByText(/something went wrong/i)).not.toBeInTheDocument();

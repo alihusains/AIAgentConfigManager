@@ -157,7 +157,49 @@ export function ProvidersView() {
   const [editing, setEditing] = useState<ModelProvider | null>(null);
   const [details, setDetails] = useState<RegistryProvider | null>(null);
 
+  // Phase 1 (Secrets): keychain availability for the per-row "Move to keychain"
+  // action — probed once per view mount (the same capability the Add Provider
+  // form probes before submit). null = not yet known.
+  const [keychainAvailable, setKeychainAvailable] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    // Guard: tests may reset api mocks between render cycles, leaving
+    // getKeychainAvailability returning undefined.
+    const p = api.getKeychainAvailability();
+    if (!p) {
+      setKeychainAvailable(false);
+      return;
+    }
+    p.then((res) => {
+      if (!cancelled) setKeychainAvailable(res.ok ? (res.data?.available ?? false) : false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const providers = registry?.providers || [];
+
+  /**
+   * Phase 1 (Secrets): move ONE provider's plaintext API key into the OS
+   * keychain (explicit click only — never automatic, never bulk). On success
+   * the registry refreshes and the row shows the keychain lock badge; on
+   * failure the REAL server error is surfaced (no generic fallback).
+   */
+  const migrateToKeychain = async (providerId: string) => {
+    const res = await api.migrateProviderToKeychain(providerId);
+    if (!res.ok) {
+      useStore.getState().addToast({ type: 'error', title: 'Keychain Migration Failed', message: res.error || 'Unknown error' });
+      return;
+    }
+    await useStore.getState().refreshAll();
+    useStore.getState().addToast({
+      type: 'success',
+      title: 'Moved to Keychain',
+      message: `"${providerId}"'s API key is now stored in the OS keychain`,
+    });
+  };
 
   const handleDelete = async (provider: ModelProvider) => {
     const installed =
@@ -327,6 +369,18 @@ export function ProvidersView() {
                         </td>
                         <td>
                           <div className="row-actions flex items-center gap-1">
+                            {keychainAvailable === true &&
+                              !keychainSecretRef &&
+                              typeof provider.config.apiKey === 'string' &&
+                              provider.config.apiKey.length > 0 && (
+                                <button
+                                  className="btn-ghost btn-icon btn-sm"
+                                  title="Move API key to OS keychain"
+                                  onClick={() => migrateToKeychain(provider.id)}
+                                >
+                                  <Lock size={14} />
+                                </button>
+                              )}
                             <button
                               className="btn-ghost btn-icon btn-sm"
                               title="Details"
