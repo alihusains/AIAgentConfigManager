@@ -23,15 +23,15 @@ import {
   getAgentCatalog,
   detectCatalogEntry,
   catalogEntryToDetected,
-} from '@ai-agent-config/core';
+} from './core-shim.js';
 import { DEFAULT_GUI_PORT } from './gui-server.js';
 
 const manager = new AgentConfigManager();
 
 program
-  .name('acm')
+  .name('agm')
   .description(
-    'AI Agent Configuration Manager - Manage models, providers, MCP servers, and permissions across AI coding agents'
+    'AgentControl - One registry, every agent, in sync. Manage models, providers, MCP servers, and permissions across AI coding agents'
   )
   .version('0.1.0');
 
@@ -1232,7 +1232,7 @@ program
   });
 
 // ============================================================================
-// Dashboard lifecycle: acm start | acm stop | acm health
+// Dashboard lifecycle: agm start | agm stop | agm health
 // ============================================================================
 
 /** Where the dashboard records its process id while it is running. */
@@ -1300,12 +1300,12 @@ const formatUptime = (sec?: number) => {
 program
   .command('gui')
   .alias('dashboard')
-  .description('Run the configuration dashboard in the foreground (see also: acm start)')
+  .description('Run the configuration dashboard in the foreground (see also: agm start)')
   .option('-p, --port <port>', `Port to bind (default: ${DEFAULT_GUI_PORT})`)
   .option('--no-open', 'Do not open the browser automatically')
   .option('--dist <dir>', 'Path to the built GUI (dist) directory')
   .option('--pid-file <path>', 'Override where the dashboard records its pid')
-  .option('--daemon', 'Internal: launched by `acm start`; output goes to the log file', false)
+  .option('--daemon', 'Internal: launched by `agm start`; output goes to the log file', false)
   .action(async (options) => {
     const { startGuiServer } = await import('./gui-server.js');
     const port = options.port ? Number(options.port) : undefined;
@@ -1321,7 +1321,7 @@ program
         distDir: options.dist,
         openBrowser: options.open,
       });
-      // Record our pid so `acm stop` can find us regardless of how we were launched.
+      // Record our pid so `agm stop` can find us regardless of how we were launched.
       try {
         fs.mkdirSync(path.dirname(options.pidFile || pidFilePath()), {
           recursive: true,
@@ -1392,21 +1392,23 @@ program
       ...(options.dist ? ['--dist', options.dist] : []),
       '--no-open',
     ];
-    const selfEntry = fileURLToPath(import.meta.url);
+    const binEntry = fileURLToPath(new URL('./bundle-entry.js', import.meta.url));
 
     if (options.foreground) {
-      // Run `acm gui` attached to this terminal, without the browser pop-up.
-      const child = spawn(process.execPath, [selfEntry, 'gui', ...passthrough], {
+      // Run `agm gui` attached to this terminal, without the browser pop-up.
+      // Always relaunch through the bin entry so standalone installs (no
+      // workspace symlink) get the vendored-core loader hooks.
+      const child = spawn(process.execPath, [binEntry, 'gui', ...passthrough], {
         stdio: 'inherit',
       });
       child.on('exit', (code) => process.exit(code ?? 1));
       return;
     }
 
-    // Detach: relaunch ourselves as `acm gui --daemon`, logs to a file.
+    // Detach: relaunch ourselves as `agm gui --daemon`, logs to a file.
     const logPath = path.join(path.dirname(pidFilePath()), 'acm-gui.log');
     const logFd = fs.openSync(logPath, 'a');
-    const child = spawn(process.execPath, [selfEntry, 'gui', '--daemon', ...passthrough], {
+    const child = spawn(process.execPath, [binEntry, 'gui', '--daemon', ...passthrough], {
       detached: true,
       stdio: ['ignore', logFd, logFd],
     });
@@ -1420,7 +1422,7 @@ program
         printSuccess(
           `Dashboard started at ${chalk.underline(`http://127.0.0.1:${DEFAULT_GUI_PORT}`)}`
         );
-        printInfo(`Logs: ${chalk.cyan(logPath)} · stop it with ${chalk.cyan('acm stop')}`);
+        printInfo(`Logs: ${chalk.cyan(logPath)} · stop it with ${chalk.cyan('agm stop')}`);
         return;
       }
       if (child.exitCode !== null || child.signalCode !== null) break;
@@ -1482,7 +1484,7 @@ program
     printError(
       `Not running — nothing answered on http://127.0.0.1:${DEFAULT_GUI_PORT}/api/health.`
     );
-    printInfo(`Start it with ${chalk.cyan('acm start')}.`);
+    printInfo(`Start it with ${chalk.cyan('agm start')}.`);
     process.exit(1);
   });
 

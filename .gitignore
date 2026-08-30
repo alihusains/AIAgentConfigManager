@@ -24,3 +24,7 @@ dist/
 .cgr-parser-fingerprint
 /index.bin
 /manifest.json
+
+# Build artifacts
+packages/cli/vendor/
+*.tgz
