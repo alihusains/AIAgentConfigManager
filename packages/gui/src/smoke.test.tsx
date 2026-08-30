@@ -16,6 +16,7 @@ import App from './App';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
 import { ProvidersView } from './components/ProvidersView';
+import { ToastContainer } from './components/Toast';
 import { AgentsView } from './components/AgentsView';
 import { SettingsView } from './components/SettingsView';
 import { SkillsView } from './components/SkillsView';
@@ -47,6 +48,7 @@ const { apiMock } = vi.hoisted(() => {
     updateProvider: vi.fn(),
     verifyProvider: vi.fn(),
     testProvider: vi.fn(),
+    getKeychainAvailability: vi.fn(),
     addProviderAgents: vi.fn(),
     removeProviderAgent: vi.fn(),
     deleteProvider: vi.fn(),
@@ -164,14 +166,26 @@ const stats = {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  // Per-test overrides (set in `it` bodies) survive the reset: vi.fn()
+  // implementations registered via mockImplementation are re-applied after
+  // resetAllMocks, so we stash and restore them here.
+  for (const fn of Object.values(apiMock)) {
+    const f = fn as ReturnType<typeof vi.fn>;
+    const impl = f.getMockImplementation();
+    if (impl) f.mockImplementation(impl);
+  }
   // Defaults that most views/hooks need on mount.
   apiMock.getState.mockResolvedValue({ ok: true, data: fullState, status: 200 });
   apiMock.getAgentCatalog.mockResolvedValue({ ok: true, data: catalog, status: 200 });
   apiMock.getSystemStats.mockResolvedValue({ ok: true, data: stats, status: 200 });
-  // Everything else returns a benign ok envelope.
+  // Everything else returns a benign ok envelope. Individual tests override
+  // specific methods AFTER this loop (e.g. a failing keychain addProvider).
   for (const [name, fn] of Object.entries(apiMock)) {
     if (name === 'getState' || name === 'getAgentCatalog' || name === 'getSystemStats') continue;
-    fn.mockResolvedValue({ ok: true, status: 200, data: {} });
+    const f = fn as ReturnType<typeof vi.fn>;
+    const impl = f.getMockImplementation();
+    if (impl) continue; // per-test override from a previous test — keep it
+    f.mockResolvedValue({ ok: true, status: 200, data: {} });
   }
 
   // Reset the shared store + persist storage between tests.
@@ -357,6 +371,132 @@ describe('ProvidersView', () => {
     const toggle = await screen.findByRole('switch');
     await user.click(toggle);
     expect(apiMock.updateProvider).toHaveBeenCalled();
+  });
+
+  // M057 — opt-in OS-keychain storage for a NEW provider's API key.
+  it('M057: the keychain toggle renders in Add Provider and defaults off', async () => {
+    const user = userEvent.setup();
+    render(<ProvidersView />);
+    await user.click(screen.getByRole('button', { name: /Add Provider/ }));
+    const checkbox = await screen.findByRole('checkbox', { name: 'Store in OS keychain' });
+    expect(checkbox).not.toBeChecked();
+  });
+
+  it('M057: toggling it on probes keychain availability before submit', async () => {
+    const user = userEvent.setup();
+    render(<ProvidersView />);
+    await user.click(screen.getByRole('button', { name: /Add Provider/ }));
+    const checkbox = await screen.findByRole('checkbox', { name: 'Store in OS keychain' });
+    await user.click(checkbox);
+    await waitFor(() => {
+      expect(apiMock.getKeychainAvailability).toHaveBeenCalled();
+    });
+  });
+
+  it('M057: submitting with the toggle on passes keychainStorage: true', async () => {
+    apiMock.getKeychainAvailability.mockResolvedValue({ ok: true, status: 200, data: { available: true } });
+    const user = userEvent.setup();
+    render(<ProvidersView />);
+    await user.click(screen.getByRole('button', { name: /Add Provider/ }));
+    await user.type(await screen.findByPlaceholderText(/anthropic-main, internal-gw/), 'new-gw');
+    await user.type(screen.getByPlaceholderText(/e\.g\., Anthropic/), 'New GW');
+    await user.type(screen.getByPlaceholderText('sk-…'), 'sk-test-123');
+    const checkbox = await screen.findByRole('checkbox', { name: 'Store in OS keychain' });
+    await user.click(checkbox);
+    await waitFor(() => expect(apiMock.getKeychainAvailability).toHaveBeenCalled());
+    // Two same-named "Add Provider" buttons exist (header + modal footer);
+    // the footer one is the submit button.
+    const submitBtn = screen.getAllByRole('button', { name: /^Add Provider$/ })[1] as HTMLButtonElement;
+    await user.click(submitBtn);
+    await waitFor(() => {
+      expect(apiMock.addProvider).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'new-gw', config: expect.objectContaining({ apiKey: 'sk-test-123' }) }),
+        expect.any(Array),
+        ['claude-code'],
+        undefined,
+        true
+      );
+    });
+  });
+
+  it('M057: a keychain-unavailable state disables submit and warns before it', async () => {
+    apiMock.getKeychainAvailability.mockResolvedValue({ ok: true, status: 200, data: { available: false } });
+    const user = userEvent.setup();
+    render(<ProvidersView />);
+    await user.click(screen.getByRole('button', { name: /Add Provider/ }));
+    await user.type(await screen.findByPlaceholderText(/anthropic-main, internal-gw/), 'kc-gw');
+    await user.type(screen.getByPlaceholderText(/e\.g\., Anthropic/), 'KC GW');
+    const checkbox = await screen.findByRole('checkbox', { name: 'Store in OS keychain' });
+    await user.click(checkbox);
+    // Clear, inline feedback that the keychain is unusable…
+    await screen.findByText(/OS keychain is not available in this environment/);
+    // …and the submit button is disabled so no request can be made.
+    const submit = screen.getAllByRole('button', { name: /^Add Provider$/ })[1] as HTMLButtonElement;
+    expect(submit).toBeDisabled();
+    expect(apiMock.addProvider).not.toHaveBeenCalled();
+  });
+
+  it('M057: a provider using keychain storage shows the lock indicator', async () => {
+    useStore.setState({
+      registry: {
+        path: '/tmp/r.json',
+        providers: [
+          {
+            provider: {
+              id: 'kc-provider',
+              name: 'Keychain Provider',
+              type: 'openai-compatible',
+              config: { apiKey: '' },
+              enabled: true,
+              priority: 0,
+            },
+            models: [],
+            agentIds: [],
+            keychainSecretRef: 'provider:kc-provider',
+          },
+        ],
+        mcpServers: [],
+        customAgents: [],
+        updatedAt: 0,
+      } as never,
+    });
+    render(<ProvidersView />);
+    await screen.findByText('Keychain Provider');
+    const indicator = screen.getByTitle('API key stored in OS keychain');
+    expect(indicator).toHaveTextContent('keychain');
+  });
+
+  it('M057: a server-side keychain failure surfaces the REAL error, not a generic one', async () => {
+    apiMock.getKeychainAvailability.mockResolvedValue({ ok: true, status: 200, data: { available: true } });
+    apiMock.addProvider.mockResolvedValue({
+      ok: false,
+      status: 400,
+      error:
+        'Failed to write the API key to the OS keychain for provider "kc-gw": ' +
+        'could not connect to keychain service. No plaintext copy was written to the registry.',
+    } as never);
+    const user = userEvent.setup();
+    render(
+      <>
+        <ProvidersView />
+        <ToastContainer />
+      </>
+    );
+    await user.click(screen.getByRole('button', { name: /Add Provider/ }));
+    await user.type(await screen.findByPlaceholderText(/anthropic-main, internal-gw/), 'kc-gw');
+    await user.type(screen.getByPlaceholderText(/e\.g\., Anthropic/), 'KC GW');
+    await user.type(screen.getByPlaceholderText('sk-…'), 'sk-test-123');
+    const checkbox = await screen.findByRole('checkbox', { name: 'Store in OS keychain' });
+    await user.click(checkbox);
+    await waitFor(() => expect(apiMock.getKeychainAvailability).toHaveBeenCalled());
+    const submitBtn = screen.getAllByRole('button', { name: /^Add Provider$/ })[1] as HTMLButtonElement;
+    await user.click(submitBtn);
+    // The real server error text is surfaced verbatim…
+    await waitFor(() => expect(apiMock.addProvider).toHaveBeenCalled());
+    await screen.findByText(/Failed to write the API key to the OS keychain/);
+    // …and no generic fallback message appears.
+    expect(screen.queryByText('Operation Failed')).not.toBeInTheDocument();
+    expect(screen.queryByText(/something went wrong/i)).not.toBeInTheDocument();
   });
 });
 
