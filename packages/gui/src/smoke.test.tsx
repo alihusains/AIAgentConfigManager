@@ -599,6 +599,14 @@ describe('EnvVarsView', () => {
       editable: false,
       note: 'Only present in this process (e.g. exported by a parent shell or launchd) — not in any shell profile file, so this tool will not edit it.',
     },
+    {
+      name: 'SYSTEM_WIDE_PATH',
+      value: 'C:\\Windows\\system32',
+      source: 'windows-system',
+      looksSensitive: false,
+      editable: false,
+      note: 'System-level registry key — changing it requires admin elevation, which this tool does not assume.',
+    },
   ] as never;
 
   beforeEach(() => {
@@ -666,6 +674,58 @@ describe('EnvVarsView', () => {
     // No edit/remove controls on a read-only row.
     expect(screen.queryByRole('button', { name: 'Edit LANG' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Remove LANG' })).not.toBeInTheDocument();
+  });
+
+  // M058: a process-only row (read-only ONLY because no profile file backs it)
+  // offers the "adopt into profile" override, with the caveat about
+  // already-running processes visible at the moment of the action.
+  it('offers "Edit anyway" for a process-only row and shows the caveat in the modal', async () => {
+    render(<EnvVarsView />);
+    const user = userEvent.setup();
+    await screen.findByText('LANG');
+
+    // The override action is present for the process-only row…
+    const adoptBtn = screen.getByRole('button', { name: 'Add LANG to shell profile' });
+    expect(adoptBtn).toBeInTheDocument();
+    // …and the caveat is visible at the point of the action (the button's
+    // tooltip), not buried elsewhere.
+    expect(adoptBtn).toHaveAttribute(
+      'title',
+      expect.stringContaining('new terminal sessions only')
+    );
+
+    // Opening the action shows the unmissable caveat inside the modal itself.
+    await user.click(adoptBtn);
+    await screen.findByRole('dialog');
+    expect(
+      screen.getByText(
+        /currently set by a running process.*new terminal sessions only.*already-running process/s
+      )
+    ).toBeInTheDocument();
+    // The name is locked, and the value starts blank (never prefilled).
+    expect(screen.getByLabelText('Name')).toBeDisabled();
+    expect((screen.getByLabelText('Value') as HTMLInputElement).value).toBe('');
+
+    // Saving goes through the existing setEnvVar path — no new write logic.
+    await user.type(screen.getByLabelText('Value'), 'en_US.UTF-8');
+    await user.click(screen.getByRole('button', { name: 'Add to profile' }));
+    await waitFor(() => {
+      expect(apiMock.setEnvVar).toHaveBeenCalledWith('LANG', 'en_US.UTF-8');
+    });
+  });
+
+  it('does NOT offer the adopt override for windows-system rows (admin-required)', async () => {
+    render(<EnvVarsView />);
+    await screen.findByText('SYSTEM_WIDE_PATH');
+    // Genuinely non-writable: no adopt action, no edit — only the explanation.
+    expect(
+      screen.queryByRole('button', { name: /Add SYSTEM_WIDE_PATH to shell profile/ })
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Edit anyway/ })).not.toBeInTheDocument();
+    // The system-level explanation is still shown (unchanged behavior).
+    expect(
+      screen.getByText(/requires admin elevation, which this tool does not assume/)
+    ).toBeInTheDocument();
   });
 
   it('offers add/edit for editable entries and saves via the API', async () => {

@@ -34,6 +34,23 @@ const SOURCE_ORDER: EnvVarEntry['source'][] = [
 /** `${name}:${action}` — identifies which row button is busy. */
 type BusyKey = string;
 
+/**
+ * A variable that exists only in this process (set by a parent shell, an IDE,
+ * launchd — no shell profile file backs it) is read-only in `listEnvVars()`
+ * but CAN be "adopted" into a shell profile: `setEnvVar` appends the export
+ * line to the default profile file, after which the variable is
+ * shell-profile-backed and editable. Genuinely non-writable sources (e.g.
+ * Windows `HKEY_LOCAL_MACHINE`) do NOT get this override — this tool cannot
+ * safely write them without admin elevation it does not have.
+ */
+function isProcessOnlyAdoptable(entry: EnvVarEntry): boolean {
+  return entry.editable === false && entry.source === 'process';
+}
+
+/** The caveat shown at the moment of the adopt action (never buried). */
+const ADOPT_CAVEAT =
+  'This variable is currently set by a running process. Adding it to your shell profile will apply to new terminal sessions only — it will not change this or any already-running process.';
+
 /* ------------------------------------------------------------------ */
 /* Row                                                                 */
 /* ------------------------------------------------------------------ */
@@ -45,6 +62,7 @@ interface EnvVarRowProps {
   onReveal: (entry: EnvVarEntry) => void;
   onEdit: (entry: EnvVarEntry) => void;
   onRemove: (entry: EnvVarEntry) => void;
+  onAdopt: (entry: EnvVarEntry) => void;
 }
 
 const EnvVarRow = memo(function EnvVarRow({
@@ -54,6 +72,7 @@ const EnvVarRow = memo(function EnvVarRow({
   onReveal,
   onEdit,
   onRemove,
+  onAdopt,
 }: EnvVarRowProps) {
   const isRevealed = revealedValue !== null;
   const busyFor = (action: string): boolean => busy === `${entry.name}:${action}`;
@@ -127,9 +146,28 @@ const EnvVarRow = memo(function EnvVarRow({
               />
             </>
           ) : (
-            <span className="env-readonly-reason" title={entry.note}>
-              {entry.note || 'Read-only'}
-            </span>
+            <div className="flex items-center gap-1">
+              <span className="env-readonly-reason" title={entry.note}>
+                {entry.note || 'Read-only'}
+              </span>
+              {isProcessOnlyAdoptable(entry) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  title={
+                    `Add ${entry.name} to your shell profile` +
+                    '\n\n' +
+                    ADOPT_CAVEAT +
+                    '\n\nIt will apply to new terminal sessions only — already-running processes keep the current value.'
+                  }
+                  aria-label={`Add ${entry.name} to shell profile`}
+                  disabled={busy != null}
+                  onClick={() => onAdopt(entry)}
+                >
+                  Edit anyway
+                </Button>
+              )}
+            </div>
           )}
         </div>
       </td>
@@ -155,9 +193,12 @@ export function EnvVarsView() {
   const [revealed, setRevealed] = useState<Record<string, string>>({});
 
   // Add/edit modal state. `editing` is the entry being edited, or null
-  // while the modal is in "add" mode.
+  // while the modal is in "add" mode. `adopting` marks the "adopt a
+  // process-only var into the shell profile" path — same modal, plus the
+  // unmissable caveat about already-running processes.
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<EnvVarEntry | null>(null);
+  const [adopting, setAdopting] = useState(false);
   const [name, setName] = useState('');
   const [value, setValue] = useState('');
   const [saving, setSaving] = useState(false);
@@ -222,6 +263,7 @@ export function EnvVarsView() {
 
   const openAdd = useCallback(() => {
     setEditing(null);
+    setAdopting(false);
     setName('');
     setValue('');
     setModalOpen(true);
@@ -229,9 +271,21 @@ export function EnvVarsView() {
 
   const openEdit = useCallback((entry: EnvVarEntry) => {
     setEditing(entry);
+    setAdopting(false);
     setName(entry.name);
     // Never prefill the redacted value — the edit form starts the value
     // blank on purpose: saving would otherwise write the mask back.
+    setValue('');
+    setModalOpen(true);
+  }, []);
+
+  // "Adopt into profile": a process-only var gets a new export line in the
+  // default shell profile via the SAME setEnvVar path as any other edit —
+  // no separate write logic. The caveat is shown in the modal itself.
+  const openAdopt = useCallback((entry: EnvVarEntry) => {
+    setEditing(entry);
+    setAdopting(true);
+    setName(entry.name);
     setValue('');
     setModalOpen(true);
   }, []);
@@ -279,7 +333,11 @@ export function EnvVarsView() {
       if (!res.ok) throw new Error(res.error ?? 'Save failed');
       addToast({
         type: 'success',
-        title: editing ? 'Environment variable updated' : 'Environment variable added',
+        title: adopting
+          ? 'Variable added to shell profile'
+          : editing
+            ? 'Environment variable updated'
+            : 'Environment variable added',
         message: `${trimmedName} saved. ${res.data?.warning ?? ''}`,
       });
       setModalOpen(false);
@@ -293,7 +351,7 @@ export function EnvVarsView() {
     } finally {
       setSaving(false);
     }
-  }, [name, value, editing, addToast, load]);
+  }, [name, value, editing, adopting, addToast, load]);
 
   // Search: case-insensitive substring match on name or value. Filtering
   // happens in memory over an already-small list — cheap even at 100+ vars.
@@ -417,6 +475,7 @@ export function EnvVarsView() {
                             onReveal={(e) => void handleReveal(e)}
                             onEdit={openEdit}
                             onRemove={(e) => void handleRemove(e)}
+                            onAdopt={openAdopt}
                           />
                         ))}
                       </tbody>
@@ -436,7 +495,13 @@ export function EnvVarsView() {
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editing ? `Edit — ${editing.name}` : 'Add Environment Variable'}
+        title={
+          adopting
+            ? `Add to shell profile — ${editing?.name ?? ''}`
+            : editing
+              ? `Edit — ${editing.name}`
+              : 'Add Environment Variable'
+        }
         footer={
           <>
             <Button variant="secondary" onClick={() => setModalOpen(false)}>
@@ -448,11 +513,16 @@ export function EnvVarsView() {
               disabled={!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name.trim()) || value === ''}
               onClick={() => void handleSave()}
             >
-              {editing ? 'Save Changes' : 'Add Variable'}
+              {adopting ? 'Add to profile' : editing ? 'Save Changes' : 'Add Variable'}
             </Button>
           </>
         }
       >
+        {adopting && (
+          <div className="warning-box mb-4" role="alert">
+            <p className="text-sm">{ADOPT_CAVEAT}</p>
+          </div>
+        )}
         <Field
           label="Name"
           htmlFor="env-var-name"
