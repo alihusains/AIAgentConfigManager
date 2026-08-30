@@ -154,9 +154,12 @@ const EnvVarRow = memo(function EnvVarRow({
                 <Button
                   variant="ghost"
                   size="sm"
-                  title={`Add ${entry.name} to your shell profile`
-                    + '\n\n' + ADOPT_CAVEAT
-                    + '\n\nIt will apply to new terminal sessions only — already-running processes keep the current value.'}
+                  title={
+                    `Add ${entry.name} to your shell profile` +
+                    '\n\n' +
+                    ADOPT_CAVEAT +
+                    '\n\nIt will apply to new terminal sessions only — already-running processes keep the current value.'
+                  }
                   aria-label={`Add ${entry.name} to shell profile`}
                   disabled={busy != null}
                   onClick={() => onAdopt(entry)}
@@ -324,7 +327,7 @@ export function EnvVarsView() {
   const handleSave = useCallback(async () => {
     const trimmedName = name.trim();
     if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(trimmedName)) return;
-      setSaving(true);
+    setSaving(true);
     try {
       const res = await api.setEnvVar(trimmedName, value);
       if (!res.ok) throw new Error(res.error ?? 'Save failed');

@@ -721,9 +721,7 @@ describe('EnvVarsView', () => {
     expect(
       screen.queryByRole('button', { name: /Add SYSTEM_WIDE_PATH to shell profile/ })
     ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole('button', { name: /Edit anyway/ })
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Edit anyway/ })).not.toBeInTheDocument();
     // The system-level explanation is still shown (unchanged behavior).
     expect(
       screen.getByText(/requires admin elevation, which this tool does not assume/)
