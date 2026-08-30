@@ -774,6 +774,78 @@ describe('AgentsView', () => {
 });
 
 // ---------------------------------------------------------------------------
+// M070 — MCP exposure overload warning
+// ---------------------------------------------------------------------------
+describe('M070: MCP server overload warning', () => {
+  /** Build a registry fixture with `count` MCP servers assigned to 'claude-code'. */
+  function makeRegistryWithServers(count: number) {
+    const mcpServers = Array.from({ length: count }, (_, i) => ({
+      server: { name: `server-${i}`, type: 'stdio', command: `cmd-${i}`, enabled: true },
+      agentIds: ['claude-code'],
+    }));
+    return {
+      path: '/tmp/registry.json',
+      providers: [],
+      mcpServers,
+      customAgents: [],
+      updatedAt: 0,
+    } as never;
+  }
+
+  it('AgentsView: agent below threshold shows no warning', async () => {
+    // 5 servers — well below the threshold of 10
+    useStore.setState({ registry: makeRegistryWithServers(5) });
+    render(<AgentsView />);
+    await screen.findByRole('heading', { name: 'Agents' });
+    // The badge should show the count with no warning title
+    const badge = screen.getByTitle('5 MCP servers assigned');
+    expect(badge).toBeInTheDocument();
+    // No warning text should be present
+    expect(screen.queryByText(/high server counts can slow/i)).not.toBeInTheDocument();
+  });
+
+  it('AgentsView: agent above threshold shows warning treatment', async () => {
+    // 12 servers — above the threshold of 10
+    useStore.setState({ registry: makeRegistryWithServers(12) });
+    render(<AgentsView />);
+    await screen.findByRole('heading', { name: 'Agents' });
+    // The badge should show the count with the warning title
+    const badge = screen.getByTitle(/12 MCP servers assigned — high server counts/);
+    expect(badge).toBeInTheDocument();
+  });
+
+  it('AgentDetailView: agent below threshold shows no warning', async () => {
+    const { AgentDetailView } = await import('./components/AgentDetailView');
+    // 3 servers — below threshold
+    useStore.setState({ registry: makeRegistryWithServers(3) });
+    render(<AgentDetailView agentId="claude-code" />);
+    await screen.findByRole('heading', { name: /MCP Servers/ });
+    // No warning text
+    expect(screen.queryByText(/high server counts can slow/i)).not.toBeInTheDocument();
+  });
+
+  it('AgentDetailView: agent above threshold shows warning text', async () => {
+    const { AgentDetailView } = await import('./components/AgentDetailView');
+    // 11 servers — above threshold of 10
+    useStore.setState({ registry: makeRegistryWithServers(11) });
+    render(<AgentDetailView agentId="claude-code" />);
+    await screen.findByText(/11 MCP servers assigned — high server counts/);
+  });
+
+  it('AgentDetailView: count is accurate against registry fixture', async () => {
+    const { AgentDetailView } = await import('./components/AgentDetailView');
+    // Exactly 7 servers
+    useStore.setState({ registry: makeRegistryWithServers(7) });
+    render(<AgentDetailView agentId="claude-code" />);
+    // The stat card value should show 7 (the <p> with class adr-stat-value)
+    await waitFor(() => {
+      const statValues = screen.getAllByText('7');
+      expect(statValues.length).toBeGreaterThanOrEqual(1);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // SkillsView (cross-agent copy affordance)
 // ---------------------------------------------------------------------------
 describe('SkillsView', () => {

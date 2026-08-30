@@ -25,6 +25,13 @@ import {
 
 type RawConfigResult = { path: string; content: string; exists: boolean };
 
+/**
+ * MCP server count above which the UI surfaces an overload warning.
+ * Matches the roadmap's own success metric: "median servers-per-agent ≤ 10".
+ * This is a soft heuristic — a caution, not a hard performance guarantee.
+ */
+export const MCP_SERVER_WARNING_THRESHOLD = 10;
+
 /** Platform-filtered lifecycle command for a catalog entry. */
 function commandFor(
   entry: AgentCatalogEntry,
@@ -160,6 +167,7 @@ export function AgentDetailView({ agentId }: { agentId: string | null }) {
   // Registry entries installed INTO this agent.
   const providers = (registry?.providers || []).filter((entry) => entry.agentIds.includes(agentId!));
   const mcpServers = (registry?.mcpServers || []).filter((m) => m.agentIds.includes(agentId!));
+  const mcpOverloaded = mcpServers.length > MCP_SERVER_WARNING_THRESHOLD;
 
   const installCmd = commandFor(catalogEntry || ({} as AgentCatalogEntry), 'install', p);
   const uninstallCmd = commandFor(catalogEntry || ({} as AgentCatalogEntry), 'uninstall', p);
@@ -258,11 +266,11 @@ export function AgentDetailView({ agentId }: { agentId: string | null }) {
             <p className="adr-stat-label">Providers</p>
           </div>
         </div>
-        <div className="adr-stat">
-          <Server size={18} />
+        <div className="adr-stat" title={mcpOverloaded ? `${mcpServers.length} MCP servers assigned — high server counts can slow an agent down or overwhelm its tool-selection` : undefined}>
+          <Server size={18} className={mcpOverloaded ? 'text-warning' : ''} />
           <div>
-            <p className="adr-stat-value">{mcpServers.length}</p>
-            <p className="adr-stat-label">MCP Servers</p>
+            <p className={mcpOverloaded ? 'text-warning' : ''}>{mcpServers.length}</p>
+            <p className="adr-stat-label">MCP Servers{mcpOverloaded ? ' ⚠' : ''}</p>
           </div>
         </div>
         <div className="adr-stat">
@@ -380,7 +388,13 @@ export function AgentDetailView({ agentId }: { agentId: string | null }) {
           <div className="card-header">
             <h3 className="card-title">
               MCP Servers
-              <span className="badge badge-primary ml-2">{mcpServers.length}</span>
+              <span
+                className={`badge ml-2 ${mcpOverloaded ? 'badge-warning' : 'badge-primary'}`}
+                title={mcpOverloaded ? `${mcpServers.length} MCP servers assigned — high server counts can slow an agent down or overwhelm its tool-selection` : undefined}
+              >
+                {mcpOverloaded && <AlertTriangle size={12} className="inline mr-1" />}
+                {mcpServers.length}
+              </span>
             </h3>
             <button className="btn-ghost btn-sm" onClick={() => setActiveView('mcp')}>
               Manage <ChevronRight size={14} />
@@ -391,6 +405,15 @@ export function AgentDetailView({ agentId }: { agentId: string | null }) {
               No MCP servers installed into {name} yet.
             </div>
           ) : (
+            <>
+            {mcpOverloaded && (
+              <div className="px-4 py-2 border-b flex items-start gap-1.5">
+                <AlertTriangle size={13} className="mt-0.5 flex-shrink-0 text-warning" />
+                <span className="text-xs text-warning">
+                  {mcpServers.length} MCP servers assigned — high server counts can slow an agent down or overwhelm its tool-selection.
+                </span>
+              </div>
+            )}
             <div className="p-2 grid grid-cols-1 md:grid-cols-2 gap-1">
               {mcpServers.map((entry) => (
                 <div key={entry.server.name} className="adr-list-item">
@@ -417,6 +440,7 @@ export function AgentDetailView({ agentId }: { agentId: string | null }) {
                 </div>
               ))}
             </div>
+            </>
           )}
         </div>
       </div>
