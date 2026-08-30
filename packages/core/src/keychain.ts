@@ -28,6 +28,9 @@ export const KEYCHAIN_SERVICE = 'ai-agent-config';
 /**
  * A keychain entry reference: the fixed app namespace plus the account
  * (e.g. `provider:<providerId>`) that identifies one stored credential.
+ *
+ * @internal Exported for the planned M048/M049 wiring; not yet consumed
+ * outside this module and its tests — remove if that wiring doesn't land.
  */
 export interface KeychainEntry {
   /** Fixed namespace for this app. */
@@ -87,7 +90,8 @@ export async function setSecret(account: string, value: string): Promise<void> {
     await entry.setPassword(value);
   } catch (err) {
     if (isNoEntryError(err)) {
-      // Shouldn't happen on set, but keep the typed contract.
+      // Defensive: not expected on set — setPassword creates the entry. Kept
+      // to preserve the typed contract.
       throw new KeychainError('no-entry', `Keychain set failed for account "${account}"`, err);
     }
     throw new KeychainError(
@@ -143,6 +147,9 @@ export async function deleteSecret(account: string): Promise<boolean> {
 /**
  * Build a `KeychainEntry` reference for the given account under the app's
  * fixed namespace.
+ *
+ * @internal Exported for the planned M048/M049 wiring; not yet consumed
+ * outside this module and its tests.
  */
 export function makeKeychainEntry(account: string): KeychainEntry {
   return { service: KEYCHAIN_SERVICE, account };
@@ -157,8 +164,13 @@ export function makeKeychainEntry(account: string): KeychainEntry {
  * binding surfaces it as an error whose message references "NoEntry", or as
  * a null/undefined result. We match on both the error message and any
  * `code`/`name` the binding may attach.
+ *
+ * NOTE: pinned to @napi-rs/keyring 1.3.0 — the error shape matched here
+ * (message/name/code containing "NoEntry"/"no entry") is validated by the
+ * regression tests in keychain.test.ts. If the binding version is bumped,
+ * re-verify the error shape against the new release.
  */
-function isNoEntryError(err: unknown): boolean {
+export function isNoEntryError(err: unknown): boolean {
   if (err == null) return true;
   if (typeof err === 'string') return /no entry|NoEntry|no credential/i.test(err);
   if (typeof err === 'object') {

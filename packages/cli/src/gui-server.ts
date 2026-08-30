@@ -90,7 +90,7 @@ function serveStatic(
   // Never allow traversal outside dist
   const rel = urlPath === '/' ? 'index.html' : urlPath.replace(/^\/+/, '');
   let filePath = path.join(distDir, rel);
-  if (!filePath.startsWith(distDir)) {
+  if (filePath !== distDir && !filePath.startsWith(distDir + path.sep)) {
     res.writeHead(403).end('Forbidden');
     return true;
   }

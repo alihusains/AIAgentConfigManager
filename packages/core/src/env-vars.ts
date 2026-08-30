@@ -108,7 +108,11 @@ interface ParsedProfile {
   vars: Map<string, { value: string; lineIndex: number }>;
 }
 
-/** Strip a single matching pair of surrounding quotes from a value, if present. */
+/**
+ * Strip a single matching pair of surrounding quotes from a value, if present.
+ * Mismatched quotes (e.g. `"value'`) are left intact — the raw value is
+ * preserved rather than guessing intent.
+ */
 function stripQuotes(value: string): string {
   if (value.length >= 2) {
     const first = value[0];
@@ -121,28 +125,36 @@ function stripQuotes(value: string): string {
 }
 
 /**
+ * Shared profile-line parsing for every `export NAME=value` / `NAME=value`
+ * line in a shell profile. Comments, blank lines, and unrelated shell code
+ * are ignored. Returns name -> { value, lineIndex } in file order (callers
+ * decide whether last-write-wins applies).
+ */
+function parseProfileLines(content: string): Map<string, { value: string; lineIndex: number }> {
+  const lines = content.split(/\r?\n/);
+  const vars = new Map<string, { value: string; lineIndex: number }>();
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const m = PROFILE_LINE_RE.exec(lines[i]);
+    if (!m) continue;
+    if (/^(?:local|readonly|declare)/.test(trimmed)) continue;
+    const rawValue = m[2] || '';
+    if (/[`(]/.test(rawValue)) continue;
+    vars.set(m[1], { value: stripQuotes(rawValue), lineIndex: i });
+  }
+  return vars;
+}
+
+/**
  * Parse one shell profile file for `export NAME=value` / `NAME=value` lines.
  * Comments, blank lines, and unrelated shell code are ignored. A later
  * assignment to the same name in the same file wins (shells apply top-down).
  */
-export function parseShellProfile(file: string, content: string): Map<string, string> {
-  const lines = content.split(/\r?\n/);
+export function parseShellProfile(_file: string, content: string): Map<string, string> {
   const result = new Map<string, string>();
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
-    const m = PROFILE_LINE_RE.exec(line);
-    if (!m) continue;
-    // Reject lines that are clearly not a plain assignment (e.g. `local x=1`
-    // inside a function, `readonly`, `declare`, or the value starting with `(`
-    // for arrays). Keep it conservative: only NAME = value.
-    if (/^(?:local|readonly|declare|export\s+(?:-?\w+\s+)+)/.test(line.trim())) continue;
-    const name = m[1];
-    const rawValue = m[2] || '';
-    // Skip values that use command substitution or unquoted shell constructs —
-    // we cannot safely re-emit those byte-for-byte.
-    if (/[`(]/.test(rawValue)) continue;
-    result.set(name, stripQuotes(rawValue));
+  for (const [name, parsed] of parseProfileLines(content)) {
+    result.set(name, parsed.value);
   }
   return result;
 }
@@ -159,19 +171,7 @@ async function readProfileFiles(homeDir: string): Promise<ParsedProfile[]> {
       content = null; // does not exist or unreadable — skip
     }
     if (content === null) continue;
-    const lines = content.split(/\r?\n/);
-    const vars = new Map<string, { value: string; lineIndex: number }>();
-    for (let i = 0; i < lines.length; i++) {
-      const trimmed = lines[i].trim();
-      if (!trimmed || trimmed.startsWith('#')) continue;
-      const m = PROFILE_LINE_RE.exec(lines[i]);
-      if (!m) continue;
-      if (/^(?:local|readonly|declare)/.test(trimmed)) continue;
-      const rawValue = m[2] || '';
-      if (/[`(]/.test(rawValue)) continue;
-      vars.set(m[1], { value: stripQuotes(rawValue), lineIndex: i });
-    }
-    parsed.push({ file, vars });
+    parsed.push({ file, vars: parseProfileLines(content) });
   }
   return parsed;
 }
@@ -211,8 +211,7 @@ export function updateProfileContent(content: string, name: string, value: strin
   }
   if (lastIdx === -1) {
     // Append; ensure the file ends with a newline before the new line.
-    const hasTrailingNewline = content.endsWith('\n') || content.length === 0;
-    const separator = content.length === 0 || hasTrailingNewline ? '' : '\n';
+    const separator = content.length === 0 || content.endsWith('\n') ? '' : '\n';
     return `${content}${separator}${newLine}\n`;
   }
   lines[lastIdx] = newLine;
@@ -243,8 +242,12 @@ export function removeProfileContent(
  * preserving the file's existing permissions when it already exists.
  */
 async function writeProfileFile(file: string, content: string): Promise<void> {
-  const tmp = `${file}.tmp`;
-  await fs.writeFile(tmp, content, 'utf-8');
+  // Unique temp name so concurrent writers to the same profile file don't race on the rename.
+  const tmp = `${file}.${process.pid}.${Date.now()}.tmp`;
+  await fs.writeFile(tmp, content, 'utf-8').catch(async (err) => {
+    await fs.unlink(tmp).catch(() => undefined);
+    throw err;
+  });
   try {
     const stat = await fs.stat(file);
     await fs.chmod(tmp, stat.mode & 0o777);
@@ -252,7 +255,10 @@ async function writeProfileFile(file: string, content: string): Promise<void> {
     // New file: restrict permissions — profiles can carry secrets.
     await fs.chmod(tmp, 0o600).catch(() => undefined);
   }
-  await fs.rename(tmp, file);
+  await fs.rename(tmp, file).catch(async (err) => {
+    await fs.unlink(tmp).catch(() => undefined);
+    throw err;
+  });
 }
 
 // ============================================================================

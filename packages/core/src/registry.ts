@@ -13,7 +13,6 @@
 import {
   type Registry,
   type RegistryProvider,
-  RegistryMCPServer,
   type MCPServerConfig,
   type ModelProvider,
   type ModelConfig,
@@ -88,10 +87,19 @@ export async function loadRegistry(registryPath: string): Promise<Registry | nul
 /** Persist the registry atomically (write temp file, then rename). */
 export async function saveRegistry(registryPath: string, registry: Registry): Promise<void> {
   registry.updatedAt = Date.now();
-  const tmp = `${registryPath}.tmp`;
+  const tmp = `${registryPath}.${process.pid}.${Date.now()}.tmp`;
   await writeFileSafe(tmp, JSON.stringify(registry, null, 2));
   const fs = await import('node:fs');
-  fs.renameSync(tmp, registryPath);
+  try {
+    fs.renameSync(tmp, registryPath);
+  } catch (err) {
+    try {
+      fs.unlinkSync(tmp);
+    } catch {
+      // best-effort cleanup
+    }
+    throw err;
+  }
 }
 
 // ============================================================================
@@ -333,7 +341,13 @@ export async function migrateFromAgentConfigs(
     for (const provider of input.config.modelProviders) {
       const entry = registry.providers.find((p) => p.provider.id === provider.id);
       if (entry) {
-        // Same provider across agents: record coverage, keep first definition
+        // Same provider across agents: record coverage, keep first definition.
+        // Warn when the definitions differ so the first-seen-wins choice is visible.
+        if (JSON.stringify(entry.provider) !== JSON.stringify(provider)) {
+          warnings.push(
+            `provider '${provider.id}': conflicting definitions across agents; kept the first-seen one`
+          );
+        }
         if (!entry.agentIds.includes(input.agentId)) entry.agentIds.push(input.agentId);
         continue;
       }
@@ -349,6 +363,11 @@ export async function migrateFromAgentConfigs(
     for (const server of input.config.mcpServers) {
       const entry = registry.mcpServers.find((s) => s.server.name === server.name);
       if (entry) {
+        if (JSON.stringify(entry.server) !== JSON.stringify(server)) {
+          warnings.push(
+            `mcp server '${server.name}': conflicting definitions across agents; kept the first-seen one`
+          );
+        }
         if (!entry.agentIds.includes(input.agentId)) entry.agentIds.push(input.agentId);
         continue;
       }

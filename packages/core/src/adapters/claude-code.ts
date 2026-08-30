@@ -160,6 +160,8 @@ export class ClaudeCodeAdapter implements AgentAdapter {
   // ============================================================================
 
   private async transformFromClaudeCode(settings: ClaudeCodeSettings): Promise<AgentConfig> {
+    // Reset per-read state so repeated reads don't accumulate duplicate entries.
+    this.preservedMCPEntries = [];
     const modelProviders: ModelProvider[] = [];
     const models: ModelConfig[] = [];
     const mcpServers: MCPServerConfig[] = [];
