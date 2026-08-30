@@ -394,7 +394,11 @@ describe('ProvidersView', () => {
   });
 
   it('M057: submitting with the toggle on passes keychainStorage: true', async () => {
-    apiMock.getKeychainAvailability.mockResolvedValue({ ok: true, status: 200, data: { available: true } });
+    apiMock.getKeychainAvailability.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { available: true },
+    });
     const user = userEvent.setup();
     render(<ProvidersView />);
     await user.click(screen.getByRole('button', { name: /Add Provider/ }));
@@ -406,11 +410,16 @@ describe('ProvidersView', () => {
     await waitFor(() => expect(apiMock.getKeychainAvailability).toHaveBeenCalled());
     // Two same-named "Add Provider" buttons exist (header + modal footer);
     // the footer one is the submit button.
-    const submitBtn = screen.getAllByRole('button', { name: /^Add Provider$/ })[1] as HTMLButtonElement;
+    const submitBtn = screen.getAllByRole('button', {
+      name: /^Add Provider$/,
+    })[1] as HTMLButtonElement;
     await user.click(submitBtn);
     await waitFor(() => {
       expect(apiMock.addProvider).toHaveBeenCalledWith(
-        expect.objectContaining({ id: 'new-gw', config: expect.objectContaining({ apiKey: 'sk-test-123' }) }),
+        expect.objectContaining({
+          id: 'new-gw',
+          config: expect.objectContaining({ apiKey: 'sk-test-123' }),
+        }),
         expect.any(Array),
         ['claude-code'],
         undefined,
@@ -420,7 +429,11 @@ describe('ProvidersView', () => {
   });
 
   it('M057: a keychain-unavailable state disables submit and warns before it', async () => {
-    apiMock.getKeychainAvailability.mockResolvedValue({ ok: true, status: 200, data: { available: false } });
+    apiMock.getKeychainAvailability.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { available: false },
+    });
     const user = userEvent.setup();
     render(<ProvidersView />);
     await user.click(screen.getByRole('button', { name: /Add Provider/ }));
@@ -431,7 +444,9 @@ describe('ProvidersView', () => {
     // Clear, inline feedback that the keychain is unusable…
     await screen.findByText(/OS keychain is not available in this environment/);
     // …and the submit button is disabled so no request can be made.
-    const submit = screen.getAllByRole('button', { name: /^Add Provider$/ })[1] as HTMLButtonElement;
+    const submit = screen.getAllByRole('button', {
+      name: /^Add Provider$/,
+    })[1] as HTMLButtonElement;
     expect(submit).toBeDisabled();
     expect(apiMock.addProvider).not.toHaveBeenCalled();
   });
@@ -467,7 +482,11 @@ describe('ProvidersView', () => {
   });
 
   it('M057: a server-side keychain failure surfaces the REAL error, not a generic one', async () => {
-    apiMock.getKeychainAvailability.mockResolvedValue({ ok: true, status: 200, data: { available: true } });
+    apiMock.getKeychainAvailability.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { available: true },
+    });
     apiMock.addProvider.mockResolvedValue({
       ok: false,
       status: 400,
@@ -489,7 +508,9 @@ describe('ProvidersView', () => {
     const checkbox = await screen.findByRole('checkbox', { name: 'Store in OS keychain' });
     await user.click(checkbox);
     await waitFor(() => expect(apiMock.getKeychainAvailability).toHaveBeenCalled());
-    const submitBtn = screen.getAllByRole('button', { name: /^Add Provider$/ })[1] as HTMLButtonElement;
+    const submitBtn = screen.getAllByRole('button', {
+      name: /^Add Provider$/,
+    })[1] as HTMLButtonElement;
     await user.click(submitBtn);
     // The real server error text is surfaced verbatim…
     await waitFor(() => expect(apiMock.addProvider).toHaveBeenCalled());

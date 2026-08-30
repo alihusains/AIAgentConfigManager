@@ -223,138 +223,144 @@ export function ProvidersView() {
                 </tr>
               </thead>
               <tbody>
-                {providers.map(({ provider, models, agentIds, apiCapabilities, keychainSecretRef }) => {
-                  const typeInfo = PROVIDER_TYPES.find((t) => t.id === provider.type);
-                  const Icon = typeInfo?.icon || Database;
-                  const ptypeClass = `ptype-${typeInfo?.id ?? 'default'}`;
-                  return (
-                    <tr key={provider.id} className="provider-row">
-                      <td>
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className={`p-2 rounded-lg flex-shrink-0 ptype-icon ${ptypeClass}`}>
-                            <Icon size={18} />
+                {providers.map(
+                  ({ provider, models, agentIds, apiCapabilities, keychainSecretRef }) => {
+                    const typeInfo = PROVIDER_TYPES.find((t) => t.id === provider.type);
+                    const Icon = typeInfo?.icon || Database;
+                    const ptypeClass = `ptype-${typeInfo?.id ?? 'default'}`;
+                    return (
+                      <tr key={provider.id} className="provider-row">
+                        <td>
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div
+                              className={`p-2 rounded-lg flex-shrink-0 ptype-icon ${ptypeClass}`}
+                            >
+                              <Icon size={18} />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="provider-name truncate">
+                                {provider.name}
+                                {keychainSecretRef && (
+                                  <span
+                                    className="badge badge-success ml-2 align-middle"
+                                    title="API key stored in OS keychain"
+                                  >
+                                    <Lock size={10} />
+                                    keychain
+                                  </span>
+                                )}
+                              </p>
+                              <p className="text-xs text-tertiary font-mono">{provider.id}</p>
+                            </div>
                           </div>
-                          <div className="min-w-0">
-                            <p className="provider-name truncate">
-                              {provider.name}
-                              {keychainSecretRef && (
-                                <span
-                                  className="badge badge-success ml-2 align-middle"
-                                  title="API key stored in OS keychain"
-                                >
-                                  <Lock size={10} />
-                                  keychain
-                                </span>
-                              )}
-                            </p>
-                            <p className="text-xs text-tertiary font-mono">{provider.id}</p>
+                        </td>
+                        <td>
+                          <span className={`badge type-badge ptype-badge ${ptypeClass}`}>
+                            <Icon size={11} />
+                            {typeInfo?.name || provider.type}
+                          </span>
+                        </td>
+                        <td>
+                          {!apiCapabilities ? (
+                            <span className="text-xs text-tertiary">not verified</span>
+                          ) : apiCapabilities.supported.length === 0 ? (
+                            <span className="text-xs text-error">no API confirmed</span>
+                          ) : (
+                            <span
+                              className="text-xs text-secondary"
+                              title={`Verified ${new Date(apiCapabilities.verifiedAt).toLocaleString()}`}
+                            >
+                              {apiCapabilities.supported
+                                .map((k) => providerApiLabel(k))
+                                .join(' · ')}
+                            </span>
+                          )}
+                        </td>
+                        <td>
+                          {models.length === 0 ? (
+                            <span className="text-xs text-tertiary">no models</span>
+                          ) : (
+                            <span
+                              className="text-xs text-secondary"
+                              title={models.map((m) => m.name).join('\n')}
+                            >
+                              {models.length} model{models.length > 1 ? 's' : ''}
+                            </span>
+                          )}
+                        </td>
+                        <td>
+                          <div className="flex items-center gap-1.5">
+                            <AgentAvatarStack
+                              agentIds={agentIds}
+                              agents={agents}
+                              onToggle={(agentId) => toggleProviderAgent(provider.id, agentId)}
+                            />
+                            <AgentPicker
+                              kind="provider"
+                              targets={agentIds}
+                              agents={agents}
+                              onToggle={(agentId) => toggleProviderAgent(provider.id, agentId)}
+                            />
                           </div>
-                        </div>
-                      </td>
-                      <td>
-                        <span className={`badge type-badge ptype-badge ${ptypeClass}`}>
-                          <Icon size={11} />
-                          {typeInfo?.name || provider.type}
-                        </span>
-                      </td>
-                      <td>
-                        {!apiCapabilities ? (
-                          <span className="text-xs text-tertiary">not verified</span>
-                        ) : apiCapabilities.supported.length === 0 ? (
-                          <span className="text-xs text-error">no API confirmed</span>
-                        ) : (
-                          <span
-                            className="text-xs text-secondary"
-                            title={`Verified ${new Date(apiCapabilities.verifiedAt).toLocaleString()}`}
-                          >
-                            {apiCapabilities.supported.map((k) => providerApiLabel(k)).join(' · ')}
-                          </span>
-                        )}
-                      </td>
-                      <td>
-                        {models.length === 0 ? (
-                          <span className="text-xs text-tertiary">no models</span>
-                        ) : (
-                          <span
-                            className="text-xs text-secondary"
-                            title={models.map((m) => m.name).join('\n')}
-                          >
-                            {models.length} model{models.length > 1 ? 's' : ''}
-                          </span>
-                        )}
-                      </td>
-                      <td>
-                        <div className="flex items-center gap-1.5">
-                          <AgentAvatarStack
-                            agentIds={agentIds}
-                            agents={agents}
-                            onToggle={(agentId) => toggleProviderAgent(provider.id, agentId)}
-                          />
-                          <AgentPicker
-                            kind="provider"
-                            targets={agentIds}
-                            agents={agents}
-                            onToggle={(agentId) => toggleProviderAgent(provider.id, agentId)}
-                          />
-                        </div>
-                      </td>
-                      <td>
-                        <button
-                          className="switch-row"
-                          onClick={() => handleToggleEnabled(provider)}
-                          title="Toggle enabled"
-                          role="switch"
-                          aria-checked={provider.enabled}
-                        >
-                          <span className={`switch ${provider.enabled ? 'switch-on' : ''}`}>
-                            <span className="switch-thumb" />
-                          </span>
-                          <span
-                            className={
-                              provider.enabled
-                                ? 'text-success text-sm font-medium'
-                                : 'text-tertiary text-sm'
-                            }
-                          >
-                            {provider.enabled ? 'Enabled' : 'Disabled'}
-                          </span>
-                        </button>
-                      </td>
-                      <td>
-                        <div className="row-actions flex items-center gap-1">
+                        </td>
+                        <td>
                           <button
-                            className="btn-ghost btn-icon btn-sm"
-                            title="Details"
-                            onClick={() =>
-                              setDetails({
-                                provider,
-                                models,
-                                agentIds,
-                                apiCapabilities,
-                              })
-                            }
+                            className="switch-row"
+                            onClick={() => handleToggleEnabled(provider)}
+                            title="Toggle enabled"
+                            role="switch"
+                            aria-checked={provider.enabled}
                           >
-                            <Eye size={14} />
+                            <span className={`switch ${provider.enabled ? 'switch-on' : ''}`}>
+                              <span className="switch-thumb" />
+                            </span>
+                            <span
+                              className={
+                                provider.enabled
+                                  ? 'text-success text-sm font-medium'
+                                  : 'text-tertiary text-sm'
+                              }
+                            >
+                              {provider.enabled ? 'Enabled' : 'Disabled'}
+                            </span>
                           </button>
-                          <button
-                            className="btn-ghost btn-icon btn-sm"
-                            title="Edit"
-                            onClick={() => setEditing(provider)}
-                          >
-                            <Edit size={14} />
-                          </button>
-                          <button
-                            className="btn-ghost btn-icon btn-sm text-error"
-                            title="Delete"
-                            onClick={() => handleDelete(provider)}
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                        </td>
+                        <td>
+                          <div className="row-actions flex items-center gap-1">
+                            <button
+                              className="btn-ghost btn-icon btn-sm"
+                              title="Details"
+                              onClick={() =>
+                                setDetails({
+                                  provider,
+                                  models,
+                                  agentIds,
+                                  apiCapabilities,
+                                })
+                              }
+                            >
+                              <Eye size={14} />
+                            </button>
+                            <button
+                              className="btn-ghost btn-icon btn-sm"
+                              title="Edit"
+                              onClick={() => setEditing(provider)}
+                            >
+                              <Edit size={14} />
+                            </button>
+                            <button
+                              className="btn-ghost btn-icon btn-sm text-error"
+                              title="Delete"
+                              onClick={() => handleDelete(provider)}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  }
+                )}
               </tbody>
             </table>
           </div>
@@ -433,7 +439,7 @@ export function AddProviderModal({ onClose, agents, existingIds }: AddProviderMo
       return;
     }
     p.then((res) => {
-      if (!cancelled) setKeychainAvailable(res.ok ? res.data?.available ?? false : false);
+      if (!cancelled) setKeychainAvailable(res.ok ? (res.data?.available ?? false) : false);
     });
     return () => {
       cancelled = true;
