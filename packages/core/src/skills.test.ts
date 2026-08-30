@@ -24,6 +24,8 @@ import {
   getSkillCapableAgentIds,
   getAgentSkillsDir,
   readFileSafe,
+  countSkillFiles,
+  clearSkillsCache,
 } from './index';
 
 async function writeSkill(dir: string, id: string, frontmatter: string, body = 'Body text.\n') {
@@ -228,6 +230,20 @@ describe('skill library (temp dir)', () => {
     expect(skills[0].fileCount).toBe(1);
   });
 
+  it('fileCount is a shallow count (immediate entries only, no recursion)', async () => {
+    // M060: the list-load path must not pay for a recursive walk. A skill
+    // folder with nested subdirectories reports only its top-level files.
+    const skillDir = await writeSkill(libraryDir, 'shallow', '---\nname: Shallow\n---');
+    await fs.writeFile(path.join(skillDir, 'extra.md'), 'x\n');
+    await fs.mkdir(path.join(skillDir, 'scripts'), { recursive: true });
+    await fs.writeFile(path.join(skillDir, 'scripts', 'run.sh'), 'echo hi\n');
+    const def = await readSkillDef(libraryDir, 'shallow');
+    // SKILL.md + extra.md at the top level; scripts/run.sh is NOT counted.
+    expect(def!.fileCount).toBe(2);
+    // The on-demand recursive count still sees every nested file.
+    expect(await countSkillFiles(skillDir)).toBe(3);
+  });
+
   it('readSkillDef returns null for a missing skill', async () => {
     expect(await readSkillDef(libraryDir, 'nope')).toBeNull();
   });
@@ -354,6 +370,75 @@ describe('skill library (temp dir)', () => {
     await expect(createSkill({ name: '..\\escape-test' }, { libraryDir })).rejects.toThrow(
       /invalid skill name/i
     );
+  });
+});
+
+describe('getSkillsSnapshot TTL cache (M060)', () => {
+  let libraryDir: string;
+  let agentDir: string;
+
+  beforeEach(async () => {
+    clearSkillsCache();
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'skills-cache-test-'));
+    libraryDir = path.join(tmp, 'library');
+    agentDir = path.join(tmp, 'agent-skills');
+    await fs.mkdir(libraryDir, { recursive: true });
+  });
+
+  afterEach(async () => {
+    clearSkillsCache();
+    await fs.rm(path.dirname(libraryDir), { recursive: true, force: true });
+  });
+
+  it('returns the same object within the TTL and a fresh scan after expiry', async () => {
+    await writeSkill(libraryDir, 'cached', '---\nname: Cached\n---');
+    const first = await getSkillsSnapshot({ libraryDir });
+    // Within the TTL: the same cached object is returned (no re-scan).
+    const second = await getSkillsSnapshot({ libraryDir });
+    expect(second).toBe(first);
+
+    // A new skill appears on disk — the cached read still does not see it.
+    await writeSkill(libraryDir, 'late', '---\nname: Late\n---');
+    const third = await getSkillsSnapshot({ libraryDir });
+    expect(third).toBe(first);
+
+    // After the TTL expires (simulated by clearing expiry via a forced read
+    // that does not repopulate, then a normal read), a fresh scan sees it.
+    clearSkillsCache();
+    const fourth = await getSkillsSnapshot({ libraryDir });
+    expect(fourth).not.toBe(first);
+    expect(fourth.skills.map((s) => s.id)).toContain('late');
+  });
+
+  it('force bypasses the cache read and write (test seam)', async () => {
+    await writeSkill(libraryDir, 'one', '---\nname: One\n---');
+    const cached = await getSkillsSnapshot({ libraryDir });
+    // Write directly (no mutation) — a forced read must see it immediately.
+    await writeSkill(libraryDir, 'two', '---\nname: Two\n---');
+    const forced = await getSkillsSnapshot({ libraryDir, force: true });
+    expect(forced).not.toBe(cached);
+    expect(forced.skills.map((s) => s.id)).toContain('two');
+    // The forced read did not repopulate the cache: the cached read still
+    // returns the stale object until it expires or is cleared.
+    expect(await getSkillsSnapshot({ libraryDir })).toBe(cached);
+  });
+
+  it('mutation (assign) clears the cache so the next read reflects it', async () => {
+    await writeSkill(libraryDir, 'mut', '---\nname: Mut\n---');
+    const before = await getSkillsSnapshot({ libraryDir });
+    await assignSkillToAgent('mut', 'any-agent', { libraryDir, skillsDir: agentDir });
+    // Without the invalidation the next read would still be the cached object.
+    const after = await getSkillsSnapshot({ libraryDir });
+    expect(after).not.toBe(before);
+  });
+
+  it('mutation (delete from library) clears the cache so the next read reflects it', async () => {
+    await writeSkill(libraryDir, 'doomed', '---\nname: Doomed\n---');
+    const before = await getSkillsSnapshot({ libraryDir });
+    await removeSkillFromLibrary('doomed', { libraryDir });
+    const after = await getSkillsSnapshot({ libraryDir });
+    expect(after).not.toBe(before);
+    expect(after.skills.map((s) => s.id)).not.toContain('doomed');
   });
 });
 

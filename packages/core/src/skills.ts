@@ -36,7 +36,14 @@ export interface SkillDef {
   version?: string;
   /** Absolute path to the skill folder. */
   path: string;
-  /** Number of files inside the skill folder (including SKILL.md). */
+  /**
+   * Number of files directly inside the skill folder (shallow count —
+   * immediate entries only, no recursion into subdirectories). The GUI shows
+   * this as a small "N files" label on each list row; the expensive recursive
+   * count is only available on demand via countSkillFiles (M060 — the full
+   * recursive walk across 560+ skill folders on every refresh caused a RAM/CPU
+   * spike, so the list-load path pays for one readdir per skill instead).
+   */
   fileCount: number;
 }
 
@@ -101,6 +108,12 @@ export interface SkillsDirOptions {
    * per-agent directories are NOT read for the overridden agents.
    */
   agentSkillsDirs?: Record<string, string>;
+  /**
+   * Bypass the getSkillsSnapshot TTL cache (tests): read the cache neither
+   * nor write it, so a test that wrote files directly still sees a fresh
+   * scan. Mutations clear the cache themselves (clearSkillsCache).
+   */
+  force?: boolean;
 }
 
 /**
@@ -158,8 +171,27 @@ export function parseSkillFrontmatter(content: string): {
   return out;
 }
 
-/** Count files under a directory recursively (capped to stay cheap). */
-async function countFiles(dir: string, cap = 500): Promise<number> {
+/** Count files directly inside a directory (one readdir, no recursion). */
+async function countFilesShallow(dir: string): Promise<number> {
+  let entries: import('node:fs').Dirent[];
+  try {
+    entries = await fs.readdir(dir, { withFileTypes: true });
+  } catch {
+    return 0;
+  }
+  let count = 0;
+  for (const entry of entries) {
+    if (entry.isFile()) count++;
+  }
+  return count;
+}
+
+/**
+ * Count files under a directory recursively (capped to stay cheap). This is
+ * the expensive path — do NOT call it for every skill in a list scan (M060);
+ * it exists for on-demand exact counts when a caller genuinely needs them.
+ */
+export async function countSkillFiles(dir: string, cap = 500): Promise<number> {
   let count = 0;
   const stack = [dir];
   while (stack.length > 0 && count < cap) {
@@ -195,7 +227,7 @@ export async function readSkillDef(dir: string, id: string): Promise<SkillDef | 
     description: meta.description,
     version: meta.version,
     path: skillDir,
-    fileCount: await countFiles(skillDir),
+    fileCount: await countFilesShallow(skillDir),
   };
 }
 
@@ -252,8 +284,39 @@ export function getSkillCapableAgentIds(platform: Platform = getCurrentPlatform(
     .map((agent) => agent.id);
 }
 
+/**
+ * In-memory TTL cache for getSkillsSnapshot (M060). A Skills-page refresh or
+ * background poll within the TTL reuses the previous scan instead of re-walking
+ * every skill folder; any mutation (assign/unassign/copy/create/delete) calls
+ * clearSkillsCache() so the UI never shows stale data after a change.
+ */
+const SNAPSHOT_TTL_MS = 5000;
+let snapshotCache: { data: SkillsSnapshot; expiresAt: number } | null = null;
+
+/**
+ * Drop the cached snapshot — called by every skill mutation (assign/unassign/
+ * copy/create/delete) so the next read sees the change.
+ */
+export function clearSkillsCache(): void {
+  snapshotCache = null;
+}
+
 /** One-shot snapshot for the Skills tab: library + capable agents + assignments. */
 export async function getSkillsSnapshot(opts: SkillsDirOptions = {}): Promise<SkillsSnapshot> {
+  // TTL cache: within the window a repeated read (page reload, poll) is free.
+  // `opts.force` skips both cache read and write (test seam).
+  if (!opts.force && snapshotCache && Date.now() < snapshotCache.expiresAt) {
+    return snapshotCache.data;
+  }
+  const snapshot = await buildSkillsSnapshot(opts);
+  if (!opts.force) {
+    snapshotCache = { data: snapshot, expiresAt: Date.now() + SNAPSHOT_TTL_MS };
+  }
+  return snapshot;
+}
+
+/** The uncached scan that getSkillsSnapshot wraps with its TTL cache. */
+async function buildSkillsSnapshot(opts: SkillsDirOptions = {}): Promise<SkillsSnapshot> {
   const platform = opts.platform ?? getCurrentPlatform();
   const libraryDir = opts.libraryDir ?? getSkillsLibraryDir();
   const skills = await listSkillsInDir(libraryDir);
@@ -345,6 +408,7 @@ export async function assignSkillToAgent(
   await fs.mkdir(targetDir, { recursive: true });
   await fs.rm(targetPath, { recursive: true, force: true });
   await fs.cp(source, targetPath, { recursive: true });
+  clearSkillsCache();
   return { targetPath };
 }
 
@@ -380,6 +444,7 @@ export async function copySkillBetweenAgents(
   await fs.mkdir(targetDir, { recursive: true });
   await fs.rm(targetPath, { recursive: true, force: true });
   await fs.cp(sourcePath, targetPath, { recursive: true });
+  clearSkillsCache();
   return { targetPath };
 }
 
@@ -400,6 +465,7 @@ export async function removeSkillFromAgent(
     throw new Error(`Skill is not assigned to this agent: ${skillId} -> ${agentId}`);
   }
   await fs.rm(targetPath, { recursive: true, force: true });
+  clearSkillsCache();
 }
 
 /**
@@ -422,6 +488,7 @@ export async function removeSkillFromLibrary(
     throw new Error(`Skill not found in library: ${skillId}`);
   }
   await fs.rm(skillDir, { recursive: true, force: true });
+  clearSkillsCache();
 }
 
 /** Escape a scalar for double-quoted YAML output. */
@@ -470,5 +537,6 @@ export async function createSkill(
   await fs.writeFile(path.join(skillDir, 'SKILL.md'), lines.join('\n'), 'utf8');
   const def = await readSkillDef(libraryDir, id);
   if (!def) throw new Error(`Failed to create skill: ${id}`);
+  clearSkillsCache();
   return def;
 }

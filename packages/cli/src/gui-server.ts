@@ -27,7 +27,7 @@ import {
   checkToolUpdates,
   getToolUpdateCommand,
   getSkillsSnapshot,
-  getAllKnownSkills,
+  clearSkillsCache,
   assignSkillToAgent,
   removeSkillFromAgent,
   removeSkillFromLibrary,
@@ -466,6 +466,8 @@ export async function startGuiServer(
       // ---- Skills ----
       if (parts[1] === 'skills') {
         // GET /api/skills — library + skill-capable agents + assignments in one shot.
+        // Served from a short TTL cache (M060): refreshes/polls within the
+        // window are free; every mutation below invalidates the cache.
         if (method === 'GET' && parts.length === 2) {
           return handle(async () => ({ data: await getSkillsSnapshot() }));
         }
@@ -473,8 +475,12 @@ export async function startGuiServer(
         // known anywhere (shared library + every skill-capable agent's own
         // directory), each with `foundOn` listing where it exists. Consumed by
         // the M045 Skills view rework to browse/copy agent-installed skills.
+        // Reads the same TTL-cached snapshot so a refresh is a single scan.
         if (method === 'GET' && parts.length === 3 && parts[2] === 'all') {
-          return handle(async () => ({ data: { allSkills: await getAllKnownSkills() } }));
+          return handle(async () => {
+            const snapshot = await getSkillsSnapshot();
+            return { data: { allSkills: snapshot.allSkills } };
+          });
         }
         // POST /api/skills { name, description?, body? } — create a skill in the library.
         if (method === 'POST' && parts.length === 2) {
@@ -489,6 +495,7 @@ export async function startGuiServer(
                 description: typeof body.description === 'string' ? body.description : undefined,
                 body: typeof body.body === 'string' ? body.body : undefined,
               });
+              clearSkillsCache();
               return { data: { skill } };
             } catch (error) {
               const message = String(error);
@@ -512,6 +519,7 @@ export async function startGuiServer(
             } catch (error) {
               return { error: String(error).replace(/^Error: /, ''), status: 400 };
             }
+            clearSkillsCache();
             return { data: result };
           });
         }
@@ -520,6 +528,7 @@ export async function startGuiServer(
           const body = await readBody();
           return handle(async () => {
             await removeSkillFromAgent(decodeURIComponent(parts[2]), String(body.agentId ?? ''));
+            clearSkillsCache();
             return { data: { ok: true } };
           });
         }
@@ -537,6 +546,7 @@ export async function startGuiServer(
               const status = message.includes('not found in library') ? 404 : 400;
               return { error: message.replace(/^Error: /, ''), status };
             }
+            clearSkillsCache();
             return { data: { ok: true } };
           });
         }
@@ -559,6 +569,7 @@ export async function startGuiServer(
               const status = message.includes('not assigned') ? 409 : 400;
               return { error: message.replace(/^Error: /, ''), status };
             }
+            clearSkillsCache();
             return { data: result };
           });
         }
