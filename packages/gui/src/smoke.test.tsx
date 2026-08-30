@@ -296,10 +296,58 @@ describe('Sidebar navigation', () => {
 
   it('shows live registry counters aligned with each entry', () => {
     render(<Sidebar />);
-    // Fixture registry has 1 provider, 1 MCP server, and 1 custom agent.
+    // Fixture registry has 1 provider and 1 MCP server; the Agents count is
+    // the REAL installed-agent count (the catalog fixture has 1 installed
+    // agent), not registry.customAgents.length.
     expect(screen.getByRole('button', { name: /Providers\s+1/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /MCP Servers\s+1/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Agents\s+1/ })).toBeInTheDocument();
+  });
+
+  it('M072: the Agents count is the real installed count, not customAgents.length', async () => {
+    // 3 detected agents, 2 installed; 1 custom agent in the registry.
+    const mkAgent = (id: string, name: string, installed: boolean) =>
+      ({
+        id,
+        name,
+        description: 'test agent',
+        configFormat: 'json',
+        configPaths: { darwin: `~/.${id}.json`, win32: 'x', linux: 'x' },
+        supports: { modelProviders: true, mcpServers: true, permissions: false, projectConfig: false },
+        binaries: [id],
+        detection: { installed, configExists: installed, method: 'command' },
+      }) as never;
+    useStore.setState({
+      agents: [mkAgent('a', 'Agent A', true), mkAgent('b', 'Agent B', true), mkAgent('c', 'Agent C', false)],
+      registry: {
+        path: '/tmp/registry.json',
+        providers: [],
+        mcpServers: [],
+        customAgents: [{ id: 'x', name: 'X', configPath: '/x' }],
+        updatedAt: 0,
+      } as never,
+    });
+    // Catalog not loaded yet — the detection fallback must already be right.
+    render(<Sidebar />);
+    expect(screen.getByRole('button', { name: /Agents\s+2/ })).toBeInTheDocument();
+
+    // Once the maintained catalog loads (2 of its 3 entries installed), the
+    // count follows the catalog — the same metric the Agents page shows.
+    const catAgents = [
+      { id: 'a', name: 'Agent A', installed: true },
+      { id: 'b', name: 'Agent B', installed: true },
+      { id: 'c', name: 'Agent C', installed: false },
+    ];
+    apiMock.getAgentCatalog.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { platform: 'darwin', agents: catAgents, meta: { version: 1, updatedAt: '2026-01-01T00:00:00.000Z' } },
+    });
+    const { unmount } = render(<Sidebar />);
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Agents\s+2/ })).toBeInTheDocument();
+    });
+    unmount();
   });
 
   it('navigates to Providers when its nav item is clicked', async () => {
@@ -1306,6 +1354,29 @@ describe('EnvVarsView', () => {
     // Group headers (labels + counts)
     expect(screen.getByText('Shell profile')).toBeInTheDocument();
     expect(screen.getByText('Process (this tool)')).toBeInTheDocument();
+  });
+
+  it('M072: renders entries in ascending alphabetical order (case-insensitive)', async () => {
+    // Deliberately unsorted, mixed-case names across two shell-profile entries.
+    apiMock.getEnvVars.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        platform: 'darwin',
+        vars: [
+          { name: 'Zeta', value: 'z', source: 'shell-profile', sourceFile: '/p', looksSensitive: false, editable: true },
+          { name: 'alpha', value: 'a', source: 'shell-profile', sourceFile: '/p', looksSensitive: false, editable: true },
+          { name: 'BETA', value: 'b', source: 'shell-profile', sourceFile: '/p', looksSensitive: false, editable: true },
+        ],
+      },
+    });
+    render(<EnvVarsView />);
+    await screen.findByRole('heading', { name: 'Environment Variables' });
+    const rows = await screen.findAllByRole('row');
+    const names = rows
+      .map((r) => r.querySelector('code')?.textContent ?? '')
+      .filter((t) => t.length > 0);
+    expect(names).toEqual(['alpha', 'BETA', 'Zeta']);
   });
 
   it('hides a sensitive-looking value by default (shows the redacted form)', async () => {
