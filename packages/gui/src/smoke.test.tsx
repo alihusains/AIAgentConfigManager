@@ -61,6 +61,7 @@ const { apiMock } = vi.hoisted(() => {
     removeMCPAgent: vi.fn(),
     deleteMCP: vi.fn(),
     addCustomAgent: vi.fn(),
+    checkAgentDrift: vi.fn(),
     updateCustomAgent: vi.fn(),
     deleteCustomAgent: vi.fn(),
     getAgentConfig: vi.fn(),
@@ -770,6 +771,56 @@ describe('AgentsView', () => {
     render(<AgentsView />);
     await screen.findByRole('heading', { name: 'Agents' });
     expect(screen.getByRole('button', { name: /Add Custom Agent/ })).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// M071 — drift detection badge in the agent list
+// ---------------------------------------------------------------------------
+describe('M071: drift detection badge', () => {
+  it('AgentsView: drifted agent shows a drift badge with a Re-sync button', async () => {
+    apiMock.checkAgentDrift.mockImplementation(async (id: string) => ({
+      ok: true,
+      status: 200,
+      data: id === 'claude-code'
+        ? { agentId: 'claude-code', drifted: true, changedProviders: ['acme'], changedServers: [] }
+        : undefined,
+    }));
+    render(<AgentsView />);
+    await screen.findByRole('heading', { name: 'Agents' });
+    // The badge names the drifted provider in its tooltip.
+    const badge = await screen.findByTitle(/provider: acme/);
+    expect(badge).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Re-sync' })).toBeInTheDocument();
+  });
+
+  it('AgentsView: clean agent shows no drift badge', async () => {
+    apiMock.checkAgentDrift.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { agentId: 'claude-code', drifted: false, changedProviders: [], changedServers: [] },
+    });
+    render(<AgentsView />);
+    await screen.findByRole('heading', { name: 'Agents' });
+    expect(screen.queryByText('drifted')).not.toBeInTheDocument();
+  });
+
+  it('AgentsView: Re-sync calls the per-agent materialize path and re-checks', async () => {
+    apiMock.checkAgentDrift.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { agentId: 'claude-code', drifted: true, changedProviders: ['acme'], changedServers: [] },
+    });
+    apiMock.updateCustomAgent.mockResolvedValue({ ok: true, status: 200, data: { success: true } });
+    render(<AgentsView />);
+    await screen.findByRole('heading', { name: 'Agents' });
+    const resync = await screen.findByRole('button', { name: 'Re-sync' });
+    fireEvent.click(resync);
+    expect(apiMock.updateCustomAgent).toHaveBeenCalledWith('claude-code', {});
+    // Re-check fired after the push.
+    await waitFor(() => {
+      expect(apiMock.checkAgentDrift).toHaveBeenCalledTimes(2);
+    });
   });
 });
 

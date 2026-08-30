@@ -363,6 +363,20 @@ export const api = {
       { content }
     ),
 
+  // --- Drift detection (M071) ---
+  /**
+   * Read-only: has anything edited this agent's registry-managed providers /
+   * MCP servers out-of-band? Cheap (one config-file read per call, no
+   * network) — safe to run on agent-page load.
+   */
+  checkAgentDrift: (id: string) =>
+    request<{
+      agentId: string;
+      drifted: boolean;
+      changedProviders: string[];
+      changedServers: string[];
+    }>('GET', `/api/agents/${encodeURIComponent(id)}/drift`),
+
   // --- Agent catalog + lifecycle (install / uninstall) ---
   getAgentCatalog: () => request<AgentCatalogResponse>('GET', '/api/agents/catalog'),
   installAgent: (id: string) =>
