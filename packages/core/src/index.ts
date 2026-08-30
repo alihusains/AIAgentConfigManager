@@ -1123,7 +1123,10 @@ export class AgentConfigManager {
             'Re-register without keychain storage (or delete and re-add the provider) to change its key storage.',
         };
       }
-      if (typeof provider.config.apiKey !== 'string' || (provider.config.apiKey as string).length === 0) {
+      if (
+        typeof provider.config.apiKey !== 'string' ||
+        (provider.config.apiKey as string).length === 0
+      ) {
         return {
           success: false,
           error: `Keychain storage requires the provider's API key (config.apiKey) — none supplied for "${provider.id}".`,
