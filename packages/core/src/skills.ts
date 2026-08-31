@@ -491,6 +491,54 @@ export async function removeSkillFromLibrary(
   clearSkillsCache();
 }
 
+/**
+ * Read the SKILL.md content for a skill from a given location.
+ *
+ * @param skillId - the skill folder name
+ * @param location - 'library' for the shared library, or an agent id for that agent's skills dir
+ * @returns the raw SKILL.md text, or null when not found
+ */
+export async function readSkillContent(
+  skillId: string,
+  location: string,
+  opts: SkillsDirOptions = {}
+): Promise<string | null> {
+  assertSafeId(skillId, 'skill id');
+  const dir =
+    location === 'library'
+      ? opts.libraryDir ?? getSkillsLibraryDir()
+      : opts.agentSkillsDirs?.[location] ?? getAgentSkillsDir(location, opts.platform);
+  if (!dir) return null;
+  return readFileSafe(path.join(dir, skillId, 'SKILL.md'));
+}
+
+/**
+ * Save (overwrite) the SKILL.md content for a skill at a given location.
+ *
+ * @param skillId - the skill folder name
+ * @param location - 'library' for the shared library, or an agent id for that agent's skills dir
+ * @param content - the new raw SKILL.md text
+ */
+export async function saveSkillContent(
+  skillId: string,
+  location: string,
+  content: string,
+  opts: SkillsDirOptions = {}
+): Promise<void> {
+  assertSafeId(skillId, 'skill id');
+  const dir =
+    location === 'library'
+      ? opts.libraryDir ?? getSkillsLibraryDir()
+      : opts.agentSkillsDirs?.[location] ?? getAgentSkillsDir(location, opts.platform);
+  if (!dir) throw new Error(`Location not found: ${location}`);
+  const skillDir = path.join(dir, skillId);
+  if (!(await fileExists(path.join(skillDir, 'SKILL.md')))) {
+    throw new Error(`Skill not found at that location: ${skillId} -> ${location}`);
+  }
+  await fs.writeFile(path.join(skillDir, 'SKILL.md'), content, 'utf8');
+  clearSkillsCache();
+}
+
 /** Escape a scalar for double-quoted YAML output. */
 function yamlScalar(value: string): string {
   return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;

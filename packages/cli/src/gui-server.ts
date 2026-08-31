@@ -33,6 +33,8 @@ import {
   removeSkillFromLibrary,
   copySkillBetweenAgents,
   createSkill,
+  readSkillContent,
+  saveSkillContent,
   listMarketplaceSkills,
   fetchMarketplaceSkillContent,
   installMarketplaceSkill,
@@ -492,6 +494,35 @@ export async function startGuiServer(
           return handle(async () => {
             const snapshot = await getSkillsSnapshot();
             return { data: { allSkills: snapshot.allSkills } };
+          });
+        }
+        // GET /api/skills/:id/content?location=library|agentId — read the
+        // SKILL.md content for a skill from a given location (M073).
+        if (method === 'GET' && parts.length === 4 && parts[3] === 'content') {
+          const location = new URL(req.url || '', 'http://localhost').searchParams.get('location') ?? 'library';
+          return handle(async () => {
+            const content = await readSkillContent(decodeURIComponent(parts[2]), location);
+            if (content == null) {
+              return { error: 'Skill not found at that location', status: 404 };
+            }
+            return { data: { content } };
+          });
+        }
+        // PUT /api/skills/:id/content?location=library|agentId — save the
+        // SKILL.md content for a skill at a given location (M073).
+        if (method === 'PUT' && parts.length === 4 && parts[3] === 'content') {
+          const location = new URL(req.url || '', 'http://localhost').searchParams.get('location') ?? 'library';
+          const body = await readBody();
+          const content =
+            body && typeof body === 'object' && 'content' in body
+              ? (body as { content?: unknown }).content
+              : undefined;
+          if (typeof content !== 'string') {
+            return { error: 'Body must be { content: string }', status: 400 };
+          }
+          return handle(async () => {
+            await saveSkillContent(decodeURIComponent(parts[2]), location, content);
+            return { data: { ok: true } };
           });
         }
         // POST /api/skills { name, description?, body? } — create a skill in the library.

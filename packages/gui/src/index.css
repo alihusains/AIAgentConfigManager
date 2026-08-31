@@ -2367,6 +2367,38 @@ select.input {
   color: var(--text-tertiary);
 }
 
+/* M073: View/Edit action buttons on the skill row title. */
+.skill-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.skill-row-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: background 120ms, color 120ms;
+}
+
+.skill-row-action-btn:hover {
+  background: var(--bg-hover, rgba(0, 0, 0, 0.06));
+  color: var(--text-primary);
+}
+
+.skill-row-action-btn:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 1px;
+}
+
 .skill-row-desc {
   font-size: 13px;
   color: var(--text-secondary);

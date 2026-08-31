@@ -236,6 +236,19 @@ export const api = {
   /** Delete a skill's folder from the shared library (agent copies are untouched). */
   deleteSkill: (skillId: string) =>
     request<{ ok: boolean }>('DELETE', `/api/skills/${encodeURIComponent(skillId)}`),
+  /** Read the SKILL.md content for a skill from a given location (M073). */
+  getSkillContent: (skillId: string, location: string) =>
+    request<{ content: string }>(
+      'GET',
+      `/api/skills/${encodeURIComponent(skillId)}/content?location=${encodeURIComponent(location)}`
+    ),
+  /** Save the SKILL.md content for a skill at a given location (M073). */
+  saveSkillContent: (skillId: string, location: string, content: string) =>
+    request<{ ok: boolean }>(
+      'PUT',
+      `/api/skills/${encodeURIComponent(skillId)}/content?location=${encodeURIComponent(location)}`,
+      { content }
+    ),
 
   // --- Skill marketplace (M066 backend; every call is user-triggered) ---
   /** List marketplace skills. `force` bypasses the server's 10-min cache. */

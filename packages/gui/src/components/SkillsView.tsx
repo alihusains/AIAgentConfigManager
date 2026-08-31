@@ -11,6 +11,8 @@ import {
   Trash2,
   Store,
   ExternalLink,
+  Eye,
+  Pencil,
 } from 'lucide-react';
 import type {
   AggregatedSkill,
@@ -23,6 +25,7 @@ import { api } from '../api';
 import { useStore } from '../store';
 import { useWindowedList } from '../hooks/useWindowedList';
 import { AgentIconTile } from './AgentIcon';
+import { CodeEditor } from './CodeEditor';
 import {
   Badge,
   Button,
@@ -54,7 +57,7 @@ type BusyKey = string;
 const busyKey = (
   skillId: string,
   agentId: string,
-  action: 'assign' | 'unassign' | 'copy' | 'delete'
+  action: 'assign' | 'unassign' | 'copy' | 'delete' | 'view' | 'edit'
 ) => `${skillId}->${agentId}:${action}`;
 
 /** Identifies a busy marketplace install button. */
@@ -76,6 +79,8 @@ interface SkillRowProps {
   onUnassign: (skillId: string, agentId: string) => void;
   onCopy: (skillId: string, sourceAgentId: string, targetAgentId: string) => void;
   onDeleteFromLibrary: (skillId: string) => void;
+  onView: (skillId: string, location: string) => void;
+  onEdit: (skillId: string, location: string) => void;
 }
 
 const SkillRow = memo(function SkillRow({
@@ -87,6 +92,8 @@ const SkillRow = memo(function SkillRow({
   onUnassign,
   onCopy,
   onDeleteFromLibrary,
+  onView,
+  onEdit,
 }: SkillRowProps) {
   const foundOn = useMemo(() => new Set(skill.foundOn), [skill.foundOn]);
   const onAgents = agents.filter((a) => foundOn.has(a.agentId));
@@ -112,6 +119,27 @@ const SkillRow = memo(function SkillRow({
             </Badge>
           )}
           <span className="skill-row-meta flex-shrink-0">{skill.fileCount} files</span>
+          {/* M073: View + Edit actions — available for EVERY skill regardless of library status. */}
+          <span className="skill-row-actions flex-shrink-0">
+            <button
+              type="button"
+              className="skill-row-action-btn"
+              title={`View ${skill.name} (SKILL.md)`}
+              aria-label={`View ${skill.name}`}
+              onClick={() => onView(skill.id, inLibrary ? 'library' : onAgents[0]?.agentId)}
+            >
+              <Eye size={14} />
+            </button>
+            <button
+              type="button"
+              className="skill-row-action-btn"
+              title={`Edit ${skill.name} (SKILL.md)`}
+              aria-label={`Edit ${skill.name}`}
+              onClick={() => onEdit(skill.id, inLibrary ? 'library' : onAgents[0]?.agentId)}
+            >
+              <Pencil size={14} />
+            </button>
+          </span>
         </div>
         <p className="skill-row-desc truncate">{skill.description ?? 'No description.'}</p>
       </div>
@@ -188,22 +216,20 @@ const SkillRow = memo(function SkillRow({
               }`}
             >
               <span className="badge-chip-remove-wrap">
-                {isLibrarySkill && (
-                  <button
-                    type="button"
-                    className="badge-chip-remove"
-                    title={`Remove ${skill.name} from ${agent.name}`}
-                    disabled={busy != null}
-                    aria-label={`Remove ${skill.name} from ${agent.name}`}
-                    onClick={() => onUnassign(skill.id, agent.agentId)}
-                  >
-                    {busy === key ? (
-                      <RefreshCw size={12} className="animate-spin" />
-                    ) : (
-                      <X size={12} />
-                    )}
-                  </button>
-                )}
+                <button
+                  type="button"
+                  className="badge-chip-remove"
+                  title={`Delete ${skill.name} from ${agent.name}`}
+                  disabled={busy != null}
+                  aria-label={`Delete ${skill.name} from ${agent.name}`}
+                  onClick={() => onUnassign(skill.id, agent.agentId)}
+                >
+                  {busy === key ? (
+                    <RefreshCw size={12} className="animate-spin" />
+                  ) : (
+                    <X size={12} />
+                  )}
+                </button>
                 <button
                   type="button"
                   className="badge-chip-copy"
@@ -350,6 +376,13 @@ export function SkillsView() {
   const [description, setDescription] = useState('');
   const [body, setBody] = useState('');
 
+  // M073: View/Edit modal state for SKILL.md content.
+  const [viewEditSkill, setViewEditSkill] = useState<{ id: string; name: string; location: string } | null>(null);
+  const [viewEditContent, setViewEditContent] = useState<string>('');
+  const [viewEditLoading, setViewEditLoading] = useState(false);
+  const [viewEditSaving, setViewEditSaving] = useState(false);
+  const [viewEditError, setViewEditError] = useState<string | null>(null);
+
   // Marketplace (M066): collapsed AND unfetched by default — the first
   // "Browse marketplace" click is what fires the network request.
   const [marketOpen, setMarketOpen] = useState(false);
@@ -483,6 +516,63 @@ export function SkillsView() {
     },
     [addToast, load]
   );
+
+  // M073: Open the view/edit modal for a skill's SKILL.md.
+  const openViewEdit = useCallback(
+    async (skillId: string, location: string, mode: 'view' | 'edit') => {
+      const skill = snapshot?.allSkills.find((s) => s.id === skillId);
+      if (!skill) return;
+      setViewEditSkill({ id: skillId, name: skill.name, location });
+      setViewEditContent('');
+      setViewEditError(null);
+      setViewEditLoading(true);
+      try {
+        const res = await api.getSkillContent(skillId, location);
+        if (!res.ok || !res.data) throw new Error(res.error ?? 'Failed to load skill content');
+        setViewEditContent(res.data.content);
+      } catch (e) {
+        setViewEditError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setViewEditLoading(false);
+      }
+    },
+    [snapshot]
+  );
+
+  const handleView = useCallback(
+    (skillId: string, location: string) => {
+      void openViewEdit(skillId, location, 'view');
+    },
+    [openViewEdit]
+  );
+
+  const handleEdit = useCallback(
+    (skillId: string, location: string) => {
+      void openViewEdit(skillId, location, 'edit');
+    },
+    [openViewEdit]
+  );
+
+  const handleSaveSkillContent = useCallback(async () => {
+    if (!viewEditSkill) return;
+    setViewEditSaving(true);
+    setViewEditError(null);
+    try {
+      const res = await api.saveSkillContent(viewEditSkill.id, viewEditSkill.location, viewEditContent);
+      if (!res.ok) throw new Error(res.error ?? 'Save failed');
+      addToast({
+        type: 'success',
+        title: 'Skill saved',
+        message: `${viewEditSkill.name} updated`,
+      });
+      setViewEditSkill(null);
+      await load();
+    } catch (e) {
+      setViewEditError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setViewEditSaving(false);
+    }
+  }, [viewEditSkill, viewEditContent, addToast, load]);
 
   const loadMarketplace = useCallback(async (force: boolean) => {
     setMarketLoading(true);
@@ -741,6 +831,8 @@ export function SkillsView() {
                       onUnassign={handleUnassign}
                       onCopy={handleCopy}
                       onDeleteFromLibrary={handleDeleteFromLibrary}
+                      onView={handleView}
+                      onEdit={handleEdit}
                     />
                   ))}
                 </div>
@@ -951,6 +1043,47 @@ export function SkillsView() {
             onChange={(e) => setBody(e.target.value)}
           />
         </Field>
+      </Modal>
+
+      {/* M073: View/Edit skill content modal */}
+      <Modal
+        open={viewEditSkill != null}
+        onClose={() => setViewEditSkill(null)}
+        title={viewEditSkill ? `${viewEditSkill.name} — SKILL.md` : 'Skill'}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setViewEditSkill(null)}>
+              Close
+            </Button>
+            {viewEditSkill && viewEditContent && (
+              <Button
+                variant="primary"
+                loading={viewEditSaving}
+                disabled={viewEditLoading}
+                onClick={() => void handleSaveSkillContent()}
+              >
+                Save changes
+              </Button>
+            )}
+          </>
+        }
+      >
+        {viewEditError && (
+          <div className="error-banner mb-4">
+            <p className="text-sm text-error">{viewEditError}</p>
+          </div>
+        )}
+        {viewEditLoading ? (
+          <div className="space-y-2" aria-busy="true">
+            <Skeleton className="block" width="100%" height={200} />
+          </div>
+        ) : (
+          <CodeEditor
+            value={viewEditContent}
+            onChange={setViewEditContent}
+            placeholder="SKILL.md content will appear here…"
+          />
+        )}
       </Modal>
     </div>
   );

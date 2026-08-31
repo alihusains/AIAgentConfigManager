@@ -42,6 +42,8 @@ const { apiMock } = vi.hoisted(() => {
     unassignSkill: vi.fn(),
     copySkillToAgent: vi.fn(),
     deleteSkill: vi.fn(),
+    getSkillContent: vi.fn(),
+    saveSkillContent: vi.fn(),
     listMarketplaceSkills: vi.fn(),
     installMarketplaceSkill: vi.fn(),
     exportRegistry: vi.fn(),
@@ -1194,6 +1196,160 @@ describe('SkillsView', () => {
     // The section is still usable: the marketplace Refresh action is present
     // (the header's snapshot Refresh button exists too, hence getAllByRole).
     expect(screen.getAllByRole('button', { name: /Refresh/ }).length).toBeGreaterThanOrEqual(2);
+  });
+
+  // -----------------------------------------------------------------
+  // M073: Reproduction test for empty-library bug
+  // User cannot attach/view/edit/delete skills when library is empty
+  // -----------------------------------------------------------------
+  it('M073: attach/copy works for skills only on agents (empty library)', async () => {
+    const emptyLibrarySnapshot = {
+      libraryDir: '/tmp/skills',
+      skills: [], // EMPTY: zero skills in the shared library
+      agents: [
+        {
+          agentId: 'claude-code',
+          name: 'Claude Code',
+          skillsDir: '/tmp/claude/skills',
+          installed: true,
+          skillIds: ['agent-skill-1', 'agent-skill-2'],
+        },
+        {
+          agentId: 'codex',
+          name: 'Codex',
+          skillsDir: '/tmp/codex/skills',
+          installed: true,
+          skillIds: ['agent-skill-3'],
+        },
+      ],
+      assignments: {},
+      allSkills: [
+        {
+          id: 'agent-skill-1',
+          name: 'Agent Skill 1',
+          description: 'Only on Claude Code',
+          path: '/tmp/claude/skills/agent-skill-1',
+          fileCount: 3,
+          foundOn: ['claude-code'],
+        },
+        {
+          id: 'agent-skill-2',
+          name: 'Agent Skill 2',
+          description: 'Only on Claude Code',
+          path: '/tmp/claude/skills/agent-skill-2',
+          fileCount: 2,
+          foundOn: ['claude-code'],
+        },
+        {
+          id: 'agent-skill-3',
+          name: 'Agent Skill 3',
+          description: 'Only on Codex',
+          path: '/tmp/codex/skills/agent-skill-3',
+          fileCount: 5,
+          foundOn: ['codex'],
+        },
+      ],
+    } as never;
+
+    apiMock.getSkills.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: emptyLibrarySnapshot,
+    });
+    apiMock.copySkillToAgent.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { targetPath: '/tmp/codex/skills/agent-skill-1' },
+    });
+
+    const user = userEvent.setup();
+    render(<SkillsView />);
+
+    await screen.findByText('Agent Skill 1');
+    expect(screen.getByText('Agent Skill 2')).toBeInTheDocument();
+    expect(screen.getByText('Agent Skill 3')).toBeInTheDocument();
+
+    // Copy button must be present for agent-only skills
+    const copyBtn = screen.getByRole('button', {
+      name: 'Copy Agent Skill 1 to another agent',
+    });
+    expect(copyBtn).toBeInTheDocument();
+
+    // Open copy menu and verify Codex is offered
+    await user.click(copyBtn);
+    const codexTarget = screen.getByRole('menuitem', { name: /Codex/ });
+    expect(codexTarget).toBeInTheDocument();
+
+    // Select Codex to copy
+    await user.click(codexTarget);
+    await waitFor(() => {
+      expect(apiMock.copySkillToAgent).toHaveBeenCalledWith(
+        'agent-skill-1',
+        'claude-code',
+        'codex'
+      );
+    });
+  });
+
+  it('M073: delete action is available for skills only on agents (not just library)', async () => {
+    const emptyLibrarySnapshot = {
+      libraryDir: '/tmp/skills', skills: [], agents: [
+        { agentId: 'claude-code', name: 'Claude Code', skillsDir: '/tmp/claude/skills', installed: true, skillIds: ['agent-skill-1'] },
+        { agentId: 'codex', name: 'Codex', skillsDir: '/tmp/codex/skills', installed: true, skillIds: [] },
+      ], assignments: {}, allSkills: [
+        { id: 'agent-skill-1', name: 'Agent Skill 1', description: 'Test', path: '/tmp/claude/skills/agent-skill-1', fileCount: 1, foundOn: ['claude-code'] },
+      ] } as never;
+
+    apiMock.getSkills.mockResolvedValue({ ok: true, status: 200, data: emptyLibrarySnapshot });
+
+    render(<SkillsView />);
+    await screen.findByText('Agent Skill 1');
+
+    // A delete button must be present for agent-only skills
+    const deleteBtn = screen.getByRole('button', {
+      name: 'Delete Agent Skill 1 from Claude Code',
+    });
+    expect(deleteBtn).toBeInTheDocument();
+  });
+
+  it('M073: view action is available for skills only on agents', async () => {
+    const emptyLibrarySnapshot = {
+      libraryDir: '/tmp/skills', skills: [], agents: [
+        { agentId: 'claude-code', name: 'Claude Code', skillsDir: '/tmp/claude/skills', installed: true, skillIds: ['agent-skill-1'] },
+      ], assignments: {}, allSkills: [
+        { id: 'agent-skill-1', name: 'Agent Skill 1', description: 'Test', path: '/tmp/claude/skills/agent-skill-1', fileCount: 1, foundOn: ['claude-code'] },
+      ] } as never;
+
+    apiMock.getSkills.mockResolvedValue({ ok: true, status: 200, data: emptyLibrarySnapshot });
+
+    render(<SkillsView />);
+    await screen.findByText('Agent Skill 1');
+
+    // A view button must be present for agent-only skills
+    const viewBtn = screen.getByRole('button', {
+      name: 'View Agent Skill 1',
+    });
+    expect(viewBtn).toBeInTheDocument();
+  });
+
+  it('M073: edit action is available for skills only on agents', async () => {
+    const emptyLibrarySnapshot = {
+      libraryDir: '/tmp/skills', skills: [], agents: [
+        { agentId: 'claude-code', name: 'Claude Code', skillsDir: '/tmp/claude/skills', installed: true, skillIds: ['agent-skill-1'] },
+      ], assignments: {}, allSkills: [
+        { id: 'agent-skill-1', name: 'Agent Skill 1', description: 'Test', path: '/tmp/claude/skills/agent-skill-1', fileCount: 1, foundOn: ['claude-code'] },
+      ] } as never;
+
+    apiMock.getSkills.mockResolvedValue({ ok: true, status: 200, data: emptyLibrarySnapshot });
+
+    render(<SkillsView />);
+    await screen.findByText('Agent Skill 1');
+
+    // An edit button must be present for agent-only skills
+    const editBtn = screen.getByRole('button', {
+      name: 'Edit Agent Skill 1',
+    });
+    expect(editBtn).toBeInTheDocument();
   });
 });
 
