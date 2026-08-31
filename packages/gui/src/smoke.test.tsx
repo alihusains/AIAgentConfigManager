@@ -1349,7 +1349,7 @@ describe('SkillsView', () => {
     // inLibrary (foundOn.has('library')). For a non-library skill, no delete
     // control exists. The fix must add a per-agent delete (remove from agent).
     const deleteBtn = screen.queryByRole('button', {
-      name: 'Remove Lint Rules from Claude Code',
+      name: 'Delete Lint Rules from Claude Code',
     });
     expect(deleteBtn).toBeInTheDocument(); // FAILS: gated on isLibrarySkill
   });
