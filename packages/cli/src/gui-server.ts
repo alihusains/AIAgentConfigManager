@@ -596,7 +596,8 @@ export async function startGuiServer(
         // GET /api/marketplace/skills — list available marketplace skills.
         // ?force=1 bypasses the in-memory cache for an explicit refresh.
         if (method === 'GET' && parts.length === 3) {
-          const force = new URL(req.url || '', 'http://localhost').searchParams.get('force') === '1';
+          const force =
+            new URL(req.url || '', 'http://localhost').searchParams.get('force') === '1';
           return handle(async () => {
             try {
               return { data: { skills: await listMarketplaceSkills({ force }) } };
@@ -614,9 +615,7 @@ export async function startGuiServer(
         if (method === 'GET' && parts.length === 4) {
           return handle(async () => {
             try {
-              const content = await fetchMarketplaceSkillContent(
-                decodeURIComponent(parts[3])
-              );
+              const content = await fetchMarketplaceSkillContent(decodeURIComponent(parts[3]));
               if (!content) {
                 return { error: `Skill not found in marketplace: ${parts[3]}`, status: 404 };
               }
@@ -634,10 +633,9 @@ export async function startGuiServer(
           const body = await readBody();
           return handle(async () => {
             try {
-              const result = await installMarketplaceSkill(
-                decodeURIComponent(parts[3]),
-                { overwrite: body.overwrite === true }
-              );
+              const result = await installMarketplaceSkill(decodeURIComponent(parts[3]), {
+                overwrite: body.overwrite === true,
+              });
               clearSkillsCache();
               return { data: result };
             } catch (error) {
@@ -842,7 +840,7 @@ export async function startGuiServer(
             return { data: result.data };
           });
         }
-  // POST /api/providers/:id/migrate-to-keychain — Phase 1 (Secrets): move an
+        // POST /api/providers/:id/migrate-to-keychain — Phase 1 (Secrets): move an
         // EXISTING provider's plaintext API key into the OS keychain (one
         // provider at a time, explicit action only). The keychain write
         // happens before any registry change, so a keychain failure leaves
@@ -1154,12 +1152,7 @@ export async function startGuiServer(
       // ---- Drift detection (M071) — read-only: has anything edited this
       // agent's registry-managed providers/servers out-of-band? ----
       // GET /api/agents/:id/drift
-      if (
-        parts[1] === 'agents' &&
-        method === 'GET' &&
-        parts.length === 4 &&
-        parts[3] === 'drift'
-      ) {
+      if (parts[1] === 'agents' && method === 'GET' && parts.length === 4 && parts[3] === 'drift') {
         return handle(async () => {
           const drift = await manager.detectDrift(parts[2]);
           if (drift.error) return { error: drift.error, status: 404 };

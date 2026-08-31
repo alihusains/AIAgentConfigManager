@@ -132,8 +132,8 @@
     --border-secondary: #3a3a4a;
     --border-focus: #b6a3ff;
 
-    --accent-primary: #7c5cff; /* brand-only (fills, borders, dots, focus rings); use --accent-primary-text for readable text */
-    --accent-primary-hover: #8d70ff;
+    --accent-primary: #8d70ff; /* brand-only (fills, borders, dots, focus rings); use --accent-primary-text for readable text */
+    --accent-primary-hover: #9a8cff;
     --accent-secondary: #8ab8ff;
     --accent-primary-text: #b6a3ff; /* text-safe variant of --accent-primary; brand hex fails AA at small sizes */
 
@@ -185,8 +185,8 @@ html[data-theme="dark"] {
   --border-secondary: #3a3a4a;
   --border-focus: #b6a3ff;
 
-  --accent-primary: #7c5cff; /* brand-only (fills, borders, dots, focus rings); use --accent-primary-text for readable text */
-  --accent-primary-hover: #8d70ff;
+  --accent-primary: #8d70ff; /* brand-only (fills, borders, dots, focus rings); use --accent-primary-text for readable text */
+  --accent-primary-hover: #9a8cff;
   --accent-secondary: #8ab8ff;
   --accent-primary-text: #b6a3ff; /* text-safe variant of --accent-primary; brand hex fails AA at small sizes */
 
