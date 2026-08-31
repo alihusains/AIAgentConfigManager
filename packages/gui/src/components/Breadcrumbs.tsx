@@ -9,6 +9,7 @@ const VIEW_LABELS: Record<View, string> = {
   mcp: 'MCP Servers',
   agents: 'Agents',
   'agent-detail': 'Agents',
+  'env-vars': 'Environment',
   tools: 'CLI Tools',
   skills: 'Skills',
   settings: 'Settings',

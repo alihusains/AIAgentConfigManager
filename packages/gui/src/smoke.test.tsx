@@ -63,6 +63,7 @@ const { apiMock } = vi.hoisted(() => {
     removeMCPAgent: vi.fn(),
     deleteMCP: vi.fn(),
     addCustomAgent: vi.fn(),
+    checkAgentDrift: vi.fn(),
     updateCustomAgent: vi.fn(),
     deleteCustomAgent: vi.fn(),
     getAgentConfig: vi.fn(),
@@ -297,10 +298,71 @@ describe('Sidebar navigation', () => {
 
   it('shows live registry counters aligned with each entry', () => {
     render(<Sidebar />);
-    // Fixture registry has 1 provider, 1 MCP server, and 1 custom agent.
+    // Fixture registry has 1 provider and 1 MCP server; the Agents count is
+    // the REAL installed-agent count (the catalog fixture has 1 installed
+    // agent), not registry.customAgents.length.
     expect(screen.getByRole('button', { name: /Providers\s+1/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /MCP Servers\s+1/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Agents\s+1/ })).toBeInTheDocument();
+  });
+
+  it('M072: the Agents count is the real installed count, not customAgents.length', async () => {
+    // 3 detected agents, 2 installed; 1 custom agent in the registry.
+    const mkAgent = (id: string, name: string, installed: boolean) =>
+      ({
+        id,
+        name,
+        description: 'test agent',
+        configFormat: 'json',
+        configPaths: { darwin: `~/.${id}.json`, win32: 'x', linux: 'x' },
+        supports: {
+          modelProviders: true,
+          mcpServers: true,
+          permissions: false,
+          projectConfig: false,
+        },
+        binaries: [id],
+        detection: { installed, configExists: installed, method: 'command' },
+      }) as never;
+    useStore.setState({
+      agents: [
+        mkAgent('a', 'Agent A', true),
+        mkAgent('b', 'Agent B', true),
+        mkAgent('c', 'Agent C', false),
+      ],
+      registry: {
+        path: '/tmp/registry.json',
+        providers: [],
+        mcpServers: [],
+        customAgents: [{ id: 'x', name: 'X', configPath: '/x' }],
+        updatedAt: 0,
+      } as never,
+    });
+    // Catalog not loaded yet — the detection fallback must already be right.
+    render(<Sidebar />);
+    expect(screen.getByRole('button', { name: /Agents\s+2/ })).toBeInTheDocument();
+
+    // Once the maintained catalog loads (2 of its 3 entries installed), the
+    // count follows the catalog — the same metric the Agents page shows.
+    const catAgents = [
+      { id: 'a', name: 'Agent A', installed: true },
+      { id: 'b', name: 'Agent B', installed: true },
+      { id: 'c', name: 'Agent C', installed: false },
+    ];
+    apiMock.getAgentCatalog.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        platform: 'darwin',
+        agents: catAgents,
+        meta: { version: 1, updatedAt: '2026-01-01T00:00:00.000Z' },
+      },
+    });
+    const { unmount } = render(<Sidebar />);
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Agents\s+2/ })).toBeInTheDocument();
+    });
+    unmount();
   });
 
   it('navigates to Providers when its nav item is clicked', async () => {
@@ -376,6 +438,67 @@ describe('ProvidersView', () => {
     const toggle = await screen.findByRole('switch');
     await user.click(toggle);
     expect(apiMock.updateProvider).toHaveBeenCalled();
+  });
+
+  // E3 hard requirement: row state follows the mutation response — a delete
+  // the backend rejects must render an error toast, never a success toast.
+  it('E3: a failed delete shows an error, never a success toast', async () => {
+    apiMock.deleteProvider.mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      error: 'provider is installed on 1 agent(s)',
+    });
+    // jsdom does not implement window.confirm — define it the way the other
+    // confirm-based tests do (a plain assignment is a silent no-op there).
+    const origConfirmDesc = Object.getOwnPropertyDescriptor(window, 'confirm');
+    Object.defineProperty(window, 'confirm', {
+      value: () => true,
+      writable: true,
+      configurable: true,
+    });
+    try {
+      const user = userEvent.setup();
+      // ToastContainer is mounted — the store's toasts are what we assert on.
+      render(
+        <>
+          <ProvidersView />
+          <ToastContainer />
+        </>
+      );
+      const del = await screen.findByRole('button', { name: 'Delete' });
+      await user.click(del);
+      await screen.findByText('Operation Failed');
+      expect(screen.getByText('provider is installed on 1 agent(s)')).toBeInTheDocument();
+      expect(screen.queryByText('Provider Deleted')).not.toBeInTheDocument();
+    } finally {
+      if (origConfirmDesc) Object.defineProperty(window, 'confirm', origConfirmDesc);
+    }
+  });
+
+  it('E3: a confirmed delete refreshes and toasts success exactly once', async () => {
+    apiMock.deleteProvider.mockResolvedValueOnce({ ok: true, status: 200 });
+    const origConfirmDesc = Object.getOwnPropertyDescriptor(window, 'confirm');
+    Object.defineProperty(window, 'confirm', {
+      value: () => true,
+      writable: true,
+      configurable: true,
+    });
+    try {
+      const user = userEvent.setup();
+      render(
+        <>
+          <ProvidersView />
+          <ToastContainer />
+        </>
+      );
+      const del = await screen.findByRole('button', { name: 'Delete' });
+      await user.click(del);
+      await screen.findByText('Provider Deleted');
+      expect(screen.getAllByText('Provider Deleted')).toHaveLength(1);
+      expect(screen.queryByText('Operation Failed')).not.toBeInTheDocument();
+    } finally {
+      if (origConfirmDesc) Object.defineProperty(window, 'confirm', origConfirmDesc);
+    }
   });
 
   // M057 — opt-in OS-keychain storage for a NEW provider's API key.
@@ -681,7 +804,11 @@ describe('ProvidersView', () => {
       status: 200,
       data: { agents: [fakeAgent], registry: migratedRegistry, platform: 'darwin' },
     });
-    apiMock.migrateProviderToKeychain.mockResolvedValue({ ok: true, status: 200, data: migratedRegistry });
+    apiMock.migrateProviderToKeychain.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: migratedRegistry,
+    });
     const user = userEvent.setup();
     render(<ProvidersView />);
     const action = await screen.findByTitle('Move API key to OS keychain');
@@ -772,6 +899,67 @@ describe('AgentsView', () => {
     render(<AgentsView />);
     await screen.findByRole('heading', { name: 'Agents' });
     expect(screen.getByRole('button', { name: /Add Custom Agent/ })).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// M071 — drift detection badge in the agent list
+// ---------------------------------------------------------------------------
+describe('M071: drift detection badge', () => {
+  it('AgentsView: drifted agent shows a drift badge with a Re-sync button', async () => {
+    apiMock.checkAgentDrift.mockImplementation(async (id: string) => ({
+      ok: true,
+      status: 200,
+      data:
+        id === 'claude-code'
+          ? {
+              agentId: 'claude-code',
+              drifted: true,
+              changedProviders: ['acme'],
+              changedServers: [],
+            }
+          : undefined,
+    }));
+    render(<AgentsView />);
+    await screen.findByRole('heading', { name: 'Agents' });
+    // The badge names the drifted provider in its tooltip.
+    const badge = await screen.findByTitle(/provider: acme/);
+    expect(badge).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Re-sync' })).toBeInTheDocument();
+  });
+
+  it('AgentsView: clean agent shows no drift badge', async () => {
+    apiMock.checkAgentDrift.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { agentId: 'claude-code', drifted: false, changedProviders: [], changedServers: [] },
+    });
+    render(<AgentsView />);
+    await screen.findByRole('heading', { name: 'Agents' });
+    expect(screen.queryByText('drifted')).not.toBeInTheDocument();
+  });
+
+  it('AgentsView: Re-sync calls the per-agent materialize path and re-checks', async () => {
+    apiMock.checkAgentDrift.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        agentId: 'claude-code',
+        drifted: true,
+        changedProviders: ['acme'],
+        changedServers: [],
+      },
+    });
+    apiMock.updateCustomAgent.mockResolvedValue({ ok: true, status: 200, data: { success: true } });
+    render(<AgentsView />);
+    await screen.findByRole('heading', { name: 'Agents' });
+    const resync = await screen.findByRole('button', { name: 'Re-sync' });
+    fireEvent.click(resync);
+    expect(apiMock.updateCustomAgent).toHaveBeenCalledWith('claude-code', {});
+    // Re-check fired after the push.
+    await waitFor(() => {
+      expect(apiMock.checkAgentDrift).toHaveBeenCalledTimes(2);
+    });
   });
 });
 
@@ -1051,6 +1239,133 @@ describe('SkillsView', () => {
         'https://github.com/alihusains/enterprise-skills/tree/main/skills/engineering/test-skill',
     },
   ] as Array<Record<string, string>>;
+
+  // M073: Fix user cannot attach/view/edit/delete skills across agents.
+  // Reproduction: empty library (0 skills), all 560 skills only in agent folders.
+  // User reports no attach/copy/view/edit/delete controls visible or discoverable.
+  const m073Snapshot = {
+    libraryDir: '/home/user/.aicm/skills',
+    skills: [], // <- empty library (user's actual case: 0 library skills, 560 total)
+    agents: [
+      {
+        agentId: 'claude-code',
+        name: 'Claude Code',
+        skillsDir: '/home/user/.claude/skills',
+        installed: true,
+        skillIds: ['lint-rules', 'deploy-helper', 'markdown-formatter'],
+      },
+      {
+        agentId: 'codex',
+        name: 'OpenAI Codex',
+        skillsDir: '/home/user/.codex/skills',
+        installed: true,
+        skillIds: [],
+      },
+      {
+        agentId: 'cursor',
+        name: 'Cursor',
+        skillsDir: '/home/user/.cursor/skills',
+        installed: true,
+        skillIds: [],
+      },
+    ],
+    assignments: {},
+    allSkills: [
+      {
+        id: 'lint-rules',
+        name: 'Lint Rules',
+        description: 'Enforce project linting standards',
+        path: '/home/user/.claude/skills/lint-rules',
+        fileCount: 2,
+        foundOn: ['claude-code'], // <- NOT in library, NOT in other agents
+      },
+      {
+        id: 'deploy-helper',
+        name: 'Deploy Helper',
+        description: 'Deployment workflow automation',
+        path: '/home/user/.claude/skills/deploy-helper',
+        fileCount: 3,
+        foundOn: ['claude-code'],
+      },
+      {
+        id: 'markdown-formatter',
+        name: 'Markdown Formatter',
+        description: 'Format and lint markdown',
+        path: '/home/user/.claude/skills/markdown-formatter',
+        fileCount: 1,
+        foundOn: ['claude-code'],
+      },
+    ],
+  } as never;
+
+  it('M073 — ATTACH: copy-to-agent must be discoverable for non-library skills', async () => {
+    apiMock.getSkills.mockResolvedValue({ ok: true, status: 200, data: m073Snapshot });
+    apiMock.copySkillToAgent.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { targetPath: '/home/user/.codex/skills/lint-rules' },
+    });
+
+    render(<SkillsView />);
+    await screen.findByText('Lint Rules');
+
+    // The copy button on the Claude Code chip must be discoverable (large, labelled, queryable).
+    const copyBtn = screen.getByRole('button', { name: 'Copy Lint Rules to another agent' });
+    expect(copyBtn).toBeInTheDocument();
+
+    const user = userEvent.setup();
+    await user.click(copyBtn);
+
+    // Menu lists agents that DON'T have the skill: Codex and Cursor.
+    expect(screen.getByRole('menuitem', { name: /OpenAI Codex/ })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /Cursor/ })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('menuitem', { name: /OpenAI Codex/ }));
+    await waitFor(() => {
+      expect(apiMock.copySkillToAgent).toHaveBeenCalledWith('lint-rules', 'claude-code', 'codex');
+    });
+  });
+
+  it('M073 — VIEW: every skill row must expose a way to view its SKILL.md content', async () => {
+    apiMock.getSkills.mockResolvedValue({ ok: true, status: 200, data: m073Snapshot });
+
+    render(<SkillsView />);
+    await screen.findByText('Lint Rules');
+
+    // BUG: there is currently NO view affordance. The task requires at minimum
+    // that clicking a skill shows its SKILL.md content (read-only CodeEditor).
+    const viewBtn = screen.queryByRole('button', { name: /View Lint Rules/ });
+    expect(viewBtn).toBeInTheDocument(); // FAILS: no view button exists today
+  });
+
+  it('M073 — DELETE: a skill that lives only on an agent must be deletable from that agent', async () => {
+    apiMock.getSkills.mockResolvedValue({ ok: true, status: 200, data: m073Snapshot });
+    apiMock.unassignSkill.mockResolvedValue({ ok: true, status: 200, data: { ok: true } });
+
+    render(<SkillsView />);
+    await screen.findByText('Lint Rules');
+
+    // BUG: the only delete action is "Delete from library", which is gated on
+    // inLibrary (foundOn.has('library')). For a non-library skill, no delete
+    // control exists. The fix must add a per-agent delete (remove from agent).
+    const deleteBtn = screen.queryByRole('button', {
+      name: 'Remove Lint Rules from Claude Code',
+    });
+    expect(deleteBtn).toBeInTheDocument(); // FAILS: gated on isLibrarySkill
+  });
+
+  it('M073 — EDIT: a skill that lives only on an agent must be editable', async () => {
+    apiMock.getSkills.mockResolvedValue({ ok: true, status: 200, data: m073Snapshot });
+
+    render(<SkillsView />);
+    await screen.findByText('Lint Rules');
+
+    // BUG: no edit affordance exists today. The task requires wiring up an
+    // edit action that opens the SKILL.md in CodeEditor (reusing saveAgentRawFile
+    // or a new skill-specific save endpoint).
+    const editBtn = screen.queryByRole('button', { name: /Edit Lint Rules/ });
+    expect(editBtn).toBeInTheDocument(); // FAILS: no edit button exists today
+  });
 
   it('does not fetch the marketplace until the user clicks Browse', async () => {
     apiMock.listMarketplaceSkills.mockResolvedValue({
@@ -1411,6 +1726,50 @@ describe('EnvVarsView', () => {
     // Group headers (labels + counts)
     expect(screen.getByText('Shell profile')).toBeInTheDocument();
     expect(screen.getByText('Process (this tool)')).toBeInTheDocument();
+  });
+
+  it('M072: renders entries in ascending alphabetical order (case-insensitive)', async () => {
+    // Deliberately unsorted, mixed-case names across two shell-profile entries.
+    apiMock.getEnvVars.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        platform: 'darwin',
+        vars: [
+          {
+            name: 'Zeta',
+            value: 'z',
+            source: 'shell-profile',
+            sourceFile: '/p',
+            looksSensitive: false,
+            editable: true,
+          },
+          {
+            name: 'alpha',
+            value: 'a',
+            source: 'shell-profile',
+            sourceFile: '/p',
+            looksSensitive: false,
+            editable: true,
+          },
+          {
+            name: 'BETA',
+            value: 'b',
+            source: 'shell-profile',
+            sourceFile: '/p',
+            looksSensitive: false,
+            editable: true,
+          },
+        ],
+      },
+    });
+    render(<EnvVarsView />);
+    await screen.findByRole('heading', { name: 'Environment Variables' });
+    const rows = await screen.findAllByRole('row');
+    const names = rows
+      .map((r) => r.querySelector('code')?.textContent ?? '')
+      .filter((t) => t.length > 0);
+    expect(names).toEqual(['alpha', 'BETA', 'Zeta']);
   });
 
   it('hides a sensitive-looking value by default (shows the redacted form)', async () => {

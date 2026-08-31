@@ -272,8 +272,16 @@ export interface AgentAdapter {
   // Model operations
   listModels(): ModelConfig[];
   addModel(model: ModelConfig): Promise<void>;
-  removeModel(modelId: string): Promise<void>;
-  updateModel(modelId: string, updates: Partial<ModelConfig>): Promise<void>;
+  /**
+   * Remove a model. `providerId` disambiguates when the same model id exists
+   * under multiple providers; omit it to remove every model with that id.
+   */
+  removeModel(modelId: string, providerId?: string): Promise<void>;
+  /**
+   * Update a model. `providerId` disambiguates when the same model id exists
+   * under multiple providers; omit it to update the first match.
+   */
+  updateModel(modelId: string, updates: Partial<ModelConfig>, providerId?: string): Promise<void>;
 
   // MCP operations
   listMCPServers(): MCPServerConfig[];

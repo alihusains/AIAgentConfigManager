@@ -366,9 +366,14 @@ export function EnvVarsView() {
 
   const groups = useMemo(() => {
     if (!filtered) return null;
+    // Entries arrive in raw process-env / profile insertion order — sort
+    // each source group alphabetically (case-insensitive) by name.
     const bySource = new Map<EnvVarEntry['source'], EnvVarEntry[]>();
     for (const source of SOURCE_ORDER) {
-      const items = filtered.filter((v) => v.source === source);
+      const items = filtered
+        .filter((v) => v.source === source)
+        .slice()
+        .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
       if (items.length > 0) bySource.set(source, items);
     }
     return bySource;

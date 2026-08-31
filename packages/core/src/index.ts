@@ -183,6 +183,39 @@ function extractVersionToken(raw: string | null | undefined): string | undefined
   return matches ? matches[matches.length - 1] : undefined;
 }
 
+/**
+ * Cap on how many adapters are detected concurrently by `detectAgents()`.
+ * Each detection spawns subprocesses (`which` + `--version`) and opens config
+ * files; a low bound keeps peak fd/process pressure healthy while still
+ * overlapping the slow `--version` probes that dominate wall-clock time.
+ */
+const DETECT_CONCURRENCY = 5;
+
+/**
+ * Map over `items` with at most `concurrency` async workers running at once.
+ * Results are returned in the same order as `items`. A worker that rejects
+ * propagates that rejection (callers that want per-item isolation should
+ * catch inside the worker function).
+ */
+export async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T, index: number) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  const workerCount = Math.max(1, Math.min(concurrency, items.length));
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (next < items.length) {
+      const i = next;
+      next += 1;
+      results[i] = await fn(items[i], i);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
 export class AgentConfigManager {
   private adapters: Map<string, AgentAdapter> = new Map();
   private configs: Map<string, AgentConfig> = new Map();
@@ -303,10 +336,19 @@ export class AgentConfigManager {
   /**
    * Detect all registered agents and return their info merged with
    * installation status. Installed agents come first.
+   *
+   * Detection runs in parallel, but is bounded to {@link DETECT_CONCURRENCY}
+   * in-flight agents at a time. Each `detectAgent()` spawns subprocesses
+   * (`which` + `--version` probes) and opens config files; an unbounded
+   * `Promise.all` over 24+ agents would burst dozens of concurrent processes
+   * and file descriptors. The pool keeps the parallel speedup while capping
+   * peak pressure. A single adapter failing is isolated by `detectAgent()`
+   * itself and never aborts the scan.
    */
   async detectAgents(): Promise<DetectedAgent[]> {
-    const results = await Promise.all(
-      Array.from(this.adapters.keys()).map((id) => this.detectAgent(id))
+    const ids = Array.from(this.adapters.keys());
+    const results = await mapWithConcurrency(ids, DETECT_CONCURRENCY, (id) =>
+      this.detectAgent(id).catch(() => null)
     );
     const detected = results.filter((r): r is DetectedAgent => r !== null);
     detected.sort((a, b) => {
@@ -966,52 +1008,13 @@ export class AgentConfigManager {
       const registry = await this.requireRegistry();
       const current = await adapter.readConfig();
 
-      const targetedProviders = registry.providers.filter((p) => p.agentIds.includes(agentId));
-      // Alternate-wire siblings (e.g. "<id>-anthropic" on OpenCode-style
-      // agents) are registry-managed too: they must refresh with the parent
-      // entry and disappear when it does.
-      const alternateProviders = targetedProviders.flatMap(
-        (rp) => adapter.deriveAlternateProviders?.(rp) ?? []
+      const target = this.computeMaterializedState(
+        registry,
+        current,
+        agentId,
+        staleProviderIds,
+        staleServerNames
       );
-      const registryProviderIds = new Set([
-        ...registry.providers.map((p) => p.provider.id),
-        ...alternateProviders.map((d) => d.provider.id),
-        ...staleProviderIds,
-      ]);
-      const targetedServers = registry.mcpServers.filter((s) => s.agentIds.includes(agentId));
-      const registryServerNames = new Set([
-        ...registry.mcpServers.map((s) => s.server.name),
-        ...staleServerNames,
-      ]);
-
-      // Drop registry-managed entries that do NOT target this agent; upsert
-      // those that do; leave everything else (agent-local) untouched.
-      const modelProviders: ModelProvider[] = current.modelProviders
-        .filter((p) => !registryProviderIds.has(p.id))
-        .concat(targetedProviders.map((rp) => ({ ...rp.provider })))
-        .concat(alternateProviders.map((d) => ({ ...d.provider })));
-
-      const models: ModelConfig[] = current.models
-        .filter((m) => !registryProviderIds.has(m.providerId))
-        .concat(targetedProviders.flatMap((rp) => rp.models.map((m) => ({ ...m }))))
-        .concat(alternateProviders.flatMap((d) => d.models.map((m) => ({ ...m }))));
-
-      const mcpServers: MCPServerConfig[] = current.mcpServers
-        .filter((s) => !registryServerNames.has(s.name))
-        .concat(
-          targetedServers.map((rs) => {
-            const override = rs.agentOverrides?.[agentId];
-            return {
-              ...rs.server,
-              ...(override?.env ? { env: override.env } : {}),
-              ...(override?.args ? { args: override.args } : {}),
-              ...(override?.timeout !== undefined ? { timeout: override.timeout } : {}),
-              ...(override?.tools ? { tools: override.tools } : {}),
-              ...(override?.approvalMode ? { approvalMode: override.approvalMode } : {}),
-              enabled: override?.enabled ?? rs.server.enabled,
-            };
-          })
-        );
 
       // The unified model cannot express malformed entries that the adapter
       // preserved on disk (QA H4): surface them explicitly instead of a bare
@@ -1028,15 +1031,166 @@ export class AgentConfigManager {
 
       const merged: AgentConfig = {
         ...current,
-        modelProviders,
-        models,
-        mcpServers,
+        ...target,
         lastModified: Date.now(),
       };
       await adapter.writeConfig(merged);
       return { agentId, ok: true };
     } catch (error) {
       return { agentId, ok: false, error: String(error) };
+    }
+  }
+
+  /**
+   * Compute what the registry SHOULD materialize into one agent's config
+   * file — the exact target state `materializeAgent` writes. Shared with
+   * `detectDrift` so drift detection compares against the same computation
+   * without duplicating the provider/server assembly logic.
+   */
+  private computeMaterializedState(
+    registry: Registry,
+    current: AgentConfig,
+    agentId: string,
+    staleProviderIds: ReadonlySet<string> = new Set(),
+    staleServerNames: ReadonlySet<string> = new Set()
+  ): { modelProviders: ModelProvider[]; models: ModelConfig[]; mcpServers: MCPServerConfig[] } {
+    const adapter = this.adapters.get(agentId);
+    if (!adapter) return { modelProviders: [], models: [], mcpServers: [] };
+    const targetedProviders = registry.providers.filter((p) => p.agentIds.includes(agentId));
+    const alternateProviders = targetedProviders.flatMap(
+      (rp) => adapter.deriveAlternateProviders?.(rp) ?? []
+    );
+    const registryProviderIds = new Set([
+      ...registry.providers.map((p) => p.provider.id),
+      ...alternateProviders.map((d) => d.provider.id),
+      ...staleProviderIds,
+    ]);
+    const targetedServers = registry.mcpServers.filter((s) => s.agentIds.includes(agentId));
+    const registryServerNames = new Set([
+      ...registry.mcpServers.map((s) => s.server.name),
+      ...staleServerNames,
+    ]);
+
+    // Drop registry-managed entries that do NOT target this agent; upsert
+    // those that do; leave everything else (agent-local) untouched.
+    const modelProviders: ModelProvider[] = current.modelProviders
+      .filter((p) => !registryProviderIds.has(p.id))
+      .concat(targetedProviders.map((rp) => ({ ...rp.provider })))
+      .concat(alternateProviders.map((d) => ({ ...d.provider })));
+
+    const models: ModelConfig[] = current.models
+      .filter((m) => !registryProviderIds.has(m.providerId))
+      .concat(targetedProviders.flatMap((rp) => rp.models.map((m) => ({ ...m }))))
+      .concat(alternateProviders.flatMap((d) => d.models.map((m) => ({ ...m }))));
+
+    const mcpServers: MCPServerConfig[] = current.mcpServers
+      .filter((s) => !registryServerNames.has(s.name))
+      .concat(
+        targetedServers.map((rs) => {
+          const override = rs.agentOverrides?.[agentId];
+          return {
+            ...rs.server,
+            ...(override?.env ? { env: override.env } : {}),
+            ...(override?.args ? { args: override.args } : {}),
+            ...(override?.timeout !== undefined ? { timeout: override.timeout } : {}),
+            ...(override?.tools ? { tools: override.tools } : {}),
+            ...(override?.approvalMode ? { approvalMode: override.approvalMode } : {}),
+            enabled: override?.enabled ?? rs.server.enabled,
+          };
+        })
+      );
+
+    return { modelProviders, models, mcpServers };
+  }
+
+  /**
+   * M071: detect out-of-band edits to one agent's registry-managed entries.
+   * Read-only — compares the registry's target state (same computation
+   * `materializeAgent` writes) against the agent's actual on-disk config,
+   * scoped to providers/servers the registry believes it owns for this
+   * agent. Agent-local entries never trigger drift. Detect-only agents
+   * (never materialized) always report no drift.
+   */
+  async detectDrift(agentId: string): Promise<{
+    agentId: string;
+    drifted: boolean;
+    changedProviders: string[];
+    changedServers: string[];
+    error?: string;
+  }> {
+    const adapter = this.adapters.get(agentId);
+    if (!adapter) {
+      return { agentId, drifted: false, changedProviders: [], changedServers: [], error: 'Agent not found' };
+    }
+    if (!adapter.info.supports.modelProviders && !adapter.info.supports.mcpServers) {
+      // Detect-only agents are never materialized — nothing can drift.
+      return { agentId, drifted: false, changedProviders: [], changedServers: [] };
+    }
+    try {
+      const registry = await this.requireRegistry();
+      const current = await adapter.readConfig();
+      const target = this.computeMaterializedState(registry, current, agentId);
+
+      // Registry-managed ids/names for THIS agent only (targeted entries +
+      // their alternate-wire siblings); stale sets are empty — drift about
+      // already-deleted entries is not this feature's concern.
+      const targetedProviders = registry.providers.filter((p) => p.agentIds.includes(agentId));
+      const alternateProviders = targetedProviders.flatMap(
+        (rp) => adapter.deriveAlternateProviders?.(rp) ?? []
+      );
+      const managedProviderIds = new Set([
+        ...targetedProviders.map((rp) => rp.provider.id),
+        ...alternateProviders.map((d) => d.provider.id),
+      ]);
+      const managedServerNames = new Set(
+        registry.mcpServers.filter((s) => s.agentIds.includes(agentId)).map((s) => s.server.name)
+      );
+
+      // Key-order-insensitive deep equality: sort object keys recursively
+      // (JSON.stringify's replacer array is a property allow-list, so it must
+      // be a replacer function, not a sorted key list).
+      const stable = (v: unknown): string =>
+        JSON.stringify(
+          v,
+          (_key, value) =>
+            value && typeof value === 'object' && !Array.isArray(value)
+              ? Object.fromEntries(
+                  Object.keys(value as Record<string, unknown>)
+                    .sort()
+                    .map((k) => [k, (value as Record<string, unknown>)[k]])
+                )
+              : value
+        );
+      const targetProviderById = new Map(target.modelProviders.map((p) => [p.id, p]));
+      const currentProviderById = new Map(current.modelProviders.map((p) => [p.id, p]));
+      const changedProviders = [...managedProviderIds].filter(
+        (id) =>
+          !currentProviderById.has(id) ||
+          stable(currentProviderById.get(id)) !== stable(targetProviderById.get(id))
+      );
+
+      const targetServerByName = new Map(target.mcpServers.map((s) => [s.name, s]));
+      const currentServerByName = new Map(current.mcpServers.map((s) => [s.name, s]));
+      const changedServers = [...managedServerNames].filter(
+        (name) =>
+          !currentServerByName.has(name) ||
+          stable(currentServerByName.get(name)) !== stable(targetServerByName.get(name))
+      );
+
+      return {
+        agentId,
+        drifted: changedProviders.length > 0 || changedServers.length > 0,
+        changedProviders,
+        changedServers,
+      };
+    } catch (error) {
+      return {
+        agentId,
+        drifted: false,
+        changedProviders: [],
+        changedServers: [],
+        error: String(error),
+      };
     }
   }
 
