@@ -183,6 +183,39 @@ function extractVersionToken(raw: string | null | undefined): string | undefined
   return matches ? matches[matches.length - 1] : undefined;
 }
 
+/**
+ * Cap on how many adapters are detected concurrently by `detectAgents()`.
+ * Each detection spawns subprocesses (`which` + `--version`) and opens config
+ * files; a low bound keeps peak fd/process pressure healthy while still
+ * overlapping the slow `--version` probes that dominate wall-clock time.
+ */
+const DETECT_CONCURRENCY = 5;
+
+/**
+ * Map over `items` with at most `concurrency` async workers running at once.
+ * Results are returned in the same order as `items`. A worker that rejects
+ * propagates that rejection (callers that want per-item isolation should
+ * catch inside the worker function).
+ */
+export async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T, index: number) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  const workerCount = Math.max(1, Math.min(concurrency, items.length));
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (next < items.length) {
+      const i = next;
+      next += 1;
+      results[i] = await fn(items[i], i);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
 export class AgentConfigManager {
   private adapters: Map<string, AgentAdapter> = new Map();
   private configs: Map<string, AgentConfig> = new Map();
@@ -303,10 +336,19 @@ export class AgentConfigManager {
   /**
    * Detect all registered agents and return their info merged with
    * installation status. Installed agents come first.
+   *
+   * Detection runs in parallel, but is bounded to {@link DETECT_CONCURRENCY}
+   * in-flight agents at a time. Each `detectAgent()` spawns subprocesses
+   * (`which` + `--version` probes) and opens config files; an unbounded
+   * `Promise.all` over 24+ agents would burst dozens of concurrent processes
+   * and file descriptors. The pool keeps the parallel speedup while capping
+   * peak pressure. A single adapter failing is isolated by `detectAgent()`
+   * itself and never aborts the scan.
    */
   async detectAgents(): Promise<DetectedAgent[]> {
-    const results = await Promise.all(
-      Array.from(this.adapters.keys()).map((id) => this.detectAgent(id))
+    const ids = Array.from(this.adapters.keys());
+    const results = await mapWithConcurrency(ids, DETECT_CONCURRENCY, (id) =>
+      this.detectAgent(id).catch(() => null)
     );
     const detected = results.filter((r): r is DetectedAgent => r !== null);
     detected.sort((a, b) => {
