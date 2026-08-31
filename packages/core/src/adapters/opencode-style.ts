@@ -534,16 +534,26 @@ export class OpenCodeStyleAdapter implements AgentAdapter {
     await this.writeConfig(config);
   }
 
-  async removeModel(modelId: string): Promise<void> {
+  async removeModel(modelId: string, providerId?: string): Promise<void> {
     const config = await this.readConfig();
-    config.models = config.models.filter((m) => m.id !== modelId);
+    // Models are keyed by (id, providerId). When providerId is supplied, match
+    // on both so a duplicate id under another provider is not removed.
+    config.models = config.models.filter(
+      (m) => !(m.id === modelId && (providerId === undefined || m.providerId === providerId)),
+    );
     config.lastModified = Date.now();
     await this.writeConfig(config);
   }
 
-  async updateModel(modelId: string, updates: Partial<ModelConfig>): Promise<void> {
+  async updateModel(
+    modelId: string,
+    updates: Partial<ModelConfig>,
+    providerId?: string,
+  ): Promise<void> {
     const config = await this.readConfig();
-    const index = config.models.findIndex((m) => m.id === modelId);
+    const index = config.models.findIndex(
+      (m) => m.id === modelId && (providerId === undefined || m.providerId === providerId),
+    );
     if (index === -1) {
       throw new Error(`Model with id "${modelId}" not found`);
     }

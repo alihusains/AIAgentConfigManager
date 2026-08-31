@@ -364,6 +364,7 @@ export class GenericAdapter implements AgentAdapter {
     let modelProviders: ModelProvider[] = [];
     let models: ModelConfig[] = [];
     this.mainRawCache = null;
+    this.mcpRawCache = null;
     this.providerStoreRawCache = null;
 
     if (mainContent) {
@@ -399,7 +400,9 @@ export class GenericAdapter implements AgentAdapter {
         mcpServers = this.decodeMCPRaw(raw.mcpServers);
       }
     } else if (this.mainRawCache) {
-      // Same-file mode: MCP servers live under `mcpServers` in the main file
+      // Same-file mode fallback: reachable when getMCPConfigPath() returned
+      // null (i.e. supports.mcpServers is false), so MCP servers (if present)
+      // are read from `mcpServers` in the main file instead of a separate file.
       mcpServers = this.decodeMCPRaw(this.mainRawCache.mcpServers);
     }
 

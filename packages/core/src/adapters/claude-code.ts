@@ -4,19 +4,15 @@
  * Config file: ~/.claude/settings.json (JSON format)
  */
 
-import { z } from 'zod';
-import {
-  type AgentAdapter,
-  type AgentInfo,
-  type AgentConfig,
-  AgentCapabilities,
-  type ModelProvider,
-  type ModelConfig,
-  type MCPServerConfig,
-  type PermissionConfig,
-  type Platform,
-  OperationResult,
-  ConfigFormat,
+import type {
+  AgentAdapter,
+  AgentInfo,
+  AgentConfig,
+  ModelProvider,
+  ModelConfig,
+  MCPServerConfig,
+  PermissionConfig,
+  Platform,
 } from '../types';
 import {
   resolveConfigPath,
@@ -27,7 +23,6 @@ import {
   validateAgentConfig,
   backupFile,
   restoreBackup,
-  deepMerge,
 } from '../utils';
 
 // ============================================================================
@@ -117,6 +112,10 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       // Return default config if file doesn't exist
       const config = this.getDefaultConfig();
       this.configCache = config;
+      // Clear stale caches so a deleted file isn't resurrected on the next
+      // writeConfig (which uses rawSettingsCache as its merge base).
+      this.rawSettingsCache = null;
+      this.preservedMCPEntries = [];
       return config;
     }
 
@@ -376,6 +375,12 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     if (settings.mcpServers) {
       for (const [name, entry] of Object.entries(settings.mcpServers)) {
         if (managedNames.has(name)) continue;
+        // The unified list is authoritative (QA H4): a name absent from it is
+        // removed from the raw file too, so a deleted server is cleaned up
+        // rather than surviving the merge. Only entries the unified model
+        // couldn't express (malformed shapes) are preserved and surfaced via
+        // a warning. Valid object-shaped servers always flow back through
+        // config.mcpServers, so they never need this fallback.
         if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
           mcpServers[name] = entry;
         }
