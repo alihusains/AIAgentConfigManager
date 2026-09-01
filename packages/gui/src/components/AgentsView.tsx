@@ -594,7 +594,11 @@ export function AgentsView() {
   // when the catalog lands, not on a timer.
   const driftCheckedFor = useRef<string[] | null>(null);
   useEffect(() => {
-    if (!catalog || driftCheckedFor.current) return;
+    if (!catalog) {
+      driftCheckedFor.current = null;
+      return;
+    }
+    if (driftCheckedFor.current) return;
     driftCheckedFor.current = installedRows.map((r) => r.id);
     for (const row of installedRows) void checkDrift(row.id);
   }, [catalog, installedRows, checkDrift]);
@@ -625,8 +629,21 @@ export function AgentsView() {
       title: 'Re-synced',
       message: `${agentName}'s config was re-materialized from the registry.`,
     });
+    // Immediately clear drift status (resync succeeded, file is now in sync)
+    setDriftStatus((prev) => ({
+      ...prev,
+      [agentId]: {
+        checking: false,
+        resyncing: false,
+        drifted: false,
+        changedProviders: [],
+        changedServers: [],
+      },
+    }));
+    // Then refresh and re-check to verify
     void refreshAll();
-    void checkDrift(agentId);
+    // Delay the re-check slightly to ensure refreshAll has completed
+    setTimeout(() => void checkDrift(agentId), 500);
   };
 
   const jobDone = () => {
