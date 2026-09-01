@@ -84,7 +84,14 @@ describe('Provider Catalog Integration', () => {
   });
 
   it('should have valid categories', () => {
-    const validCategories = ['popular', 'opensource', 'local', 'enterprise'];
+    const validCategories = [
+      'popular',
+      'opensource',
+      'local',
+      'enterprise',
+      'emerging',
+      'specialized',
+    ];
     KNOWN_PROVIDERS.forEach((provider) => {
       expect(validCategories).toContain(provider.category);
     });
