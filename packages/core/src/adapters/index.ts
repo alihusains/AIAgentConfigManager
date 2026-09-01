@@ -120,6 +120,18 @@ export function getAdapter(agentId: string): AgentAdapter | null {
   return factory();
 }
 
+/**
+ * List all available adapter factories without instantiating them.
+ * This is much faster than listAvailableAdapters() and is all that's needed
+ * to get adapter info for detection purposes.
+ */
+export function listAvailableAdapterInfos(): Array<{ id: string; factory: () => AgentAdapter }> {
+  return Array.from(adapters.entries()).map(([id, factory]) => ({
+    id,
+    factory,
+  }));
+}
+
 export function listAvailableAdapters(): AgentAdapter[] {
   return Array.from(adapters.values()).map((f) => f());
 }
