@@ -20,7 +20,11 @@ import type {
   ProviderProbeDetail,
   ProviderApiCapabilities,
 } from '@ai-agent-config/core';
-import { Zap, RefreshCw, Loader2, Copy, Check } from 'lucide-react';
+import Zap from 'lucide-react/dist/esm/icons/zap.js';
+import RefreshCw from 'lucide-react/dist/esm/icons/refresh-cw.js';
+import Loader2 from 'lucide-react/dist/esm/icons/loader-2.js';
+import Copy from 'lucide-react/dist/esm/icons/copy.js';
+import Check from 'lucide-react/dist/esm/icons/check.js';
 import { Tooltip } from '../ui';
 
 // ---------------------------------------------------------------------------

@@ -384,9 +384,20 @@ export async function probeProviderAPIs(
   const credentialsProven = modelsProbe?.ok ?? false;
 
   const supported: ProviderApiKind[] = [];
-  if (probeConfirmsApi(chat.detail, credentialsProven)) supported.push('chat');
-  if (probeConfirmsApi(responses, credentialsProven)) supported.push('responses');
-  if (probeConfirmsApi(anthropic.detail, credentialsProven)) supported.push('anthropic');
+  const apiAvailability: ProviderVerificationResult['apiAvailability'] = {
+    chat: 'rejected',
+    responses: 'rejected',
+    anthropic: 'rejected',
+  };
+  const classify = (kind: ProviderApiKind, d: ProviderProbeDetail): boolean => {
+    const confirmed = probeConfirmsApi(d, credentialsProven);
+    apiAvailability[kind] = !d.reached ? 'unreached' : confirmed ? 'confirmed' : 'rejected';
+    if (confirmed) supported.push(kind);
+    return confirmed;
+  };
+  classify('chat', chat.detail);
+  classify('responses', responses);
+  classify('anthropic', anthropic.detail);
 
   return {
     baseUrl: apiRoot,
@@ -396,6 +407,7 @@ export async function probeProviderAPIs(
     responses,
     anthropic: anthropic.detail,
     supported,
+    apiAvailability,
     verifiedAt: new Date().toISOString(),
   };
 }
@@ -405,6 +417,7 @@ export function toApiCapabilities(result: ProviderVerificationResult): ProviderA
   return {
     supported: result.supported,
     models: result.modelIds,
+    apiAvailability: result.apiAvailability,
     verifiedAt: result.verifiedAt,
   };
 }

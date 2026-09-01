@@ -560,6 +560,14 @@ export interface ProviderVerificationResult {
   anthropic: ProviderProbeDetail;
   /** API kinds confirmed working: any of 'chat', 'responses', 'anthropic' */
   supported: ProviderApiKind[];
+  /**
+   * Explicit per-API availability so the UI can render one ✓/✗ per wire
+   * protocol instead of a supported-only badge list. `confirmed` means the
+   * probe proved the route exists and processed the request (see
+   * `probeConfirmsApi`); `unreached` is a network-level failure (unreachable
+   * / timeout) while every other non-confirmed outcome is `rejected`.
+   */
+  apiAvailability: Record<ProviderApiKind, 'confirmed' | 'rejected' | 'unreached'>;
   verifiedAt: string;
 }
 
@@ -568,6 +576,13 @@ export interface ProviderApiCapabilities {
   supported: ProviderApiKind[];
   /** Model ids returned by GET /models at verification time */
   models: string[];
+  /**
+   * Explicit per-API availability: 'confirmed' (route exists, credentials
+   * accepted), 'rejected' (route not found or credentials rejected), or
+   * 'unreached' (network unreachable/timeout). Enables the UI to render
+   * granular ✓/✗/— indicators instead of supported-only badges.
+   */
+  apiAvailability?: Record<ProviderApiKind, 'confirmed' | 'rejected' | 'unreached'>;
   verifiedAt: string;
 }
 
