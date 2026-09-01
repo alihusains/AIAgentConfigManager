@@ -3,6 +3,7 @@ import { useStore } from '../store';
 import { AgentPicker } from './AgentPicker';
 import { AgentIconTile } from './AgentIcon';
 import { useAgentCatalog } from '../hooks/useAgentCatalog';
+import { ToolCountCell } from './MCPToolCountCell';
 import type { MCPServerConfig, DetectedAgent } from '@ai-agent-config/core';
 import { Plus, Edit, Trash2, Server, Terminal, Globe, Link } from 'lucide-react';
 import { Tooltip } from '../ui';
@@ -75,6 +76,7 @@ export function MCPView() {
                   <th>Server</th>
                   <th>Command / Endpoint</th>
                   <th>Env</th>
+                  <th>Tools</th>
                   <th>Installed On</th>
                   <th style={{ width: '110px' }}>Actions</th>
                 </tr>
@@ -123,6 +125,9 @@ export function MCPView() {
                         ) : (
                           <span className="mcp-meta">—</span>
                         )}
+                      </td>
+                      <td>
+                        <ToolCountCell name={server.name} />
                       </td>
                       <td>
                         <div className="flex items-center gap-2 mcp-agent-stack-wrap">

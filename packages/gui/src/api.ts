@@ -261,7 +261,11 @@ export const api = {
    * the OS keychain (one provider at a time, explicit user action only).
    */
   migrateProviderToKeychain: (id: string) =>
-    request<RegistryState>('POST', `/api/providers/${encodeURIComponent(id)}/migrate-to-keychain`, {}),
+    request<RegistryState>(
+      'POST',
+      `/api/providers/${encodeURIComponent(id)}/migrate-to-keychain`,
+      {}
+    ),
   addProviderAgents: (id: string, agentIds: string[]) =>
     request('POST', `/api/providers/${encodeURIComponent(id)}/agents`, {
       agentIds,
@@ -285,6 +289,17 @@ export const api = {
   removeMCPAgent: (name: string, agentId: string) =>
     request('DELETE', `/api/mcp/${encodeURIComponent(name)}/agents/${encodeURIComponent(agentId)}`),
   deleteMCP: (name: string) => request('DELETE', `/api/mcp/${encodeURIComponent(name)}`),
+  /**
+   * Live tool listing for one MCP server (MCP exposure dashboard). Connects
+   * to the server and runs tools/list. Honest on failure: `count` is 0 with an
+   * `error` — never a fabricated number. The UI renders that as
+   * "unknown / failed to list".
+   */
+  getMcpTools: (name: string) =>
+    request<{ name: string; count: number; tools: string[]; error?: string }>(
+      'GET',
+      `/api/mcp/${encodeURIComponent(name)}/tools`
+    ),
 
   // --- Custom agents ---
   addCustomAgent: (def: CustomAgentDef) => request('POST', '/api/agents/custom', def),

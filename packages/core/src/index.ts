@@ -33,6 +33,9 @@ export * from './env-vars';
 // OS keychain access (Secrets)
 export * from './keychain';
 
+// MCP tool listing (exposure dashboard — per-server tool counts)
+export * from './mcp-tools';
+
 // Binary resolution (robust CLI detection)
 export * from './detect/binary';
 export * from './detect/version';

@@ -62,6 +62,7 @@ const { apiMock } = vi.hoisted(() => {
     addMCPAgents: vi.fn(),
     removeMCPAgent: vi.fn(),
     deleteMCP: vi.fn(),
+    getMcpTools: vi.fn(),
     addCustomAgent: vi.fn(),
     checkAgentDrift: vi.fn(),
     resyncAgent: vi.fn(),
@@ -185,6 +186,13 @@ beforeEach(() => {
   apiMock.getState.mockResolvedValue({ ok: true, data: fullState, status: 200 });
   apiMock.getAgentCatalog.mockResolvedValue({ ok: true, data: catalog, status: 200 });
   apiMock.getSystemStats.mockResolvedValue({ ok: true, data: stats, status: 200 });
+  // MCP tool listing default (MCP exposure dashboard): a benign, real-shaped
+  // envelope so the Tools column renders a count without a live server.
+  apiMock.getMcpTools.mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { name: 'stub', count: 0, tools: [] },
+  });
   // Everything else returns a benign ok envelope. Individual tests override
   // specific methods AFTER this loop (e.g. a failing keychain addProvider).
   for (const [name, fn] of Object.entries(apiMock)) {

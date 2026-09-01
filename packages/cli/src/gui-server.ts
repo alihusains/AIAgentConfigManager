@@ -43,6 +43,7 @@ import {
   setEnvVar,
   removeEnvVar,
   revealEnvVar,
+  listMCPTools,
 } from './core-shim.js';
 import type {
   ModelProvider,
@@ -477,7 +478,8 @@ export async function startGuiServer(
         // GET /api/skills/:id/content?location=library|agentId — read the
         // SKILL.md content for a skill from a given location (M073).
         if (method === 'GET' && parts.length === 4 && parts[3] === 'content') {
-          const location = new URL(req.url || '', 'http://localhost').searchParams.get('location') ?? 'library';
+          const location =
+            new URL(req.url || '', 'http://localhost').searchParams.get('location') ?? 'library';
           return handle(async () => {
             const content = await readSkillContent(decodeURIComponent(parts[2]), location);
             if (content == null) {
@@ -489,7 +491,8 @@ export async function startGuiServer(
         // PUT /api/skills/:id/content?location=library|agentId — save the
         // SKILL.md content for a skill at a given location (M073).
         if (method === 'PUT' && parts.length === 4 && parts[3] === 'content') {
-          const location = new URL(req.url || '', 'http://localhost').searchParams.get('location') ?? 'library';
+          const location =
+            new URL(req.url || '', 'http://localhost').searchParams.get('location') ?? 'library';
           const body = await readBody();
           const content =
             body && typeof body === 'object' && 'content' in body
@@ -889,6 +892,21 @@ export async function startGuiServer(
 
       // ---- MCP servers ----
       if (parts[1] === 'mcp') {
+        // GET /api/mcp/:name/tools — live tool listing for one server
+        // (MCP exposure dashboard). Connects to the server and runs
+        // tools/list. Honest on failure: count 0 + error, never fabricated.
+        if (method === 'GET' && parts.length === 4 && parts[3] === 'tools') {
+          const name = decodeURIComponent(parts[2]);
+          return handle(async () => {
+            const state = await manager.getRegistryState();
+            const entry = state.mcpServers.find((s) => s.server.name === name);
+            if (!entry) {
+              return { error: `MCP server "${name}" not found in registry`, status: 404 };
+            }
+            const result = await listMCPTools(entry.server);
+            return { data: { name: entry.server.name, ...result } };
+          });
+        }
         if (method === 'POST' && parts.length === 2) {
           const body = await readBody();
           return handle(async () => {
@@ -1173,7 +1191,12 @@ export async function startGuiServer(
       // agent's registry-managed providers/servers back over its config
       // file (the inverse of the out-of-band edit drift detection flags).
       // POST /api/agents/:id/resync
-      if (parts[1] === 'agents' && method === 'POST' && parts.length === 4 && parts[3] === 'resync') {
+      if (
+        parts[1] === 'agents' &&
+        method === 'POST' &&
+        parts.length === 4 &&
+        parts[3] === 'resync'
+      ) {
         return handle(async () => {
           const result = await manager.resyncAgent(parts[2]);
           if (!result.success) return { error: result.error, status: 400 };
