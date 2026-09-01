@@ -17,7 +17,11 @@ import { ToastContainer } from './components/Toast';
 import { ThemeToggle, toggleTheme } from './components/ThemeToggle';
 import { Breadcrumbs } from './components/Breadcrumbs';
 import { CommandPalette } from './components/CommandPalette';
-import { Menu, X, RefreshCw, AlertCircle, Search } from 'lucide-react';
+import Menu from 'lucide-react/dist/esm/icons/menu.js';
+import X from 'lucide-react/dist/esm/icons/x.js';
+import RefreshCw from 'lucide-react/dist/esm/icons/refresh-cw.js';
+import AlertCircle from 'lucide-react/dist/esm/icons/alert-circle.js';
+import Search from 'lucide-react/dist/esm/icons/search.js';
 
 const VALID_VIEWS: View[] = [
   'overview',

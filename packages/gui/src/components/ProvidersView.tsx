@@ -3,7 +3,7 @@ import { api } from '../api';
 import { useStore } from '../store';
 import { AgentPicker } from './AgentPicker';
 import { AgentIcon } from './AgentIcon';
-import { ModelChecklist } from './ModelChecklist';
+import { ModelSelector, isFreeModel } from './ModelSelector';
 import { Status, Tooltip } from '../ui';
 import { ApiVerifier, providerApiLabel, ProtocolTicks } from './ProviderVerify';
 import type {
@@ -461,13 +461,6 @@ interface AddProviderModalProps {
   existingIds: string[];
 }
 
-/**
- * "Only free models" filter — a model counts as free when its id contains
- * "free" (case-insensitive), matching how gateways name them
- * (e.g. "deepseek-v4-flash-free", "glm-5-airx-free").
- */
-const isFreeModel = (id: string): boolean => /free/i.test(id);
-
 export function AddProviderModal({ onClose, agents, existingIds }: AddProviderModalProps) {
   const { refreshAll } = useStore();
   const [form, setForm] = useState({
@@ -778,7 +771,7 @@ export function AddProviderModal({ onClose, agents, existingIds }: AddProviderMo
 
             <div className="form-group">
               <label className="form-label">Model Names (optional)</label>
-              <ModelChecklist
+              <ModelSelector
                 knownModelIds={knownModelIds}
                 value={form.modelNames}
                 onChange={(next) => set({ modelNames: next })}
@@ -1044,7 +1037,7 @@ export function EditProviderModal({ provider, onClose }: EditProviderModalProps)
             {provider.type === 'openai-compatible' && (
               <div className="form-group">
                 <label className="form-label">Model Names (optional)</label>
-                <ModelChecklist
+                <ModelSelector
                   knownModelIds={knownModelIds}
                   value={form.modelNames}
                   onChange={(next) => setForm((f) => ({ ...f, modelNames: next }))}
