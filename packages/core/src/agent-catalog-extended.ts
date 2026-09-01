@@ -18,6 +18,7 @@ export interface AgentCatalogEntry {
     brew?: string;
     apt?: string;
     python?: string;
+    pip?: string;
     manual?: string;
   };
   installPlatforms: ('darwin' | 'linux' | 'win32')[];

@@ -48,6 +48,7 @@ describe('agent-catalog.json ↔ adapter consistency', () => {
           'jcode',
           'claw-code-agent',
           'deepseek',
+          'codebuff',
         ].includes(id)
     );
     expect(

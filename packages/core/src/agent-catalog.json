@@ -1,6 +1,6 @@
 {
-  "version": 14,
-  "updatedAt": "2026-08-28",
+  "version": 15,
+  "updatedAt": "2026-09-02",
   "description": "Maintained catalog of known AI coding agent CLIs. The dashboard merges this list with live detection: entries installed on the machine appear under Installed; the rest appear under Available to Install. Add a new agent here (and bump `version`) to surface it in the GUI. Install/uninstall commands are the ONLY commands the dashboard is allowed to execute. For adapter-backed entries `binaries` is derived from the adapter at runtime — declare it here only for non-adapter entries (see the allow-list in agent-catalog.test.ts). `settingsPaths` lets non-adapter entries be detected by their config footprint too. Path research: research/ai-agent-config-paths-consolidated.md (2026-08-21).",
   "agents": [
     {
@@ -613,6 +613,20 @@
         "win32": "%USERPROFILE%\\.qwen\\skills"
       },
       "note": "JSON settings; MCP inline (mcpServers). Keys via env vars. Personal skills: ~/.qwen/skills (Qwen Code docs: Agent Skills; project skills in .qwen/skills)."
+    },
+    {
+      "id": "codebuff",
+      "name": "Codebuff",
+      "icon": "Wind",
+      "description": "Codebuff — free, ad-supported coding agent CLI (FreeBuff CLI). No API key, account, or config file needed. Requires Node >= 18.",
+      "apiTypes": ["chat"],
+      "status": "beta",
+      "source": "https://freebuff.com/cli",
+      "addedAt": "2026-09-02",
+      "binaries": ["codebuff"],
+      "install": "npm install -g codebuff",
+      "uninstall": "npm uninstall -g codebuff",
+      "note": "FreeBuff's CLI binary is `codebuff` (npm package `codebuff`); the `freebuff` entry covers the web service. Funded by text ads — usage is free."
     },
     {
       "id": "crush",
