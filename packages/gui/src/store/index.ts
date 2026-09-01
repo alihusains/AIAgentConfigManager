@@ -41,8 +41,6 @@ interface GUIState {
   platform: string;
   loading: boolean;
   error: string | null;
-  /** True when the last API call failed with 401 (stale/missing access token) */
-  authError: boolean;
 
   // UI state
   activeView: View;
@@ -147,7 +145,6 @@ export const useStore = create<GUIState>()(
       platform: 'unknown',
       loading: false,
       error: null,
-      authError: false,
       activeView: 'overview',
       selectedAgentId: null,
       selectedProviderId: null,
@@ -169,7 +166,6 @@ export const useStore = create<GUIState>()(
             set({
               loading: false,
               error: res.error || 'Failed to load state',
-              authError: res.status === 401,
             });
             return false;
           }
@@ -178,14 +174,12 @@ export const useStore = create<GUIState>()(
             registry: res.data.registry,
             platform: res.data.platform,
             loading: false,
-            authError: false,
           });
           return true;
         } catch (err) {
           set({
             loading: false,
             error: err instanceof Error ? err.message : String(err),
-            authError: false,
           });
           return false;
         }

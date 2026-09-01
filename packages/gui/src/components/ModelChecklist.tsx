@@ -1,5 +1,6 @@
+import { Check, Copy, Plus } from 'lucide-react';
 import { useState } from 'react';
-import { Copy, Check, Plus } from 'lucide-react';
+import { Tooltip } from '../ui';
 
 interface ModelChecklistProps {
   /** Every model id known so far — from a live verify and/or the value
@@ -16,11 +17,7 @@ interface ModelChecklistProps {
  * a copy-to-clipboard button per model, and a small input to add a model
  * id manually when it isn't in the known list yet (e.g. no verify has run).
  */
-export function ModelChecklist({
-  knownModelIds,
-  value,
-  onChange,
-}: ModelChecklistProps) {
+export function ModelChecklist({ knownModelIds, value, onChange }: ModelChecklistProps) {
   const [manualId, setManualId] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -105,18 +102,11 @@ export function ModelChecklist({
         >
           Select all
         </button>
-        <button
-          type="button"
-          className="btn-ghost btn-sm"
-          onClick={() => setSelection(new Set())}
-        >
+        <button type="button" className="btn-ghost btn-sm" onClick={() => setSelection(new Set())}>
           Deselect all
         </button>
       </div>
-      <div
-        className="border rounded"
-        style={{ maxHeight: 200, overflowY: 'auto' }}
-      >
+      <div className="border rounded" style={{ maxHeight: 200, overflowY: 'auto' }}>
         {allIds.map((id) => (
           <label
             key={id}
@@ -132,21 +122,22 @@ export function ModelChecklist({
             <span className="flex-1 font-mono text-xs truncate" title={id}>
               {id}
             </span>
-            <button
-              type="button"
-              className="btn-ghost btn-icon btn-sm flex-shrink-0"
-              title="Copy model id"
-              onClick={(e) => {
-                e.preventDefault();
-                void copy(id);
-              }}
-            >
-              {copiedId === id ? (
-                <Check size={12} className="text-success" />
-              ) : (
-                <Copy size={12} />
-              )}
-            </button>
+            <Tooltip content="Copy model id">
+              <button
+                type="button"
+                className="btn-ghost btn-icon btn-sm flex-shrink-0"
+                onClick={(e) => {
+                  e.preventDefault();
+                  void copy(id);
+                }}
+              >
+                {copiedId === id ? (
+                  <Check size={12} className="text-success" />
+                ) : (
+                  <Copy size={12} />
+                )}
+              </button>
+            </Tooltip>
           </label>
         ))}
       </div>

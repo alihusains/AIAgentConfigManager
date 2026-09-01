@@ -1,12 +1,17 @@
-import { memo, type KeyboardEvent, type ReactNode } from 'react';
+import { memo, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
 
 /**
- * StatCard — a KPI tile: label, big tinted value, optional trend line and an
- * icon chip tinted to match.
+ * StatCard — a KPI tile on the bento system (audit C3).
  *
- * The icon chip uses `color-mix()` so `color` can be a hex value OR a CSS
- * variable (e.g. `var(--accent-info)`); the previous `${color}15` trick only
- * worked for hex and silently produced invalid CSS for variables.
+ * Renders the same tile chrome as the Dashboard's BentoCard (label row with
+ * icon, big figure, optional caption) via the shared `.bento-card` CSS, so
+ * KPI rows look identical everywhere. The `--static` variant drops pointer
+ * affordances for non-interactive tiles; passing `onClick` restores the
+ * interactive role/keyboard handling.
+ *
+ * `color` is the `--bento-tint` and flows into the tile's radial wash, label
+ * icon, and border glow via `color-mix()`, so it accepts hex values OR CSS
+ * variables (e.g. `var(--accent-primary)`).
  *
  * Memoized: all props are primitives/stable nodes, so a row of stat cards only
  * re-renders the tiles whose data actually changed.
@@ -43,30 +48,23 @@ export const StatCard = memo(function StatCard({
 
   return (
     <div
-      className="card flex-1 stat-card-hover"
-      style={{ minWidth: 0, cursor: interactive ? 'pointer' : undefined }}
+      className="bento-card bento-card--static flex-1"
+      style={{ '--bento-tint': color, minWidth: 0 } as CSSProperties}
       onClick={onClick}
       onKeyDown={onKeyDown}
       role={interactive ? 'button' : undefined}
       tabIndex={interactive ? 0 : undefined}
     >
-      <div className="flex items-start justify-between">
-        <div className="min-w-0">
-          <p className="text-secondary text-sm truncate">{title}</p>
-          <p className="stat-value mt-1.5" style={{ color }}>
-            {value}
-          </p>
-          {trend != null && <p className="text-xs text-success mt-1.5 truncate">{trend}</p>}
-        </div>
-        {icon != null && (
-          <div
-            className="p-2 rounded-lg flex-shrink-0"
-            style={{ background: `color-mix(in srgb, ${color} 12%, transparent)`, color }}
-          >
-            {icon}
-          </div>
-        )}
-      </div>
+      <span className="bento-card-label">
+        {icon}
+        {title}
+      </span>
+      <span className="bento-card-body">
+        <span className="bento-card-value stat-figure">{value}</span>
+      </span>
+      {trend != null && (
+        <span className="bento-card-caption">{trend}</span>
+      )}
     </div>
   );
 });

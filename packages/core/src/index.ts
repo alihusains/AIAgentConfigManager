@@ -61,18 +61,13 @@ import type {
   CustomAgentDef,
   ProviderApiCapabilities,
 } from './types';
-import {
-  getAdapter,
-  listAvailableAdapters,
-  getAdapterInfo,
-  resolveConfigPathForAgent,
-  createGenericAdapter,
-} from './adapters';
+import { listAvailableAdapters, resolveConfigPathForAgent, createGenericAdapter } from './adapters';
 import {
   backupFile,
   fileExists,
   getCurrentPlatform,
   getCommandVersion,
+  isSafeConfigPath,
   parseConfig,
   readFileSafe,
   resolveConfigPath,
@@ -205,13 +200,17 @@ export async function mapWithConcurrency<T, R>(
   const results: R[] = new Array(items.length);
   let next = 0;
   const workerCount = Math.max(1, Math.min(concurrency, items.length));
-  const workers = Array.from({ length: workerCount }, async () => {
+  const worker = async (): Promise<void> => {
     while (next < items.length) {
       const i = next;
       next += 1;
       results[i] = await fn(items[i], i);
     }
-  });
+  };
+  const workers: Promise<void>[] = [];
+  for (let w = 0; w < workerCount; w++) {
+    workers.push(worker());
+  }
   await Promise.all(workers);
   return results;
 }
@@ -778,7 +777,6 @@ export class AgentConfigManager {
    * validated first; custom agents are re-registered so their adapters exist.
    */
   async importRegistry(data: unknown): Promise<OperationResult<RegistryState>> {
-    const _registry = await this.requireRegistry();
     if (!data || typeof data !== 'object') {
       return { success: false, error: 'Registry file must be a JSON object' };
     }
@@ -821,7 +819,7 @@ export class AgentConfigManager {
     for (const entry of providers) {
       if (entry.keychainSecretRef) {
         warnings.push(
-          `Provider '${entry.provider.name}' was exported with a keychain-stored key. The real key does not travel with the export; you'll need to re-enter it.`,
+          `Provider '${entry.provider.name}' was exported with a keychain-stored key. The real key does not travel with the export; you'll need to re-enter it.`
         );
       }
     }
@@ -829,12 +827,10 @@ export class AgentConfigManager {
     for (const agent of customAgents) {
       const p = agent.configPath;
       const looksForeign =
-        platform === 'win32'
-          ? p.startsWith('/')
-          : p.startsWith('C:\\') || p.includes('\\');
+        platform === 'win32' ? p.startsWith('/') : p.startsWith('C:\\') || p.includes('\\');
       if (looksForeign) {
         warnings.push(
-          `Custom agent '${agent.name}'s config path looks like it's from a different OS. Update it before it's used.`,
+          `Custom agent '${agent.name}'s config path looks like it's from a different OS. Update it before it's used.`
         );
       }
     }
@@ -881,6 +877,15 @@ export class AgentConfigManager {
       return { success: false, error: `Invalid agent id: ${JSON.stringify(id)}` };
     }
     if (!def.configPath.trim()) return { success: false, error: 'Config path is required' };
+    // Reject foreign-OS drive paths (e.g. `C:\...` imported from a Windows
+    // registry onto a POSIX host) BEFORE any write: an unvalidated path would
+    // become a literal `C:\Users\...` file in the current working directory.
+    if (!isSafeConfigPath(def.configPath)) {
+      return {
+        success: false,
+        error: `Config path "${def.configPath}" is not a valid absolute path on this OS — update it before the agent can be used.`,
+      };
+    }
     if (registry.customAgents.some((a) => a.id === id) || this.adapters.has(id)) {
       return { success: false, error: `Agent "${id}" already exists` };
     }
@@ -1104,6 +1109,25 @@ export class AgentConfigManager {
   }
 
   /**
+   * M071: re-sync one agent: push the registry's version of its
+   * registry-managed providers/servers back over the on-disk config file.
+   * `materializeAgent` already rewrites exactly those entries (agent-local
+   * entries are preserved), so this is a targeted re-materialization — the
+   * inverse of the out-of-band edit drift detection flags.
+   */
+  async resyncAgent(agentId: string): Promise<OperationResult<RegistryState>> {
+    const adapter = this.adapters.get(agentId);
+    if (!adapter) return { success: false, error: `Agent "${agentId}" not found` };
+    const materialize = await this.syncAgents([agentId]);
+    const data = await this.getRegistryState();
+    return {
+      success: materialize.ok,
+      data,
+      warnings: materialize.errors.length > 0 ? materialize.errors : undefined,
+    };
+  }
+
+  /**
    * M071: detect out-of-band edits to one agent's registry-managed entries.
    * Read-only — compares the registry's target state (same computation
    * `materializeAgent` writes) against the agent's actual on-disk config,
@@ -1120,7 +1144,13 @@ export class AgentConfigManager {
   }> {
     const adapter = this.adapters.get(agentId);
     if (!adapter) {
-      return { agentId, drifted: false, changedProviders: [], changedServers: [], error: 'Agent not found' };
+      return {
+        agentId,
+        drifted: false,
+        changedProviders: [],
+        changedServers: [],
+        error: 'Agent not found',
+      };
     }
     if (!adapter.info.supports.modelProviders && !adapter.info.supports.mcpServers) {
       // Detect-only agents are never materialized — nothing can drift.
@@ -1150,32 +1180,77 @@ export class AgentConfigManager {
       // (JSON.stringify's replacer array is a property allow-list, so it must
       // be a replacer function, not a sorted key list).
       const stable = (v: unknown): string =>
-        JSON.stringify(
-          v,
-          (_key, value) =>
-            value && typeof value === 'object' && !Array.isArray(value)
-              ? Object.fromEntries(
-                  Object.keys(value as Record<string, unknown>)
-                    .sort()
-                    .map((k) => [k, (value as Record<string, unknown>)[k]])
-                )
-              : value
+        JSON.stringify(v, (_key, value) =>
+          value && typeof value === 'object' && !Array.isArray(value)
+            ? Object.fromEntries(
+                Object.keys(value as Record<string, unknown>)
+                  .sort()
+                  .map((k) => [k, (value as Record<string, unknown>)[k]])
+              )
+            : value
+        ) ?? 'undefined';
+      // Normalize empty/absent values so `undefined`, `null`, `{}` and `[]`
+      // compare equal — adapters omit empty keys their wire format drops
+      // (e.g. `env: {}` never survives an OpenCode round-trip).
+      const norm = (v: unknown): string | null => {
+        if (v === undefined || v === null) return null;
+        if (Array.isArray(v) && v.length === 0) return null;
+        if (typeof v === 'object' && Object.keys(v as object).length === 0) return null;
+        return stable(v);
+      };
+
+      // Projection comparison — drift = the registry-managed fields differ.
+      // A raw deep-equal against the registry entry can NEVER clear for
+      // adapters that inject wire-format-required keys the registry entry
+      // does not carry (OpenCode adds a provider `env` list on every write)
+      // or re-derive fields from file position (`priority`). Compare only
+      // what the registry itself defines; extra on-disk keys are
+      // adapter-managed, not out-of-band edits.
+      const providerMatches = (disk: ModelProvider, target: ModelProvider): boolean => {
+        if (disk.name !== target.name || disk.type !== target.type) return false;
+        if (disk.enabled !== target.enabled) return false;
+        // Project through the adapter's wire-format lens first: registry
+        // entries are shared across agents and may carry fields this agent's
+        // format cannot express (phantom-drift guard, M071).
+        const project = adapter.expressibleProviderConfig?.bind(adapter);
+        const targetConfig = project
+          ? project((target.config ?? {}) as Record<string, unknown>)
+          : ((target.config ?? {}) as Record<string, unknown>);
+        const diskConfig = project
+          ? project((disk.config ?? {}) as Record<string, unknown>)
+          : ((disk.config ?? {}) as Record<string, unknown>);
+        return Object.keys(targetConfig).every(
+          (key) => norm(diskConfig[key]) === norm(targetConfig[key])
         );
+      };
+      const serverMatches = (
+        disk: MCPServerConfig | undefined,
+        target: MCPServerConfig
+      ): boolean => {
+        if (!disk) return false;
+        if (disk.type !== target.type) return false;
+        if ((disk.enabled ?? true) !== (target.enabled ?? true)) return false;
+        return (Object.keys(target) as (keyof MCPServerConfig)[]).every((key) => {
+          if (key === 'name' || key === 'type' || key === 'enabled') return true;
+          return norm(disk[key]) === norm(target[key]);
+        });
+      };
+
       const targetProviderById = new Map(target.modelProviders.map((p) => [p.id, p]));
       const currentProviderById = new Map(current.modelProviders.map((p) => [p.id, p]));
-      const changedProviders = [...managedProviderIds].filter(
-        (id) =>
-          !currentProviderById.has(id) ||
-          stable(currentProviderById.get(id)) !== stable(targetProviderById.get(id))
-      );
+      const changedProviders = [...managedProviderIds].filter((id) => {
+        const disk = currentProviderById.get(id);
+        const tgt = targetProviderById.get(id);
+        return !(disk && tgt && providerMatches(disk, tgt));
+      });
 
       const targetServerByName = new Map(target.mcpServers.map((s) => [s.name, s]));
       const currentServerByName = new Map(current.mcpServers.map((s) => [s.name, s]));
-      const changedServers = [...managedServerNames].filter(
-        (name) =>
-          !currentServerByName.has(name) ||
-          stable(currentServerByName.get(name)) !== stable(targetServerByName.get(name))
-      );
+      const changedServers = [...managedServerNames].filter((name) => {
+        const disk = currentServerByName.get(name);
+        const tgt = targetServerByName.get(name);
+        return !(disk && tgt && serverMatches(disk, tgt));
+      });
 
       return {
         agentId,
@@ -1434,10 +1509,7 @@ export class AgentConfigManager {
     providerId: string
   ): Promise<OperationResult<RegistryState>> {
     await this.requireRegistry();
-    const result = await migrateProviderApiKeyToKeychain(
-      this.registryFilePath,
-      providerId
-    );
+    const result = await migrateProviderApiKeyToKeychain(this.registryFilePath, providerId);
     if ('error' in result) return { success: false, error: result.error };
     // The registry file was rewritten by the migration; refresh the in-memory
     // copy so subsequent reads see the new keychainSecretRef.
@@ -1839,7 +1911,6 @@ export class AgentConfigManager {
   }
 
   private summarizeResults(results: OperationResult[]): OperationResult {
-    const _succeeded = results.filter((r) => r.success).length;
     const failed = results.filter((r) => !r.success).length;
     const errors = results
       .filter((r) => !r.success)

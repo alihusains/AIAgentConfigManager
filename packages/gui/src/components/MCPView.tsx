@@ -5,6 +5,7 @@ import { AgentIconTile } from './AgentIcon';
 import { useAgentCatalog } from '../hooks/useAgentCatalog';
 import type { MCPServerConfig, DetectedAgent } from '@ai-agent-config/core';
 import { Plus, Edit, Trash2, Server, Terminal, Globe, Link } from 'lucide-react';
+import { Tooltip } from '../ui';
 
 const TYPE_ICONS: Record<MCPServerConfig['type'], React.ReactNode> = {
   stdio: <Terminal size={18} />,
@@ -37,11 +38,11 @@ export function MCPView() {
   };
 
   return (
-    <div className="p-4">
+    <div className="page-container">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="page-title">MCP Servers</h2>
+          <h1 className="page-title">MCP Servers</h1>
           <p className="text-secondary text-sm mt-1">
             One definition per server — installed into the agents listed on each row.
           </p>
@@ -128,29 +129,31 @@ export function MCPView() {
                           <div className="mcp-agent-stack">
                             {visible.length === 0 && <span className="mcp-meta">—</span>}
                             {visible.map((id) => (
-                              <span key={id} className="mcp-agent-avatar" title={agentName(id)}>
+                              <span key={id} className="mcp-agent-avatar">
                                 <AgentIconTile
                                   id={id}
                                   icon={agentIcon(id)}
                                   size={26}
                                   iconSize={14}
                                 />
+                                <Tooltip content={`Remove from ${agentName(id)}`}>
                                 <button
                                   className="mcp-avatar-remove"
-                                  title={`Remove from ${agentName(id)}`}
                                   onClick={() => toggleMCPAgent(server.name, id)}
                                 >
                                   ×
                                 </button>
+                                </Tooltip>
                               </span>
                             ))}
                             {overflow > 0 && (
+                              <Tooltip content={agentIds.slice(4).map(agentName).join(', ')}>
                               <span
                                 className="mcp-avatar-more"
-                                title={agentIds.slice(4).map(agentName).join(', ')}
                               >
                                 +{overflow}
                               </span>
+                              </Tooltip>
                             )}
                           </div>
                           <div className="mcp-agent-list">
@@ -175,20 +178,22 @@ export function MCPView() {
                       </td>
                       <td>
                         <div className="mcp-row-actions flex items-center gap-1">
+                          <Tooltip content="Edit">
                           <button
                             className="btn-ghost btn-icon btn-sm"
-                            title="Edit"
                             onClick={() => setEditing(server)}
                           >
                             <Edit size={14} />
                           </button>
+                          </Tooltip>
+                          <Tooltip content="Delete">
                           <button
                             className="btn-ghost btn-icon btn-sm text-error"
-                            title="Delete"
                             onClick={() => handleDelete(server)}
                           >
                             <Trash2 size={14} />
                           </button>
+                          </Tooltip>
                         </div>
                       </td>
                     </tr>

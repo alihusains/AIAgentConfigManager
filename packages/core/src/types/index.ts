@@ -263,6 +263,18 @@ export interface AgentAdapter {
    */
   getPreservedRawEntries?(): { key: string; name: string }[];
 
+  /**
+   * Project a unified provider down to the fields this agent's wire format
+   * can actually express, for drift comparison. Registry entries are shared
+   * across agents and may carry fields another agent's format cannot
+   * represent (e.g. `wireApi` is a Codex TOML field that OpenCode-style
+   * JSONC cannot express). Without this projection, comparing the shared
+   * registry entry against the on-disk state yields permanent phantom drift
+   * that no re-sync can ever clear. Adapters that can express every unified
+   * field do not implement this; the default is identity.
+   */
+  expressibleProviderConfig?: (config: Record<string, unknown>) => Record<string, unknown>;
+
   // Model/Provider operations
   listModelProviders(): ModelProvider[];
   addModelProvider(provider: ModelProvider): Promise<void>;

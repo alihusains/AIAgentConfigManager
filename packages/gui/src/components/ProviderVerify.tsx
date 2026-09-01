@@ -21,6 +21,7 @@ import type {
   ProviderApiCapabilities,
 } from '@ai-agent-config/core';
 import { Zap, RefreshCw, Loader2, Copy, Check } from 'lucide-react';
+import { Tooltip } from '../ui';
 
 // ---------------------------------------------------------------------------
 // API-kind display helpers (shared with ProvidersView)
@@ -70,13 +71,13 @@ export function ProtocolTicks({
       {ALL_KINDS.map((k) => {
         const ok = set.has(k);
         return (
+          <Tooltip key={k} content={`${providerApiLabel(k)}: ${ok ? 'verified' : 'not confirmed'}`}>
           <span
-            key={k}
             className={`proto-tick ${ok ? 'is-ok' : 'is-fail'}`}
-            title={`${providerApiLabel(k)}: ${ok ? 'verified' : 'not confirmed'}`}
           >
             {ok ? '✓' : '✗'} {k}
           </span>
+          </Tooltip>
         );
       })}
     </span>
@@ -193,13 +194,14 @@ function ProbeCard({
       <details className="mt-2">
         <summary className="text-xs text-secondary cursor-pointer select-none flex items-center gap-2">
           <span>curl + raw output</span>
+          <Tooltip content="Copy curl command and raw output">
           <button
             className="btn-ghost btn-icon btn-sm"
-            title="Copy curl command and raw output"
             onClick={copyOutput}
           >
             {copied ? <Check size={14} /> : <Copy size={14} />}
           </button>
+          </Tooltip>
         </summary>
         <pre className="code-block mt-2">{`${probe.curl}\n\n${probe.body ?? probe.error ?? '(no response body)'}`}</pre>
         {copyFailed && (

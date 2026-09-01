@@ -2,8 +2,8 @@
  * GUI Server — serves the static dashboard and the REST API for the registry.
  *
  * Runs on 127.0.0.1 (loopback only) on a random, conflict-avoiding port, and
- * opens the browser. The API is guarded by a per-launch token carried in the
- * URL query string (the page re-sends it on every fetch).
+ * opens the browser. Loopback binding is the security boundary: only local
+ * processes can reach the API, so no session token is required.
  */
 
 import * as http from 'node:http';
@@ -89,8 +89,7 @@ const MIME: Record<string, string> = {
 function serveStatic(
   req: http.IncomingMessage,
   res: http.ServerResponse,
-  distDir: string,
-  token: string
+  distDir: string
 ): boolean {
   const urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
   // Never allow traversal outside dist
@@ -108,20 +107,11 @@ function serveStatic(
     const content = fs.readFileSync(filePath);
     const ext = path.extname(filePath).toLowerCase();
     const isHtml = ext === '.html';
-    let body: Buffer = content;
-    if (isHtml) {
-      // Hand the launch token to the page WITHOUT putting it in the URL:
-      // the served HTML carries it in a global the API client reads. The
-      // token never appears in the address bar, history, or shared links.
-      const inject = `<script>window.__AI_CONFIG_TOKEN__=${JSON.stringify(token)};</script>`;
-      const html = content.toString('utf8').replace('</head>', `${inject}</head>`);
-      body = Buffer.from(html, 'utf8');
-    }
     res.writeHead(200, {
       'Content-Type': MIME[ext] || 'application/octet-stream',
       'Cache-Control': isHtml ? 'no-cache' : 'public, max-age=31536000, immutable',
     });
-    res.end(body);
+    res.end(content);
   } catch {
     res.writeHead(404).end('Not found');
   }
@@ -161,7 +151,6 @@ export interface GUIServerOptions {
 export interface GUIServerHandle {
   url: string;
   port: number;
-  token: string;
   close(): Promise<void>;
 }
 
@@ -299,28 +288,17 @@ export async function startGuiServer(
   // Warm up the registry before listening so /api/state is instant
   await manager.initRegistry();
 
-  const token = randomBytes(16).toString('hex');
   const bodyLimit = 10 * 1024 * 1024;
 
   const server = http.createServer(async (req, res) => {
-    // ---- Auth: every /api request must carry the launch token ----
-    // /api/health is the exception: it is the liveness probe used by
-    // `acm health` before any token exists on the machine.
-    const isHealth = req.url?.startsWith('/api/health');
+    // No session-token gate: the server binds to 127.0.0.1 only, so only
+    // local processes can reach it. /api/health stays open as the liveness
+    // probe used by `acm health`.
     const isApi = req.url?.startsWith('/api');
-    if (isApi && !isHealth) {
-      const q = new URL(req.url || '', 'http://localhost');
-      const tokenOk = q.searchParams.get('t') === token || req.headers['x-config-token'] === token;
-      if (!tokenOk) {
-        res.writeHead(401, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ ok: false, error: 'Unauthorized' }));
-        return;
-      }
-    }
 
     // ---- Static ----
     if (!isApi) {
-      serveStatic(req, res, distDir, token);
+      serveStatic(req, res, distDir);
       return;
     }
 
@@ -373,7 +351,7 @@ export async function startGuiServer(
     const method = req.method || 'GET';
 
     // ================= REST routes =================
-    if (parts[0] !== 'api') return serveStatic(req, res, distDir, token);
+    if (parts[0] !== 'api') return serveStatic(req, res, distDir);
 
     const wrap = async (data: unknown, status = 200) => handle(async () => ({ status, data }));
 
@@ -1191,6 +1169,18 @@ export async function startGuiServer(
         });
       }
 
+      // ---- Drift re-sync (M071) — push the registry's version of this
+      // agent's registry-managed providers/servers back over its config
+      // file (the inverse of the out-of-band edit drift detection flags).
+      // POST /api/agents/:id/resync
+      if (parts[1] === 'agents' && method === 'POST' && parts.length === 4 && parts[3] === 'resync') {
+        return handle(async () => {
+          const result = await manager.resyncAgent(parts[2]);
+          if (!result.success) return { error: result.error, status: 400 };
+          return { data: result.data };
+        });
+      }
+
       // ---- Agent lifecycle: install / uninstall (catalog allow-list only) ----
       // GET /api/agents/jobs/:jobId — poll a launched job's live output.
       if (method === 'GET' && parts.length === 4 && parts[2] === 'jobs') {
@@ -1325,7 +1315,6 @@ export async function startGuiServer(
 
   const address = server.address();
   const actualPort = typeof address === 'object' && address ? address.port : preferred;
-  // Clean URL — no token in the query string; the served HTML carries it.
   const url = `http://127.0.0.1:${actualPort}/`;
 
   if (options.openBrowser !== false) {
@@ -1335,7 +1324,6 @@ export async function startGuiServer(
   return {
     url,
     port: actualPort,
-    token,
     close: () =>
       new Promise<void>((resolve) => {
         server.close(() => resolve());

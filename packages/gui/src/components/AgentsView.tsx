@@ -29,6 +29,7 @@ import { CodeEditor } from './CodeEditor';
 import { ApiTypeBadges } from './ApiTypeBadges';
 import { useWindowedList } from '../hooks/useWindowedList';
 import { MCP_SERVER_WARNING_THRESHOLD } from './AgentDetailView';
+import { Tooltip } from '../ui';
 
 /** Which file an in-browser edit session is open on. */
 interface EditingFile {
@@ -89,13 +90,14 @@ function RowActionsMenu({ open, onToggle, onClose, items }: RowActionsMenuProps)
 
   return (
     <div className="relative" ref={ref}>
+      <Tooltip content="More actions">
       <button
         className="btn-ghost btn-icon btn-sm"
-        title="More actions"
         onClick={onToggle}
       >
         <MoreVertical size={14} />
       </button>
+      </Tooltip>
       {open && (
         <div className="popover" style={{ minWidth: 180 }}>
           {items.map((item) => (
@@ -144,17 +146,21 @@ const AvailableRow = memo(function AvailableRow({
             {agent.status}
           </span>
         </div>
-        <span className="avail-id" title={agent.description || agent.id}>
+        <Tooltip content={agent.description || agent.id}>
+        <span className="avail-id">
           {agent.id}
           {agent.description ? ` — ${agent.description}` : ''}
         </span>
+        </Tooltip>
       </div>
       <ApiTypeBadges kinds={agent.apiTypes} compact />
       {installCmd ? (
-        <button className="btn-primary btn-sm" title={installCmd} onClick={handleClick}>
+        <Tooltip content={installCmd}>
+        <button className="btn-primary btn-sm" onClick={handleClick}>
           <Download size={14} />
           Install
         </button>
+        </Tooltip>
       ) : (
         <span className="text-tertiary text-xs">manual</span>
       )}
@@ -236,17 +242,19 @@ function DriftBadge({
     ? `This agent's config was edited outside the registry. ${parts.join('; ')}. Re-syncing restores the registry's version.`
     : 'Re-syncing…';
   return (
-    <span className="flex items-center gap-1" title={tooltip}>
+    <span className="flex items-center gap-1">
+      <Tooltip content={tooltip}>
       <span className="badge badge-warning" style={{ cursor: 'default' }}>
         <AlertTriangle size={10} className="inline mr-1" />
         drifted
       </span>
+      </Tooltip>
       {status.drifted && (
+        <Tooltip content="Restore the registry's version of this agent's config">
         <button
           className="btn-ghost btn-sm text-xs"
           disabled={status.resyncing}
           onClick={onResync}
-          title="Restore the registry's version of this agent's config"
         >
           {status.resyncing ? (
             <div className="spinner" style={{ width: 12, height: 12 }} />
@@ -254,6 +262,7 @@ function DriftBadge({
             'Re-sync'
           )}
         </button>
+        </Tooltip>
       )}
     </span>
   );
@@ -591,13 +600,13 @@ export function AgentsView() {
   }, [catalog, installedRows, checkDrift]);
 
   // Re-sync pushes the registry's version back over the agent's file via the
-  // existing per-agent materialize path, then re-checks.
+  // per-agent materialize path, then re-checks.
   const resyncAgent = async (agentId: string, agentName: string) => {
     setDriftStatus((prev) => ({
       ...prev,
       [agentId]: { ...prev[agentId], resyncing: true },
     }));
-    const res = await api.updateCustomAgent(agentId, {});
+    const res = await api.resyncAgent(agentId);
     const ok = res.ok;
     setDriftStatus((prev) => ({
       ...prev,
@@ -633,20 +642,20 @@ export function AgentsView() {
   );
 
   return (
-    <div className="p-4">
+    <div className="page-container">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="page-title">Agents</h2>
+          <h1 className="page-title">Agents</h1>
           <p className="text-secondary text-sm mt-1">
             Installed agent CLIs, agents available to install from the
             maintained catalog, and custom agents with explicit config paths.
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Tooltip content="Refresh catalog + detection">
           <button
             className="btn-ghost btn-sm"
-            title="Refresh catalog + detection"
             disabled={loading}
             onClick={() => {
               void loadCatalog();
@@ -656,6 +665,7 @@ export function AgentsView() {
             <RefreshCw size={14} />
             Refresh
           </button>
+          </Tooltip>
           <button
             className="btn-primary"
             onClick={() => setShowAdd(true)}
@@ -731,12 +741,13 @@ export function AgentsView() {
                         <div className="flex items-center gap-1.5">
                           <p className="font-medium truncate">{row.name}</p>
                           {!row.known && (
+                            <Tooltip content="Discovered on this machine but not in the maintained catalog yet">
                             <span
                               className="badge badge-neutral"
-                              title="Discovered on this machine but not in the maintained catalog yet"
                             >
                               new
                             </span>
+                            </Tooltip>
                           )}
                           <DriftBadge
                             status={driftStatus[row.id]}
@@ -757,13 +768,16 @@ export function AgentsView() {
                         {row.detection.version || 'installed'}
                       </span>
                       {row.detection.binaryPath && (
-                        <span
-                          className="text-xs text-tertiary font-mono"
-                          title={
+                        <Tooltip
+                          content={
                             row.detection.detectedBy
                               ? `found via ${row.detection.detectedBy}`
-                              : undefined
+                              : row.detection.binaryPath
                           }
+                          disabled={!row.detection.detectedBy && !row.detection.binaryPath}
+                        >
+                        <span
+                          className="text-xs text-tertiary font-mono"
                         >
                           {row.detection.binaryPath}
                           {row.detection.detectedBy && (
@@ -773,6 +787,7 @@ export function AgentsView() {
                             </span>
                           )}
                         </span>
+                        </Tooltip>
                       )}
                       {updateStatus[row.id]?.checking ? (
                         <span className="text-xs text-tertiary flex items-center gap-1">
@@ -780,11 +795,11 @@ export function AgentsView() {
                           checking…
                         </span>
                       ) : updateStatus[row.id]?.updateAvailable ? (
+                        <Tooltip content={`Update to ${updateStatus[row.id]?.latestVersion}`}>
                         <button
                           className="btn-secondary btn-sm"
                           disabled={updateStatus[row.id]?.updating}
                           onClick={() => runUpdate(row.id, row.name)}
-                          title={`Update to ${updateStatus[row.id]?.latestVersion}`}
                         >
                           {updateStatus[row.id]?.updating ? (
                             <div className="spinner" style={{ width: 12, height: 12 }} />
@@ -793,6 +808,7 @@ export function AgentsView() {
                           )}
                           Update to {updateStatus[row.id]?.latestVersion}
                         </button>
+                        </Tooltip>
                       ) : updateStatus[row.id] && updateStatus[row.id].method !== 'unsupported' ? (
                         <span className="text-xs text-tertiary">up to date</span>
                       ) : null}
@@ -807,19 +823,19 @@ export function AgentsView() {
                   </td>
                   <td className="font-mono text-xs path-cell">
                     <div className="flex items-center gap-1.5">
-                      <span
-                        className="flex-1 min-w-0 break-words"
-                        title={row.configPath}
-                      >
+                      <Tooltip content={row.configPath}>
+                      <span className="flex-1 min-w-0 break-words">
                         {row.configPath}
                       </span>
+                      </Tooltip>
+                      <Tooltip content="Edit config file">
                       <button
                         className="btn-ghost btn-icon btn-sm flex-shrink-0"
-                        title="Edit config file"
                         onClick={() => openFileEditor(row.id, row.name, 'config')}
                       >
                         <Edit size={13} />
                       </button>
+                      </Tooltip>
                     </div>
                     {/* Model config lives in a genuinely different file only for a
                         couple of agents (e.g. reasonix's separate credentials) — show
@@ -828,35 +844,36 @@ export function AgentsView() {
                     {row.modelPath &&
                       row.modelPath !== row.configPath &&
                       row.modelPath !== 'same file' && (
-                        <div className="text-xs text-tertiary mt-0.5" title={row.modelPath}>
+                        <Tooltip content={row.modelPath}>
+                        <div className="text-xs text-tertiary mt-0.5">
                           model: {row.modelPath}
                         </div>
+                        </Tooltip>
                       )}
                     {row.credentialPath && (
-                      <div
-                        className="text-xs text-tertiary mt-0.5"
-                        title={row.credentialPath}
-                      >
+                      <Tooltip content={row.credentialPath}>
+                      <div className="text-xs text-tertiary mt-0.5">
                         keys: {row.credentialPath}
                       </div>
+                      </Tooltip>
                     )}
                   </td>
                   <td className="font-mono text-xs path-cell">
                     {row.mcpPath && row.mcpPath !== 'same file' ? (
                       <div className="flex items-center gap-1.5">
-                        <span
-                          className="flex-1 min-w-0 break-words"
-                          title={row.mcpPath}
-                        >
+                        <Tooltip content={row.mcpPath}>
+                        <span className="flex-1 min-w-0 break-words">
                           {row.mcpPath}
                         </span>
+                        </Tooltip>
+                        <Tooltip content="Edit MCP file">
                         <button
                           className="btn-ghost btn-icon btn-sm flex-shrink-0"
-                          title="Edit MCP file"
                           onClick={() => openFileEditor(row.id, row.name, 'mcp')}
                         >
                           <Edit size={13} />
                         </button>
+                        </Tooltip>
                       </div>
                     ) : row.mcpPath === 'same file' ? (
                       <span className="text-tertiary">same file</span>
@@ -871,13 +888,14 @@ export function AgentsView() {
                       ).length;
                       const over = count > MCP_SERVER_WARNING_THRESHOLD;
                       return (
+                        <Tooltip content={over ? `${count} MCP servers assigned — high server counts can slow an agent down or overwhelm its tool-selection` : `${count} MCP server${count === 1 ? '' : 's'} assigned`}>
                         <span
                           className={`badge ${over ? 'badge-warning' : 'badge-neutral'}`}
-                          title={over ? `${count} MCP servers assigned — high server counts can slow an agent down or overwhelm its tool-selection` : `${count} MCP server${count === 1 ? '' : 's'} assigned`}
                         >
                           {over && <AlertTriangle size={11} className="inline mr-1" />}
                           {count}
                         </span>
+                        </Tooltip>
                       );
                     })()}
                   </td>
@@ -912,9 +930,9 @@ export function AgentsView() {
                       />
                       {row.catalogEntry &&
                         commandFor(row.catalogEntry, 'uninstall', p) && (
+                          <Tooltip content={commandFor(row.catalogEntry, 'uninstall', p)}>
                           <button
                             className="btn-danger btn-sm"
-                            title={commandFor(row.catalogEntry, 'uninstall', p)}
                             onClick={() =>
                               setJob({
                                 agent: row.catalogEntry!,
@@ -924,6 +942,7 @@ export function AgentsView() {
                           >
                             Uninstall
                           </button>
+                          </Tooltip>
                         )}
                     </div>
                   </td>
@@ -1040,30 +1059,33 @@ export function AgentsView() {
                     </td>
                     <td>
                       <div className="flex items-center gap-1">
+                        <Tooltip content="Edit config file">
                         <button
                           className="btn-ghost btn-icon btn-sm"
-                          title="Edit config file"
                           onClick={() => openFileEditor(def.id, def.name, 'config')}
                         >
                           <FileCode size={14} />
                         </button>
+                        </Tooltip>
+                        <Tooltip content="Reveal config folder">
                         <button
                           className="btn-ghost btn-icon btn-sm"
-                          title="Reveal config folder"
                           onClick={() => revealAgent(def.id)}
                         >
                           <FolderOpen size={14} />
                         </button>
+                        </Tooltip>
+                        <Tooltip content="Edit">
                         <button
                           className="btn-ghost btn-icon btn-sm"
-                          title="Edit"
                           onClick={() => setEditing(def)}
                         >
                           <Edit size={14} />
                         </button>
+                        </Tooltip>
+                        <Tooltip content="Remove (files are left untouched)">
                         <button
                           className="btn-ghost btn-icon btn-sm text-error"
-                          title="Remove (files are left untouched)"
                           onClick={() => {
                             if (
                               confirm(
@@ -1076,6 +1098,7 @@ export function AgentsView() {
                         >
                           <Trash2 size={14} />
                         </button>
+                        </Tooltip>
                       </div>
                     </td>
                   </tr>

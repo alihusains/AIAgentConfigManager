@@ -139,7 +139,7 @@ export function SettingsView() {
   const openFilePicker = useCallback(() => fileRef.current?.click(), []);
 
   return (
-    <div className="p-4 settings-view">
+    <div className="page-container settings-view">
       <SectionHeader
         title="Settings"
         description="The registry is the single source of truth; every agent config is generated from it."

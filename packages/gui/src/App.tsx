@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useStore, type View } from './store';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
@@ -16,7 +16,7 @@ import { ToastContainer } from './components/Toast';
 import { ThemeToggle, toggleTheme } from './components/ThemeToggle';
 import { Breadcrumbs } from './components/Breadcrumbs';
 import { CommandPalette } from './components/CommandPalette';
-import { Menu, X, RefreshCw, AlertTriangle, Search } from 'lucide-react';
+import { Menu, X, RefreshCw, AlertCircle, Search } from 'lucide-react';
 
 const VALID_VIEWS: View[] = [
   'overview',
@@ -30,6 +30,10 @@ const VALID_VIEWS: View[] = [
   'env-vars',
   'settings',
 ];
+
+/** Platform-appropriate shortcut hint (audit D5): ⌘K on Apple, Ctrl-K elsewhere. */
+const IS_MAC =
+  typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 
 /** Parse the hash into a view + optional id (e.g. #/agents/claude-code, #/providers/anthropic/models). */
 function parseHash(): {
@@ -71,6 +75,10 @@ function isTypingTarget(el: Element | null): boolean {
 }
 
 function App() {
+  // Audit E3: an error banner dismissal is remembered only until a new
+  // error replaces the dismissed one — fresh failures always re-appear.
+  const [dismissedError, setDismissedError] = useState<string | null>(null);
+
   const {
     activeView,
     selectedAgentId,
@@ -78,7 +86,6 @@ function App() {
     sidebarOpen,
     loading,
     error,
-    authError,
     refreshAll,
     toggleSidebar,
     setActiveView,
@@ -114,7 +121,10 @@ function App() {
           ? `#/providers/${encodeURIComponent(selectedProviderId)}`
           : `#/${activeView}`;
     if (window.location.hash !== desired) {
-      window.history.replaceState(null, '', desired);
+      // pushState (was replaceState) so each view is a real history entry:
+      // browser Back steps through views instead of leaving the app
+      // (audit D1). The hashchange listener below consumes popped states.
+      window.history.pushState(null, '', desired);
     }
   }, [activeView, selectedAgentId, selectedProviderId]);
 
@@ -194,6 +204,18 @@ function App() {
         <Menu size={18} />
       </button>
 
+      {/* Mobile sidebar scrim (audit B2): click-dismissable overlay behind
+          the open sidebar; hidden above 768px via CSS. */}
+      {sidebarOpen && (
+        <button
+          type="button"
+          className="sidebar-scrim visible"
+          aria-label="Close sidebar"
+          onClick={toggleSidebar}
+          tabIndex={-1}
+        />
+      )}
+
       <Sidebar />
 
       {/* Main Content */}
@@ -211,18 +233,22 @@ function App() {
             <Breadcrumbs />
           </div>
           <div className="flex items-center gap-3">
-            {error && <span className="text-xs text-error truncate max-w-lg">{error}</span>}
             <button
               className="btn-secondary btn-sm"
-              title="Search (Cmd-K)"
+              title={`Search (${IS_MAC ? 'Cmd-K' : 'Ctrl-K'})`}
               onClick={() => {
-                // Dispatch a synthetic Cmd-K to open the palette
-                window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }));
+                // Dispatch a synthetic Cmd-K/Ctrl-K to open the palette
+                window.dispatchEvent(
+                  new KeyboardEvent('keydown', {
+                    key: 'k',
+                    [IS_MAC ? 'metaKey' : 'ctrlKey']: true,
+                  })
+                );
               }}
             >
               <Search size={14} />
               <span className="hidden sm:inline">Search</span>
-              <kbd className="font-mono text-xs opacity-60 ml-1">⌘K</kbd>
+              <kbd className="font-mono text-xs opacity-60 ml-1">{IS_MAC ? '⌘K' : 'Ctrl-K'}</kbd>
             </button>
             <RamMeter />
             <button
@@ -235,36 +261,37 @@ function App() {
               Refresh
             </button>
             <ThemeToggle />
-            <button className="btn-ghost btn-sm" onClick={() => setActiveView('settings')}>
-              Settings
-            </button>
           </div>
         </header>
 
-        {/* View Content */}
-        <div className="flex-1 overflow-y-auto">{renderView()}</div>
-
-        {/* Auth banner: shown when the server rejects this browser's token */}
-        {authError && (
+        {/* Error banner (audit E3): full width, dismissible; a dismissal
+            is forgotten as soon as a new error replaces it. */}
+        {error && error !== dismissedError && (
           <div className="border-t" style={{ background: 'var(--bg-tertiary)' }}>
             <div className="px-4 py-3 flex items-start gap-3 flex-wrap">
-              <AlertTriangle size={18} className="text-warning flex-shrink-0 mt-0.5" />
+              <AlertCircle size={18} className="text-error flex-shrink-0 mt-0.5" />
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold">Dashboard access token missing or expired</p>
-                <p className="text-xs text-secondary mt-1">
-                  Each launch of <span className="font-mono">ai-config gui</span> uses a fresh
-                  per-session token. Reopen the dashboard from the terminal — it opens{' '}
-                  <span className="font-mono">http://127.0.0.1:4321</span> with the token already
-                  set up. Old tabs cannot authenticate.
-                </p>
+                <p className="text-sm font-semibold">Something failed</p>
+                <p className="text-xs text-secondary mt-1">{error}</p>
               </div>
+              <button
+                className="btn-ghost btn-sm"
+                onClick={() => setDismissedError(error)}
+                aria-label="Dismiss error"
+              >
+                <X size={14} />
+                Dismiss
+              </button>
               <button className="btn-secondary btn-sm" onClick={() => refreshAll()}>
                 <RefreshCw size={14} />
-                Try Again
+                Retry
               </button>
             </div>
           </div>
         )}
+
+        {/* View Content */}
+        <div className="flex-1 overflow-y-auto">{renderView()}</div>
       </main>
 
       <ToastContainer />

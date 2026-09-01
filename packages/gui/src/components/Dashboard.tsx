@@ -4,7 +4,7 @@ import { useAgentCatalog } from '../hooks/useAgentCatalog';
 import { ApiTypeBadges } from './ApiTypeBadges';
 import { AgentIconTile } from './AgentIcon';
 import { providerApiLabel } from './ProviderVerify';
-import { Skeleton } from '../ui';
+import { Skeleton, Tooltip } from '../ui';
 import { Database, Server, Bot, UserPlus, AlertTriangle, ArrowRight } from 'lucide-react';
 import type { ProviderApiKind } from '@ai-agent-config/core';
 
@@ -240,12 +240,12 @@ const ProtocolCoverage = memo(function ProtocolCoverage({
             const n = counts[kind];
             const pct = total > 0 ? (n / total) * 100 : 0;
             return (
+              <Tooltip key={kind} content={`${providerApiLabel(kind)}: ${n}`}>
               <div
-                key={kind}
                 className={`protocol-segment is-${kind}`}
                 style={{ width: `${pct}%` }}
-                title={`${providerApiLabel(kind)}: ${n}`}
               />
+              </Tooltip>
             );
           })}
         </div>
@@ -316,7 +316,6 @@ export function Dashboard() {
     platform,
     loading,
     error,
-    authError,
     setActiveView,
     refreshAll,
     openAgent,
@@ -383,35 +382,11 @@ export function Dashboard() {
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="empty-state">
           <AlertTriangle size={64} className="empty-state-icon text-warning" />
-          {authError ? (
-            <>
-              <h3 className="empty-state-title">Dashboard access token missing or expired</h3>
-              <p className="empty-state-message">
-                The page loads, but this browser no longer holds the per-session token of the
-                running dashboard (401 Unauthorized). The agents and registry live behind the local
-                API and cannot be shown without it.
-              </p>
-              <div className="mt-4">
-                <button type="button" className="btn-primary" onClick={() => refreshAll()}>
-                  Try Again
-                </button>
-              </div>
-              <p className="empty-state-message mt-2">
-                Still failing? Re-run <span className="font-mono">ai-config gui</span> in the
-                terminal and open the printed{' '}
-                <span className="font-mono">http://127.0.0.1:…/?t=…</span> URL — old tabs and
-                bookmarks are rejected by design.
-              </p>
-            </>
-          ) : (
-            <>
-              <h3 className="empty-state-title">Cannot reach the config server</h3>
-              <p className="empty-state-message text-error">{error}</p>
-              <button type="button" className="btn-primary mt-4" onClick={() => refreshAll()}>
-                Retry
-              </button>
-            </>
-          )}
+          <h3 className="empty-state-title">Cannot reach the config server</h3>
+          <p className="empty-state-message text-error">{error}</p>
+          <button type="button" className="btn-primary mt-4" onClick={() => refreshAll()}>
+            Retry
+          </button>
         </div>
       </div>
     );
@@ -424,7 +399,7 @@ export function Dashboard() {
   const agentsWithConfig = agents.filter((a) => a.detection.configExists);
 
   return (
-    <div className="p-4 dashboard">
+    <div className="page-container dashboard">
       {/* KPI bento grid — four differentiated stat cards, one accent each */}
       <div className="bento-grid">
         <BentoCard

@@ -13,6 +13,7 @@ import {
   Sparkles,
   KeyRound,
 } from 'lucide-react';
+import { Tooltip } from '../ui';
 
 interface SidebarProps {
   onClose?: () => void;
@@ -78,6 +79,7 @@ export function Sidebar({ onClose }: SidebarProps) {
         key={view.id}
         className={`nav-item ${isActive ? 'active' : ''}`}
         onClick={() => setActiveView(view.id)}
+        aria-current={isActive ? 'page' : undefined}
       >
         <Icon className="nav-item-icon" />
         <span className="flex-1 truncate">{view.label}</span>
@@ -123,11 +125,14 @@ export function Sidebar({ onClose }: SidebarProps) {
           {agents.map((agent) => {
             const isCurrent = activeView === 'agent-detail' && selectedAgentId === agent.id;
             return (
-              <button
+              <Tooltip
                 key={agent.id}
+                content={`${agent.name} — ${agent.detection.installed ? agent.detection.version || 'installed' : 'not installed'}`}
+              >
+              <button
                 className={`nav-item ${isCurrent ? 'active' : ''}`}
                 onClick={() => openAgent(agent.id)}
-                title={`${agent.name} — ${agent.detection.installed ? agent.detection.version || 'installed' : 'not installed'}`}
+                aria-current={isCurrent ? 'page' : undefined}
               >
                 <AgentIconTile
                   icon={iconForAgent(agent.id)}
@@ -142,6 +147,7 @@ export function Sidebar({ onClose }: SidebarProps) {
                   <span className="status-dot status-dot--off" aria-label="not installed" />
                 )}
               </button>
+              </Tooltip>
             );
           })}
         </div>
@@ -151,6 +157,7 @@ export function Sidebar({ onClose }: SidebarProps) {
           <button
             className={`nav-item ${activeView === 'settings' ? 'active' : ''}`}
             onClick={() => setActiveView('settings')}
+            aria-current={activeView === 'settings' ? 'page' : undefined}
           >
             <Settings className="nav-item-icon" />
             <span className="flex-1 truncate">Settings</span>

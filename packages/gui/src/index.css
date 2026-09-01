@@ -1,4 +1,11 @@
 /* AI Agent Config Manager — Agentic Control Plane design tokens (v2).
+
+   RESPONSIVE SCALE (audit B3) — three canonical breakpoints; do not add
+   ad-hoc widths:
+     phone    ≤ 640px   dense tables, single-column stats, tightened modals
+     mobile   ≤ 768px   app drawer (sidebar), page gutters compress
+     tablet   ≤ 900px   two-column dashboard/agent-detail grids collapse
+   (1024px stays a single utility escape hatch for the lg:hidden rule.)
    Single source of truth for all color, type, spacing, radius, and motion.
    Components consume tokens only — no hex literals in component code.
    Canonical spec: docs/epics/agentic-control-plane-redesign-v2.md */
@@ -18,7 +25,7 @@
   /* Text */
   --text-primary: #17151f;
   --text-secondary: #4c4959;
-  --text-tertiary: #6b687a;
+  --text-tertiary: #5f5c6e; /* AA on --bg-secondary cards at 11–12px (audit E1) */
   --text-inverse: #f7f6fb;
 
   /* Borders */
@@ -80,9 +87,11 @@
   --text-size-sm: 13px;
   --text-size-base: 14px;
   --text-size-md: 15px;
-  --text-size-lg: 18px;
+  /* lg/2xl align with the .text-lg/.text-2xl utilities that render them;
+     18/28 were never the rendered sizes anywhere (audit C4). */
+  --text-size-lg: 16px;
   --text-size-xl: 20px;
-  --text-size-2xl: 28px;
+  --text-size-2xl: 24px;
   --text-size-3xl: 32px;
 
   /* Spacing — 4/8/12/16/24px scale (--space-5/7/8 kept for compatibility) */
@@ -107,66 +116,14 @@
 }
 
 /* ── Dark theme ──────────────────────────────────────────────────────────
-   Two triggers, identical values (invariant: first-run vs toggle must
-   resolve to the same colors). html[data-theme='dark'] wins over the
-   media query; the media query is disabled when the user chose light.
-   CANONICAL DARK TOKENS — keep the two blocks below in exact sync. */
+   SINGLE canonical block — no mirrored prefers-color-scheme copy. The
+   runtime resolves data-theme before first paint (index.html pre-paint
+   script) and on OS changes (ThemeToggle's matchMedia listener):
+   - stored "dark"        → data-theme="dark"  (this block)
+   - stored "light"       → data-theme="light" (no dark tokens)
+   - nothing stored, OS dark → data-theme="dark" (this block)
+   - nothing stored, OS light → no attribute (light defaults above) */
 
-/* OS-follow dark (no explicit user choice) */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    color-scheme: dark;
-    --bg-canvas: #0e0e13;
-    --bg-primary: #16161d;
-    --bg-secondary: #1c1c25;
-    --bg-tertiary: #22222d;
-    --bg-hover: #22222d;
-    --bg-active: #2b2b37;
-
-    --text-primary: #f3f2f8;
-    --text-secondary: #b7b4c4;
-    --text-tertiary: #8b899b;
-    --text-inverse: #0e0e13;
-
-    --border-primary: #2b2b37;
-    --border-secondary: #3a3a4a;
-    --border-focus: #b6a3ff;
-
-    --accent-primary: #8d70ff; /* brand-only (fills, borders, dots, focus rings); use --accent-primary-text for readable text */
-    --accent-primary-hover: #9a8cff;
-    --accent-secondary: #8ab8ff;
-    --accent-primary-text: #b6a3ff; /* text-safe variant of --accent-primary; brand hex fails AA at small sizes */
-
-    --accent-success: #22e6a0; /* brand-only; use --accent-success-text for readable text */
-    --accent-warning: #ffb020; /* brand-only; use --accent-warning-text for readable text */
-    --accent-error: #ff5c72; /* brand-only; use --accent-error-text for readable text */
-    --accent-info: #5b9dff; /* brand-only; use --accent-info-text for readable text */
-    --accent-success-text: #5eeab8; /* text-safe variant of --accent-success; brand hex fails AA at small sizes */
-    --accent-warning-text: #ffb020; /* text-safe variant of --accent-warning (passes AA on dark) */
-    --accent-error-text: #ff8a9a; /* text-safe variant of --accent-error; brand hex fails AA at small sizes */
-    --accent-info-text: #8ab8ff; /* text-safe variant of --accent-info; brand hex fails AA at small sizes */
-
-    --anthropic-accent: #e8927c;
-    --cat-olive: #b3bd8a;
-    --provider-anthropic: #d4b160;
-    --provider-openai: #7fb3d5;
-    --provider-bedrock: #e0a05c;
-    --provider-vertex: #8fa3d9;
-
-    --elevation-1: 0 1px 2px 0 rgb(0 0 0 / 0.35);
-    --elevation-2: 0 6px 14px -3px rgb(0 0 0 / 0.42), 0 2px 4px -2px rgb(0 0 0 / 0.32);
-    --elevation-3: 0 20px 40px -10px rgb(0 0 0 / 0.55), 0 8px 16px -8px rgb(0 0 0 / 0.42);
-    --shadow-sm: var(--elevation-1);
-    --shadow-md: var(--elevation-2);
-    --shadow-lg: var(--elevation-3);
-    --shadow-elevated: var(--elevation-3);
-
-    --surface-glass: rgba(28, 28, 37, 0.62);
-  }
-}
-
-/* Explicit dark mode (user pinned via the theme toggle).
-   Values MUST mirror the prefers-color-scheme block above. */
 html[data-theme="dark"] {
   color-scheme: dark;
   --bg-canvas: #0e0e13;
@@ -228,6 +185,7 @@ body,
 #root {
   height: 100%;
   width: 100%;
+  overflow-x: hidden;
 }
 
 body {
@@ -240,7 +198,13 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Scrollbar */
+/* Scrollbar — Firefox parity (audit B4) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-secondary) var(--bg-secondary);
+}
+
+/* Chromium/Safari */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -438,41 +402,13 @@ body {
   box-shadow: var(--shadow-lg);
 }
 
-/* ── Numeric display — Space Grotesk with tabular figures for stat numbers.
-     Defined for downstream tasks (M032 dashboard); not applied yet. */
-.numeric-display,
+/* ── Numeric display — display face with tabular figures for stat numbers. */
 .stat-figure {
   font-family: var(--font-display);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
 }
 
-/* ── Glass surface — frosted panel over --surface-glass with a subtle border.
-     Defined for downstream tasks; not applied yet. */
-.glass-surface {
-  background: var(--surface-glass);
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  backdrop-filter: blur(var(--glass-blur));
-  border: 1px solid var(--border-primary);
-}
-
-/* ── Ambient glow — soft radial accent glow for use behind key panels
-     (position absolute, behind content). Defined for downstream tasks. */
-.ambient-glow {
-  background: radial-gradient(
-    ellipse at center,
-    color-mix(in srgb, var(--accent-primary) 16%, transparent) 0%,
-    color-mix(in srgb, var(--accent-primary) 6%, transparent) 45%,
-    transparent 75%
-  );
-}
-
-/* ── Grain texture — inline SVG feTurbulence noise at ~3% opacity.
-     Defined for downstream tasks; not applied yet. */
-.grain-texture {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
-  background-repeat: repeat;
-}
 .shadow-elevated {
   box-shadow: var(--shadow-elevated);
 }
@@ -521,17 +457,20 @@ body {
 .text-tertiary {
   color: var(--text-tertiary);
 }
+/* Accent-as-text utilities — the AA-safe -text variants. The brand
+   tokens (--accent-*) are fills/borders only (see :root comments); at
+   11–12px they fail 4.5:1 on light surfaces. */
 .text-accent {
-  color: var(--accent-primary);
+  color: var(--accent-primary-text);
 }
 .text-success {
-  color: var(--accent-success);
+  color: var(--accent-success-text);
 }
 .text-warning {
-  color: var(--accent-warning);
+  color: var(--accent-warning-text);
 }
 .text-error {
-  color: var(--accent-error);
+  color: var(--accent-error-text);
 }
 .text-left {
   text-align: left;
@@ -717,9 +656,6 @@ body {
 .bg-bg-canvas\/95 {
   background-color: color-mix(in srgb, var(--bg-canvas) 95%, transparent);
 }
-.bg-bg-primary {
-  background-color: var(--bg-primary);
-}
 .bg-bg-primary\/95 {
   background-color: color-mix(in srgb, var(--bg-primary) 95%, transparent);
 }
@@ -765,7 +701,7 @@ body {
   padding: 8px;
 }
 
-/* Agent chip (provider/mcp → agent) */
+/* Agent chip (provider/mcp → agent) — 11px text uses the AA-safe variant */
 .chip {
   display: inline-flex;
   align-items: center;
@@ -775,15 +711,18 @@ body {
   font-weight: 500;
   border-radius: var(--radius-full);
   background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
-  color: var(--accent-primary);
+  color: var(--accent-primary-text);
 }
 
+/* Chip remove button — 28×28 visual center via padding so the hit area
+   clears the 44px touch-target floor without growing the pill. */
 .chip button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 14px;
-  height: 14px;
+  width: 28px;
+  height: 28px;
+  margin: -6px -4px;
   border: none;
   background: transparent;
   color: inherit;
@@ -905,7 +844,8 @@ body {
   border-radius: var(--radius-full);
   border: 1px solid transparent;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast),
+    box-shadow var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
   white-space: nowrap;
 }
 
@@ -997,7 +937,7 @@ body {
   background: var(--bg-primary);
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-md);
-  transition: all var(--transition-fast);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .input:focus {
@@ -1170,36 +1110,6 @@ select.input {
   background: var(--bg-tertiary);
 }
 
-/* Dashboard agent table — clickable rows + provider count pill */
-.row-clickable {
-  cursor: pointer;
-  transition: background var(--transition-fast, 120ms);
-}
-.row-clickable:hover {
-  background: var(--bg-tertiary);
-}
-
-.dash-provider-count {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 10px;
-  border-radius: var(--radius-full);
-  background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
-  color: var(--accent-primary);
-}
-
-.dash-provider-num {
-  font-size: 14px;
-  font-weight: 700;
-  font-family: var(--font-display);
-}
-
-.dash-provider-label {
-  font-size: 11px;
-  opacity: 0.8;
-}
-
 @media (max-width: 900px) {
   .adr-grid {
     grid-template-columns: 1fr;
@@ -1235,21 +1145,24 @@ select.input {
   border-radius: var(--radius-full);
 }
 
+/* Badge text uses the AA-safe -text variants — badges are 11px/500, well
+   below the large-text threshold, so the brand hexes fail 4.5:1 on the
+   tinted backgrounds. Backgrounds keep the brand tokens (fills). */
 .badge-primary {
   background: color-mix(in srgb, var(--accent-primary) 15%, transparent);
-  color: var(--accent-primary);
+  color: var(--accent-primary-text);
 }
 .badge-success {
   background: color-mix(in srgb, var(--accent-success) 15%, transparent);
-  color: var(--accent-success);
+  color: var(--accent-success-text);
 }
 .badge-warning {
   background: color-mix(in srgb, var(--accent-warning) 15%, transparent);
-  color: var(--accent-warning);
+  color: var(--accent-warning-text);
 }
 .badge-error {
   background: color-mix(in srgb, var(--accent-error) 15%, transparent);
-  color: var(--accent-error);
+  color: var(--accent-error-text);
 }
 .badge-neutral {
   background: var(--bg-tertiary);
@@ -1313,8 +1226,8 @@ select.input {
   position: relative;
   display: inline-flex;
   align-items: center;
-  width: 30px;
-  height: 18px;
+  width: 44px;
+  height: 24px;
   border-radius: var(--radius-full);
   background: var(--bg-active);
   transition: background var(--transition-fast);
@@ -1327,10 +1240,10 @@ select.input {
 
 .switch-thumb {
   position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 14px;
-  height: 14px;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   background: #ffffff;
   box-shadow: var(--shadow-sm);
@@ -1338,12 +1251,13 @@ select.input {
 }
 
 .switch-on .switch-thumb {
-  transform: translateX(12px);
+  transform: translateX(22px);
 }
 
 /* Tables */
 .table-container {
-  overflow-x: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .table {
@@ -1363,6 +1277,9 @@ select.input {
   font-weight: 600;
   color: var(--text-secondary);
   background: var(--bg-secondary);
+  /* Sticky only where the .table-container itself is the vertical scroller
+     (audit A10); elsewhere the page container scrolls, making the rule a
+     silent no-op — no harm, kept for containers that do scroll. */
   position: sticky;
   top: 0;
 }
@@ -1391,6 +1308,21 @@ select.input {
   max-width: 220px;
   overflow-wrap: break-word;
   word-break: normal;
+}
+
+/* Phones: drop the width floors so the identity column keeps breathing
+   room and paths wrap vertically — the table scrolls vertically instead
+   of forcing a 620px+ horizontal scroll (audit B1). */
+@media (max-width: 640px) {
+  .agents-table .path-cell {
+    min-width: 0;
+    max-width: none;
+    font-size: 11px;
+    line-height: 1.45;
+  }
+  .agents-table .table {
+    font-size: 12.5px;
+  }
 }
 
 /* ============================================================================
@@ -1475,7 +1407,9 @@ select.input {
   margin-top: 2px;
 }
 
-/* Tertiary actions — hidden until row hover (or keyboard focus) */
+/* Tertiary actions — hidden until row hover (or keyboard focus); on
+   coarse-pointer devices (touch) there is no hover, so they stay
+   visible at all times instead of being undiscoverable. */
 .mcp-row-actions {
   opacity: 0;
   transition: opacity var(--transition-fast);
@@ -1484,6 +1418,12 @@ select.input {
 .mcp-table tr:hover .mcp-row-actions,
 .mcp-table tr:focus-within .mcp-row-actions {
   opacity: 1;
+}
+
+@media (hover: none) {
+  .mcp-row-actions {
+    opacity: 1;
+  }
 }
 
 /* Installed On — avatar stack, capped at 4, hover-reveals the full list */
@@ -1515,10 +1455,10 @@ select.input {
 
 .mcp-avatar-remove {
   position: absolute;
-  top: -4px;
-  right: -4px;
-  width: 15px;
-  height: 15px;
+  top: -8px;
+  right: -8px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1576,8 +1516,19 @@ select.input {
   box-shadow: var(--shadow-lg);
 }
 
-.mcp-agent-stack-wrap:hover .mcp-agent-list {
+/* Keyboard parity with hover (audit A3): the wrap contains the remove
+   buttons, so :focus-within opens the list for keyboard users too. */
+.mcp-agent-stack-wrap:hover .mcp-agent-list,
+.mcp-agent-stack-wrap:focus-within .mcp-agent-list {
   display: flex;
+}
+
+/* Touch has no hover or focus-within — keep the list open so the
+   remove buttons stay reachable (matches the row-actions treatment). */
+@media (hover: none) {
+  .mcp-agent-list {
+    display: flex;
+  }
 }
 
 .mcp-agent-list-item {
@@ -1589,46 +1540,8 @@ select.input {
   white-space: nowrap;
 }
 
-/* Tabs */
-.tabs {
-  display: flex;
-  gap: 4px;
-  border-bottom: 1px solid var(--border-primary);
-  padding-bottom: 1px;
-}
-
-.tab {
-  padding: 10px 16px;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-md) var(--radius-md) 0 0;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  position: relative;
-}
-
-.tab:hover {
-  color: var(--text-primary);
-  background: var(--bg-hover);
-}
-
-.tab.active {
-  color: var(--accent-primary);
-}
-
-.tab.active::after {
-  content: "";
-  position: absolute;
-  bottom: -1px;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: var(--accent-primary);
-  border-radius: 2px 2px 0 0;
-}
+/* Tabs — the .tabs/.tab system is retired (audit C2): zero TSX references.
+   The live tab component is .tab-list/.tab-btn (see provider detail). */
 
 /* Sidebar */
 .sidebar {
@@ -2303,9 +2216,7 @@ select.input {
 }
 
 /* Keeps skill card heights aligned in the grid when descriptions wrap. */
-.skill-card-desc {
-  min-height: 2.5em;
-}
+
 
 /* Windowed "All skills" list (M045): fixed-height rows, virtualized slice —
    mirrors .agent-window so a machine with hundreds of agent-installed skills
@@ -2429,7 +2340,17 @@ select.input {
   color: inherit;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  padding: 6px; /* 12px visual + padding ≈ 24–28px hit area (audit A5) */
+  margin: -6px;  /* cancel the padding visually */
   line-height: 0;
+  border-radius: var(--radius-full);
+}
+
+.badge-chip-remove:focus-visible,
+.badge-chip-copy:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 0;
 }
 .badge-chip-remove:hover:not(:disabled),
 .badge-chip-copy:hover:not(:disabled) {
@@ -2606,15 +2527,42 @@ textarea.input {
     left: 0;
     top: 0;
     bottom: 0;
+    height: auto; /* override the base height: 100% so the fixed overlay
+                     spans exactly the viewport and the header (with the
+                     Close button) stays reachable at small heights */
     z-index: 100;
     transform: translateX(-100%);
     transition: transform var(--transition-normal);
+    box-shadow: var(--shadow-lg);
   }
 
   .sidebar.open {
     transform: translateX(0);
   }
+
 }
+
+/* Scrim behind the open mobile sidebar (audit B2): dims + blocks
+   interaction with the page, click dismisses. Base rule hides it on
+   desktop (>768px) where the sidebar is static and no scrim is wanted. */
+.sidebar-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 90; /* below .sidebar (100), above page content */
+  display: none;
+  background: rgb(0 0 0 / 0.45);
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+@media (max-width: 768px) {
+  .sidebar-scrim.visible {
+    display: block;
+    animation: fadeIn 150ms ease;
+  }
+}
+
 /* ============================================================================
    Typography
    ============================================================================ */
@@ -2651,8 +2599,6 @@ h3 {
 
 /* All numeric displays use tabular figures (audit A4). */
 .tabular-nums,
-.stat-value,
-.dash-provider-num,
 .adr-stat-value,
 .nav-item-count {
   font-variant-numeric: tabular-nums;
@@ -2804,7 +2750,7 @@ textarea {
   font-size: 11px;
   font-weight: 600;
   padding: 2px 8px;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   letter-spacing: 0.02em;
   white-space: nowrap;
   /* subtle tinted outline so the pill stays legible on both light and dark */
@@ -2872,6 +2818,13 @@ textarea {
   opacity: 1;
 }
 
+/* Coarse pointers (touch) have no hover — keep actions visible. */
+@media (hover: none) {
+  .providers-table .row-actions {
+    opacity: 1;
+  }
+}
+
 /* Avatar stack — overlapping agent icon circles replacing the chip wall. */
 .avatar-stack {
   position: relative;
@@ -2935,6 +2888,15 @@ textarea {
 .avatar-stack:hover .avatar-pop,
 .avatar-stack:focus-within .avatar-pop {
   display: block;
+}
+
+/* Touch: no hover — keep the full agent list visible (audit A4). */
+@media (hover: none) {
+  .avatar-pop {
+    display: block;
+    position: static;
+    margin-top: 6px;
+  }
 }
 
 .avatar-pop-row {
@@ -3101,7 +3063,7 @@ textarea {
 }
 
 /* ============================================================================
-   Windowed agent list (AgentsView) — fixed-height rows, virtualized slice
+   Windowed lists (AgentsView / SkillsView) — shared virtualization chrome
    ============================================================================ */
 
 .agent-window {
@@ -3123,129 +3085,6 @@ textarea {
   will-change: transform;
 }
 
-.agent-row {
-  display: grid;
-  grid-template-columns: 40px minmax(180px, 1.4fr) minmax(150px, 1fr) minmax(120px, 0.9fr) 96px;
-  align-items: center;
-  gap: 14px;
-  height: var(--agent-row-h, 60px);
-  padding: 0 16px;
-  border-bottom: 1px solid var(--border-primary);
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-
-.agent-row:hover {
-  background: var(--bg-hover);
-}
-
-.agent-row:focus-visible {
-  outline: 2px solid var(--accent-primary);
-  outline-offset: -2px;
-}
-
-.agent-row-identity {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-}
-
-.agent-row-meta {
-  min-width: 0;
-}
-
-.agent-row-name {
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  line-height: 1.3;
-}
-
-.agent-row-sub {
-  font-size: 11px;
-  color: var(--text-tertiary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-family: var(--font-mono);
-}
-
-.agent-row-state {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.agent-row-chevron {
-  color: var(--text-tertiary);
-  display: flex;
-  justify-content: flex-end;
-}
-
-/* "Available to Install" windowed rows — fixed height for the window math. */
-.avail-window {
-  max-height: 420px;
-}
-
-.avail-row {
-  display: grid;
-  grid-template-columns: 32px minmax(0, 1.6fr) minmax(150px, 1fr) 110px;
-  align-items: center;
-  gap: 14px;
-  padding: 0 16px;
-  border-bottom: 1px solid var(--border-primary);
-  transition: background 0.15s ease;
-}
-
-.avail-row:hover {
-  background: var(--bg-hover);
-}
-
-.avail-meta {
-  min-width: 0;
-}
-
-.avail-name-row {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  min-width: 0;
-}
-
-.avail-name {
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  line-height: 1.3;
-}
-
-.avail-id {
-  font-size: 11px;
-  color: var(--text-tertiary);
-  font-family: var(--font-mono);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: block;
-}
-
-@media (max-width: 720px) {
-  .avail-row {
-    grid-template-columns: 32px minmax(0, 1fr) 110px;
-  }
-  .avail-row .api-badge-row {
-    display: none;
-  }
-}
-
 /* ============================================================================
    Per-protocol verification ticks (✓ / ✗ per wire protocol)
    ============================================================================ */
@@ -3264,19 +3103,20 @@ textarea {
   font-weight: 600;
   font-family: var(--font-mono);
   padding: 1px 7px;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border-primary);
   color: var(--text-tertiary);
 }
 
+/* 10.5px mono text — AA-safe -text variants (brand hexes fail 4.5:1) */
 .proto-tick.is-ok {
-  color: var(--accent-success);
+  color: var(--accent-success-text);
   border-color: color-mix(in srgb, var(--accent-success) 40%, transparent);
   background: color-mix(in srgb, var(--accent-success) 11%, transparent);
 }
 
 .proto-tick.is-fail {
-  color: var(--accent-error);
+  color: var(--accent-error-text);
   border-color: color-mix(in srgb, var(--accent-error) 36%, transparent);
   background: color-mix(in srgb, var(--accent-error) 10%, transparent);
 }
@@ -3291,22 +3131,6 @@ textarea {
   gap: 20px;
 }
 
-.stat-card-hover {
-  transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color
-    var(--transition-fast);
-}
-
-.stat-card-hover:hover {
-  transform: translateY(-2px);
-  border-color: var(--border-secondary);
-  box-shadow: var(--shadow-md);
-}
-
-.stat-card-hover:focus-visible {
-  outline: 2px solid var(--accent-primary);
-  outline-offset: 2px;
-}
-
 /* --- Display type tier -----------------------------------------------------
    Page titles outrank card titles (14px) and body (14px). Values use the
    display face at a large size with tabular numerals so counts read as the
@@ -3318,16 +3142,6 @@ textarea {
   line-height: 1.15;
   letter-spacing: -0.02em;
   color: var(--text-primary);
-}
-
-.stat-value {
-  font-family: var(--font-display);
-  font-size: 30px;
-  font-weight: 600;
-  line-height: 1.05;
-  letter-spacing: -0.02em;
-  color: var(--text-primary);
-  font-variant-numeric: tabular-nums;
 }
 
 /* --- Bento stat grid (Dashboard overview) -----------------------------------
@@ -3373,6 +3187,18 @@ textarea {
 .bento-card:focus-visible {
   outline: 2px solid var(--border-focus);
   outline-offset: 2px;
+}
+
+/* Static bento tile (audit C3): same chrome as the dashboard tiles for
+   non-interactive KPI rows (Skills/Tools), without pointer affordances. */
+.bento-card--static {
+  cursor: default;
+  appearance: none;
+}
+
+.bento-card--static:hover {
+  border-color: var(--border-primary);
+  box-shadow: none;
 }
 
 .bento-card-label {
@@ -3860,6 +3686,13 @@ textarea {
   opacity: 1;
 }
 
+/* Touch: no hover — keep actions visible (audit A4). */
+@media (hover: none) {
+  .env-row-actions {
+    opacity: 1;
+  }
+}
+
 /* Read-only rows: the reason is always visible (honesty principle — a
    disabled control never appears without an explanation). */
 .env-readonly-reason {
@@ -3874,4 +3707,58 @@ textarea {
   border-top: 1px solid var(--border-primary);
   font-size: var(--text-size-xs);
   color: var(--text-tertiary);
+}
+
+/* ============================================================================
+   Tooltip (audit A9) — themeable, touch-capable replacement for native
+   title tooltips. Rendered as a fixed-position portal, positioned by the
+   Tooltip component against its trigger.
+   ============================================================================ */
+
+.tooltip {
+  z-index: 1100; /* above modals (1000), toasts (1001), sidebar (100) */
+  max-width: 320px;
+  padding: 6px 10px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  font-size: var(--text-size-xs);
+  line-height: 1.5;
+  position: relative;
+  overflow-wrap: anywhere; /* registry paths and ids never overflow */
+}
+
+/* Arrow — a rotated square riding the tip's edge. */
+.tooltip::after {
+  content: '';
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: var(--bg-tertiary);
+  border-right: 1px solid var(--border-secondary);
+  border-bottom: 1px solid var(--border-secondary);
+  transform: rotate(45deg);
+}
+
+.tooltip--top::after {
+  bottom: -5px;
+  left: 50%;
+  margin-left: -4px;
+}
+
+.tooltip--bottom::after {
+  top: -5px;
+  left: 50%;
+  margin-left: -4px;
+  transform: rotate(225deg);
+}
+
+/* Long content (paths, multi-clause help) wraps instead of truncating —
+   the core native-title failure this primitive exists to fix. */
+.tooltip code,
+.tooltip .font-mono {
+  font-size: 11px;
+  word-break: break-all;
 }

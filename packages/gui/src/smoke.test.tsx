@@ -64,6 +64,7 @@ const { apiMock } = vi.hoisted(() => {
     deleteMCP: vi.fn(),
     addCustomAgent: vi.fn(),
     checkAgentDrift: vi.fn(),
+    resyncAgent: vi.fn(),
     updateCustomAgent: vi.fn(),
     deleteCustomAgent: vi.fn(),
     getAgentConfig: vi.fn(),
@@ -201,7 +202,6 @@ beforeEach(() => {
     platform: 'darwin',
     loading: false,
     error: null,
-    authError: false,
     activeView: 'overview',
     selectedAgentId: null,
     sidebarOpen: true,
@@ -950,12 +950,12 @@ describe('M071: drift detection badge', () => {
         changedServers: [],
       },
     });
-    apiMock.updateCustomAgent.mockResolvedValue({ ok: true, status: 200, data: { success: true } });
+    apiMock.resyncAgent.mockResolvedValue({ ok: true, status: 200, data: { success: true } });
     render(<AgentsView />);
     await screen.findByRole('heading', { name: 'Agents' });
     const resync = await screen.findByRole('button', { name: 'Re-sync' });
     fireEvent.click(resync);
-    expect(apiMock.updateCustomAgent).toHaveBeenCalledWith('claude-code', {});
+    expect(apiMock.resyncAgent).toHaveBeenCalledWith('claude-code');
     // Re-check fired after the push.
     await waitFor(() => {
       expect(apiMock.checkAgentDrift).toHaveBeenCalledTimes(2);

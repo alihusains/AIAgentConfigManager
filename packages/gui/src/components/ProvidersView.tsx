@@ -4,7 +4,7 @@ import { useStore } from '../store';
 import { AgentPicker } from './AgentPicker';
 import { AgentIcon } from './AgentIcon';
 import { ModelChecklist } from './ModelChecklist';
-import { Status } from '../ui';
+import { Status, Tooltip } from '../ui';
 import { ApiVerifier, providerApiLabel, ProtocolTicks } from './ProviderVerify';
 import type {
   ModelProvider,
@@ -83,14 +83,16 @@ function AgentAvatarStack({
         const supported = agentTakesModels(agents, id);
         const name = agent?.name || id;
         return (
-          <span
+          <Tooltip
             key={id}
-            className={`avatar${supported ? '' : ' avatar-dim'}`}
-            title={
+            content={
               supported
                 ? name
                 : `${name} — config format cannot store model providers (not written to its files)`
             }
+          >
+          <span
+            className={`avatar${supported ? '' : ' avatar-dim'}`}
           >
             {agent ? (
               <AgentIcon id={agent.id} size={14} />
@@ -98,12 +100,15 @@ function AgentAvatarStack({
               <span className="avatar-initials">{initialsFor(name)}</span>
             )}
           </span>
+          </Tooltip>
         );
       })}
       {remaining > 0 && (
-        <span className="avatar avatar-more" title={`${remaining} more agent(s)`}>
+        <Tooltip content={`${remaining} more agent(s)`}>
+        <span className="avatar avatar-more">
           +{remaining}
         </span>
+        </Tooltip>
       )}
       <div className="avatar-pop">
         {agentIds.map((id) => {
@@ -111,14 +116,17 @@ function AgentAvatarStack({
           const supported = agentTakesModels(agents, id);
           const name = agent?.name || id;
           return (
-            <span
+            <Tooltip
               key={id}
-              className={`avatar-pop-row${supported ? '' : ' avatar-dim'}`}
-              title={
+              content={
                 supported
                   ? undefined
                   : `${name}'s config format cannot store model providers — nothing was written to its files`
               }
+              disabled={supported}
+            >
+            <span
+              className={`avatar-pop-row${supported ? '' : ' avatar-dim'}`}
             >
               {agent ? (
                 <AgentIcon id={agent.id} size={14} />
@@ -128,12 +136,13 @@ function AgentAvatarStack({
               <span className="avatar-pop-name">{name}</span>
               <button
                 className="avatar-pop-remove"
-                title={`Remove from ${name}`}
+                aria-label={`Remove from ${name}`}
                 onClick={() => onToggle(id)}
               >
                 ×
               </button>
             </span>
+            </Tooltip>
           );
         })}
       </div>
@@ -219,11 +228,11 @@ export function ProvidersView() {
   };
 
   return (
-    <div className="p-4">
+    <div className="page-container">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="page-title">Model Providers</h2>
+          <h1 className="page-title">Model Providers</h1>
           <p className="text-secondary text-sm mt-1">
             One definition per provider — the registry installs it into every agent listed.
           </p>
@@ -283,13 +292,14 @@ export function ProvidersView() {
                               <p className="provider-name truncate">
                                 {provider.name}
                                 {keychainSecretRef && (
+                                  <Tooltip content="API key stored in OS keychain">
                                   <span
                                     className="badge badge-success ml-2 align-middle"
-                                    title="API key stored in OS keychain"
                                   >
                                     <Lock size={10} />
                                     keychain
                                   </span>
+                                  </Tooltip>
                                 )}
                               </p>
                               <p className="text-xs text-tertiary font-mono">{provider.id}</p>
@@ -308,26 +318,28 @@ export function ProvidersView() {
                           ) : apiCapabilities.supported.length === 0 ? (
                             <span className="text-xs text-error">no API confirmed</span>
                           ) : (
+                            <Tooltip content={`Verified ${new Date(apiCapabilities.verifiedAt).toLocaleString()}`}>
                             <span
                               className="text-xs text-secondary"
-                              title={`Verified ${new Date(apiCapabilities.verifiedAt).toLocaleString()}`}
                             >
                               {apiCapabilities.supported
                                 .map((k) => providerApiLabel(k))
                                 .join(' · ')}
                             </span>
+                            </Tooltip>
                           )}
                         </td>
                         <td>
                           {models.length === 0 ? (
                             <span className="text-xs text-tertiary">no models</span>
                           ) : (
+                            <Tooltip content={models.map((m) => m.name).join('\n')}>
                             <span
                               className="text-xs text-secondary"
-                              title={models.map((m) => m.name).join('\n')}
                             >
                               {models.length} model{models.length > 1 ? 's' : ''}
                             </span>
+                            </Tooltip>
                           )}
                         </td>
                         <td>
@@ -346,10 +358,10 @@ export function ProvidersView() {
                           </div>
                         </td>
                         <td>
+                          <Tooltip content="Toggle enabled">
                           <button
                             className="switch-row"
                             onClick={() => handleToggleEnabled(provider)}
-                            title="Toggle enabled"
                             role="switch"
                             aria-checked={provider.enabled}
                           >
@@ -366,6 +378,7 @@ export function ProvidersView() {
                               {provider.enabled ? 'Enabled' : 'Disabled'}
                             </span>
                           </button>
+                          </Tooltip>
                         </td>
                         <td>
                           <div className="row-actions flex items-center gap-1">
@@ -373,17 +386,18 @@ export function ProvidersView() {
                               !keychainSecretRef &&
                               typeof provider.config.apiKey === 'string' &&
                               provider.config.apiKey.length > 0 && (
+                                <Tooltip content="Move API key to OS keychain">
                                 <button
                                   className="btn-ghost btn-icon btn-sm"
-                                  title="Move API key to OS keychain"
                                   onClick={() => migrateToKeychain(provider.id)}
                                 >
                                   <Lock size={14} />
                                 </button>
+                                </Tooltip>
                               )}
+                            <Tooltip content="Details">
                             <button
                               className="btn-ghost btn-icon btn-sm"
-                              title="Details"
                               onClick={() =>
                                 setDetails({
                                   provider,
@@ -395,20 +409,23 @@ export function ProvidersView() {
                             >
                               <Eye size={14} />
                             </button>
+                            </Tooltip>
+                            <Tooltip content="Edit">
                             <button
                               className="btn-ghost btn-icon btn-sm"
-                              title="Edit"
                               onClick={() => setEditing(provider)}
                             >
                               <Edit size={14} />
                             </button>
+                            </Tooltip>
+                            <Tooltip content="Delete">
                             <button
                               className="btn-ghost btn-icon btn-sm text-error"
-                              title="Delete"
                               onClick={() => handleDelete(provider)}
                             >
                               <Trash2 size={14} />
                             </button>
+                            </Tooltip>
                           </div>
                         </td>
                       </tr>
@@ -807,16 +824,19 @@ export function AddProviderModal({ onClose, agents, existingIds }: AddProviderMo
                 {agents.map((agent) => {
                   const supported = agent.supports.modelProviders;
                   return (
-                    <label
+                    <Tooltip
                       key={agent.id}
-                      className={`flex items-center gap-2 px-2 py-1 hover:bg-bg-hover ${
-                        supported ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'
-                      }`}
-                      title={
+                      content={
                         supported
                           ? undefined
                           : `${agent.name}'s config format cannot store model providers — nothing would be written to its files`
                       }
+                      disabled={supported}
+                    >
+                    <label
+                      className={`flex items-center gap-2 px-2 py-1 hover:bg-bg-hover ${
+                        supported ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'
+                      }`}
                     >
                       <input
                         type="checkbox"
@@ -842,6 +862,7 @@ export function AddProviderModal({ onClose, agents, existingIds }: AddProviderMo
                         <span className="text-xs text-tertiary">path-based</span>
                       )}
                     </label>
+                    </Tooltip>
                   );
                 })}
               </div>

@@ -27,51 +27,6 @@ import type {
 } from '@ai-agent-config/core';
 
 // ============================================================================
-// Token
-// ============================================================================
-
-const TOKEN_KEY = 'ai-config-token';
-let cachedToken: string | null = null;
-
-declare global {
-  interface Window {
-    /** Injected into index.html by the local config server at serve time. */
-    __AI_CONFIG_TOKEN__?: string;
-  }
-}
-
-/**
- * The per-launch token arrives injected in the served HTML
- * (window.__AI_CONFIG_TOKEN__) so it never appears in the URL. Legacy ?t=
- * links are still honored and persisted for the session.
- */
-export function getToken(): string {
-  const injected = typeof window !== 'undefined' ? window.__AI_CONFIG_TOKEN__ : undefined;
-  if (injected) {
-    cachedToken = injected;
-    try {
-      localStorage.setItem(TOKEN_KEY, injected);
-    } catch {
-      /* ignore */
-    }
-    return cachedToken;
-  }
-  if (cachedToken) return cachedToken;
-  const fromUrl = new URLSearchParams(window.location.search).get('t');
-  cachedToken = fromUrl || localStorage.getItem(TOKEN_KEY) || '';
-  if (fromUrl) {
-    try {
-      localStorage.setItem(TOKEN_KEY, fromUrl);
-    } catch {
-      /* ignore */
-    }
-    // Clean the token out of the address bar.
-    window.history.replaceState(null, '', window.location.pathname + window.location.hash);
-  }
-  return cachedToken;
-}
-
-// ============================================================================
 // Transport
 // ============================================================================
 
@@ -88,14 +43,11 @@ async function request<T = unknown>(
   path: string,
   body?: unknown
 ): Promise<ApiEnvelope<T>> {
-  const token = getToken();
   let res: Response;
   try {
     res = await fetch(path, {
       method,
       headers: {
-        // Token travels in a header — the address bar stays clean.
-        ...(token ? { 'x-config-token': token } : {}),
         ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
       },
       body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -107,19 +59,9 @@ async function request<T = unknown>(
       status: 0,
     };
   }
-  // A 401 means the token this browser holds is stale or missing entirely.
-  // Drop the cached copy so a next launch with a fresh ?t= URL works again.
-  if (res.status === 401) {
-    cachedToken = null;
-    try {
-      localStorage.removeItem(TOKEN_KEY);
-    } catch {
-      /* ignore */
-    }
-  }
   try {
     const json = (await res.json()) as ApiEnvelope<T>;
-    // Server responses always carry `ok`; attach the status for auth handling.
+    // Server responses always carry `ok`; attach the status for callers.
     return { ...json, status: json.status ?? res.status };
   } catch {
     return {
@@ -389,6 +331,14 @@ export const api = {
       changedProviders: string[];
       changedServers: string[];
     }>('GET', `/api/agents/${encodeURIComponent(id)}/drift`),
+
+  /**
+   * Push the registry's version of this agent's registry-managed providers /
+   * MCP servers back over its config file — the inverse of the out-of-band
+   * edit drift detection flags. Agent-local entries are preserved.
+   */
+  resyncAgent: (id: string) =>
+    request<RegistryState>('POST', `/api/agents/${encodeURIComponent(id)}/resync`),
 
   // --- Agent catalog + lifecycle (install / uninstall) ---
   getAgentCatalog: () => request<AgentCatalogResponse>('GET', '/api/agents/catalog'),

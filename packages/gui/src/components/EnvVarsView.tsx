@@ -3,7 +3,7 @@ import { KeyRound, Eye, EyeOff, Plus, Edit, Trash2, Search, RefreshCw, Lock } fr
 import type { EnvVarEntry } from '@ai-agent-config/core';
 import { api } from '../api';
 import { useStore } from '../store';
-import { Badge, Button, EmptyState, Field, Modal, SectionHeader, Skeleton } from '../ui';
+import { Badge, Button, EmptyState, Field, Modal, SectionHeader, Skeleton, Tooltip } from '../ui';
 
 /**
  * EnvVarsView — the Environment page (M049).
@@ -83,9 +83,11 @@ const EnvVarRow = memo(function EnvVarRow({
         <div className="env-row-identity">
           <code className="env-var-name">{entry.name}</code>
           {entry.sourceFile && (
-            <p className="env-meta" title={entry.sourceFile}>
+            <Tooltip content={entry.sourceFile}>
+            <p className="env-meta">
               {entry.sourceFile}
             </p>
+            </Tooltip>
           )}
         </div>
       </td>
@@ -93,10 +95,10 @@ const EnvVarRow = memo(function EnvVarRow({
         <div className="flex items-center gap-1.5 min-w-0">
           <code className="env-var-value">{isRevealed ? revealedValue : entry.value}</code>
           {entry.looksSensitive && (
+            <Tooltip content={isRevealed ? 'Hide value' : 'Reveal value'}>
             <button
               type="button"
               className="btn-ghost btn-icon btn-sm env-reveal-btn"
-              title={isRevealed ? 'Hide value' : 'Reveal value'}
               aria-label={isRevealed ? `Hide ${entry.name} value` : `Reveal ${entry.name} value`}
               disabled={busy != null}
               onClick={() => onReveal(entry)}
@@ -109,6 +111,7 @@ const EnvVarRow = memo(function EnvVarRow({
                 <Eye size={14} />
               )}
             </button>
+            </Tooltip>
           )}
         </div>
       </td>
@@ -147,9 +150,11 @@ const EnvVarRow = memo(function EnvVarRow({
             </>
           ) : (
             <div className="flex items-center gap-1">
-              <span className="env-readonly-reason" title={entry.note}>
+              <Tooltip content={entry.note || 'Read-only'}>
+              <span className="env-readonly-reason">
                 {entry.note || 'Read-only'}
               </span>
+              </Tooltip>
               {isProcessOnlyAdoptable(entry) && (
                 <Button
                   variant="ghost"
@@ -382,7 +387,7 @@ export function EnvVarsView() {
   const editableCount = useMemo(() => vars?.filter((v) => v.editable).length ?? 0, [vars]);
 
   return (
-    <div className="p-4">
+    <div className="page-container">
       <SectionHeader
         title="Environment Variables"
         description="This machine's environment — process + shell profiles (macOS/Linux) or user/system registry (Windows). Secret-looking values are masked until you reveal them."

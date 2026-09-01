@@ -28,6 +28,7 @@ import { api } from '../api';
 import { Status } from '../ui';
 import { ProtocolTicks, ApiVerifier } from './ProviderVerify';
 import type { ProviderApiCapabilities } from '@ai-agent-config/core';
+import { Tooltip } from '../ui';
 
 const TABS = [
   { id: 'overview', label: 'Overview', icon: Database },
@@ -140,7 +141,7 @@ export function ProviderDetailView({ providerId }: ProviderDetailViewProps) {
         </button>
 
         <div className="flex items-center gap-3 flex-wrap">
-          <h1 className="text-xl font-semibold">{provider.name}</h1>
+          <h1 className="page-title">{provider.name}</h1>
           <span className="badge badge-primary">{provider.type}</span>
           <span className="text-xs text-tertiary font-mono">{provider.id}</span>
           {provider.enabled ? (
@@ -488,14 +489,15 @@ function ApiConfigTab({
         <h3 className="card-title">Base URL</h3>
         <div className="flex items-center gap-2">
           <code className="flex-1 text-sm break-all">{baseUrl || '—'}</code>
+          <Tooltip content="Copy base URL">
           <button
             className="btn-ghost btn-icon btn-sm"
-            title="Copy base URL"
             onClick={() => copy('url')}
             disabled={!baseUrl}
           >
             {copied === 'url' ? <Check size={14} /> : <Copy size={14} />}
           </button>
+          </Tooltip>
         </div>
       </section>
 
@@ -512,22 +514,24 @@ function ApiConfigTab({
                   : '••••••••'
               : '—'}
           </code>
+          <Tooltip content={revealed ? 'Hide API key' : 'Reveal API key'}>
           <button
             className="btn-ghost btn-icon btn-sm"
-            title={revealed ? 'Hide API key' : 'Reveal API key'}
             onClick={() => setRevealed((r) => !r)}
             disabled={!apiKey}
           >
             {revealed ? <EyeOff size={14} /> : <Eye size={14} />}
           </button>
+          </Tooltip>
+          <Tooltip content="Copy API key">
           <button
             className="btn-ghost btn-icon btn-sm"
-            title="Copy API key"
             onClick={() => copy('key')}
             disabled={!apiKey}
           >
             {copied === 'key' ? <Check size={14} /> : <Copy size={14} />}
           </button>
+          </Tooltip>
         </div>
         <p className="text-xs text-tertiary mt-2">
           Stored on this machine only — never sent anywhere else.

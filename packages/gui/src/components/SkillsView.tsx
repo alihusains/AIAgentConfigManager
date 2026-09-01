@@ -36,6 +36,7 @@ import {
   SectionHeader,
   Skeleton,
   StatCard,
+  Tooltip,
 } from '../ui';
 
 /**
@@ -121,24 +122,26 @@ const SkillRow = memo(function SkillRow({
           <span className="skill-row-meta flex-shrink-0">{skill.fileCount} files</span>
           {/* M073: View + Edit actions — available for EVERY skill regardless of library status. */}
           <span className="skill-row-actions flex-shrink-0">
+            <Tooltip content={`View ${skill.name} (SKILL.md)`}>
             <button
               type="button"
               className="skill-row-action-btn"
-              title={`View ${skill.name} (SKILL.md)`}
               aria-label={`View ${skill.name}`}
               onClick={() => onView(skill.id, inLibrary ? 'library' : onAgents[0]?.agentId)}
             >
               <Eye size={14} />
             </button>
+            </Tooltip>
+            <Tooltip content={`Edit ${skill.name} (SKILL.md)`}>
             <button
               type="button"
               className="skill-row-action-btn"
-              title={`Edit ${skill.name} (SKILL.md)`}
               aria-label={`Edit ${skill.name}`}
               onClick={() => onEdit(skill.id, inLibrary ? 'library' : onAgents[0]?.agentId)}
             >
               <Pencil size={14} />
             </button>
+            </Tooltip>
           </span>
         </div>
         <p className="skill-row-desc truncate">{skill.description ?? 'No description.'}</p>
@@ -148,10 +151,10 @@ const SkillRow = memo(function SkillRow({
         {inLibrary && (
           <span className="badge badge-chip">
             <span className="badge-chip-remove-wrap">
+              <Tooltip content={`Delete ${skill.name} from the library`}>
               <button
                 type="button"
                 className="badge-chip-remove"
-                title={`Delete ${skill.name} from the library`}
                 aria-label={`Delete ${skill.name} from the library`}
                 disabled={busy != null}
                 onClick={() => onDeleteFromLibrary(skill.id)}
@@ -162,10 +165,11 @@ const SkillRow = memo(function SkillRow({
                   <Trash2 size={12} />
                 )}
               </button>
+              </Tooltip>
+              <Tooltip content="Copy library skill to another agent">
               <button
                 type="button"
                 className="badge-chip-copy"
-                title="Copy library skill to another agent"
                 aria-label="Copy library skill to another agent"
                 disabled={busy != null || agents.length < 2}
                 aria-expanded={copySourceId === 'library'}
@@ -173,6 +177,7 @@ const SkillRow = memo(function SkillRow({
               >
                 <Link2 size={12} />
               </button>
+              </Tooltip>
             </span>
             Library
             {copySourceId === 'library' && (
@@ -216,10 +221,10 @@ const SkillRow = memo(function SkillRow({
               }`}
             >
               <span className="badge-chip-remove-wrap">
+                <Tooltip content={`Delete ${skill.name} from ${agent.name}`}>
                 <button
                   type="button"
                   className="badge-chip-remove"
-                  title={`Delete ${skill.name} from ${agent.name}`}
                   disabled={busy != null}
                   aria-label={`Delete ${skill.name} from ${agent.name}`}
                   onClick={() => onUnassign(skill.id, agent.agentId)}
@@ -230,10 +235,11 @@ const SkillRow = memo(function SkillRow({
                     <X size={12} />
                   )}
                 </button>
+                </Tooltip>
+                <Tooltip content={`Copy ${skill.name} to another agent`}>
                 <button
                   type="button"
                   className="badge-chip-copy"
-                  title={`Copy ${skill.name} to another agent`}
                   aria-label={`Copy ${skill.name} to another agent`}
                   disabled={busy != null || agents.length < 2}
                   aria-expanded={copyOpen}
@@ -241,6 +247,7 @@ const SkillRow = memo(function SkillRow({
                 >
                   <Link2 size={12} />
                 </button>
+                </Tooltip>
               </span>
               {agent.name}
               {copyOpen && (
@@ -517,9 +524,11 @@ export function SkillsView() {
     [addToast, load]
   );
 
-  // M073: Open the view/edit modal for a skill's SKILL.md.
+  // M073: Open the view/edit modal for a skill's SKILL.md. `mode` is part
+  // of the call-site signature but the modal infers mode from content
+  // writability, so it is intentionally unused here.
   const openViewEdit = useCallback(
-    async (skillId: string, location: string, mode: 'view' | 'edit') => {
+    async (skillId: string, location: string, _mode: 'view' | 'edit') => {
       const skill = snapshot?.allSkills.find((s) => s.id === skillId);
       if (!skill) return;
       setViewEditSkill({ id: skillId, name: skill.name, location });
@@ -690,7 +699,7 @@ export function SkillsView() {
   const visibleSkills = filteredSkills.slice(range.start, range.end);
 
   return (
-    <div>
+    <div className="page-container">
       <SectionHeader
         title="Skills"
         description="Every skill on this machine — the shared library plus each skill-capable agent's own skills."

@@ -200,6 +200,8 @@ export function expandPath(filePath: string): string {
   return resolveConfigPath(filePath);
 }
 
+export { isSafeConfigPath } from './path-safety';
+
 // ============================================================================
 // File Operations (Node.js + Tauri IPC)
 // ============================================================================
@@ -389,7 +391,7 @@ export async function getCommandVersion(
   for (const attempt of attempts) {
     try {
       const result = await runCommand(execTarget, [attempt], 15000);
-      const raw = (`${result.stdout || ''}\n${result.stderr || ''}`).trim();
+      const raw = `${result.stdout || ''}\n${result.stderr || ''}`.trim();
       const version = raw.split(/\r?\n/)[0].trim();
       if (version && !isErrorString(version)) return version;
     } catch {
@@ -439,15 +441,15 @@ function runNodeCommand(
 // Config Parsing
 // ============================================================================
 
-export function parseConfig(content: string, format: ConfigFormat): unknown {
+export function parseConfig(content: string, format: ConfigFormat): Record<string, unknown> {
   switch (format) {
     case 'json':
     case 'jsonc':
       return parseJSONC(content);
     case 'yaml':
-      return parseYAML(content);
+      return parseYAML(content) as Record<string, unknown>;
     case 'toml':
-      return parseTOML(content);
+      return parseTOML(content) as Record<string, unknown>;
     default:
       throw new Error(`Unsupported config format: ${format}`);
   }
@@ -555,8 +557,13 @@ function stripJSONCComments(content: string): string {
   return out;
 }
 
-function parseJSONC(content: string): unknown {
-  return JSON.parse(stripJSONCComments(content));
+function parseJSONC(content: string): Record<string, unknown> {
+  try {
+    return JSON.parse(stripJSONCComments(content)) as Record<string, unknown>;
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    throw new Error(`Invalid JSON/JSONC: ${reason}`);
+  }
 }
 
 function stringifyTOML(obj: unknown): string {

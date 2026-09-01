@@ -59,7 +59,12 @@ function makeProvider(id = 'p1', apiKey?: string): ModelProvider {
 }
 
 function makeEntry(provider: ModelProvider, keychainSecretRef?: string): RegistryProvider {
-  return { provider, models: [], agentIds: [], ...(keychainSecretRef ? { keychainSecretRef } : {}) };
+  return {
+    provider,
+    models: [],
+    agentIds: [],
+    ...(keychainSecretRef ? { keychainSecretRef } : {}),
+  };
 }
 
 describe('resolveProviderApiKey', () => {
@@ -82,10 +87,7 @@ describe('resolveProviderApiKey', () => {
   });
 
   it('fetches from the keychain when keychainSecretRef is set', async () => {
-    const entry = makeEntry(
-      makeProvider('p1', ''),
-      'provider:p1'
-    );
+    const entry = makeEntry(makeProvider('p1', ''), 'provider:p1');
     store.set('provider:p1', 'sk-from-keychain');
     const resolved = await resolveProviderApiKey(entry);
     expect(resolved).toBe('sk-from-keychain');
@@ -96,7 +98,9 @@ describe('resolveProviderApiKey', () => {
     const entry = makeEntry(makeProvider('p1', ''), 'provider:missing');
     expect(await resolveProviderApiKey(entry)).toBeNull();
     keychainAvailable = false;
-    expect(await resolveProviderApiKey(makeEntry(makeProvider('p2', ''), 'provider:p2'))).toBeNull();
+    expect(
+      await resolveProviderApiKey(makeEntry(makeProvider('p2', ''), 'provider:p2'))
+    ).toBeNull();
   });
 });
 
@@ -141,16 +145,23 @@ describe('AgentConfigManager importRegistry portability warnings (M061)', () => 
 
   it('warns for a custom agent whose config path is from a different OS, but still succeeds', async () => {
     const foreignPath =
-      process.platform === 'win32' ? '/Users/someone/.agent/config.json' : 'C:\\Users\\someone\\.agent\\config.json';
+      process.platform === 'win32'
+        ? '/Users/someone/.agent/config.json'
+        : 'C:\\Users\\someone\\.agent\\config.json';
     const result = await manager.importRegistry({
       providers: [],
       mcpServers: [],
       customAgents: [{ id: 'foreign-agent', name: 'Foreign Agent', configPath: foreignPath }],
     });
     expect(result.success).toBe(true);
+    // Two warnings: the portability notice, plus the materialization refusal
+    // (the foreign path is never written to — no literal `C:\...` file).
     expect(result.warnings).toEqual([
       "Custom agent 'Foreign Agent's config path looks like it's from a different OS. Update it before it's used.",
+      'foreign-agent: Error: Refusing to write config to "C:\\Users\\someone\\.agent\\config.json": not a valid absolute path on this OS',
     ]);
+    // The guard must have prevented any literal file from being created in the cwd.
+    expect(fs.existsSync(foreignPath)).toBe(false);
   });
 
   it('produces no portability warnings for a clean same-OS registry', async () => {
@@ -375,11 +386,7 @@ describe('AgentConfigManager keychain opt-in registration', () => {
   });
 
   it('non-opt-in registration is byte-for-byte unchanged (no keychain calls, key stays plaintext)', async () => {
-    const result = await manager.registerProvider(
-      makeProvider('p-plain', 'sk-plain-123'),
-      [],
-      []
-    );
+    const result = await manager.registerProvider(makeProvider('p-plain', 'sk-plain-123'), [], []);
     expect(result.success).toBe(true);
     const file = readRegistryFile();
     const entry = file.providers.find((p: any) => p.provider.id === 'p-plain');
@@ -438,7 +445,9 @@ describe('AgentConfigManager keychain opt-in registration', () => {
     expect(deleted.success).toBe(true);
     expect(keychain.deleteSecret).toHaveBeenCalledWith('provider:p-del');
     expect(store.has('provider:p-del')).toBe(false);
-    expect(readRegistryFile().providers.find((p: any) => p.provider.id === 'p-del')).toBeUndefined();
+    expect(
+      readRegistryFile().providers.find((p: any) => p.provider.id === 'p-del')
+    ).toBeUndefined();
 
     // Failing keychain: the registry deletion still succeeds (warning only).
     const result2 = await manager.registerProvider(
@@ -453,7 +462,9 @@ describe('AgentConfigManager keychain opt-in registration', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const deleted2 = await manager.deleteProvider('p-del2');
     expect(deleted2.success).toBe(true);
-    expect(readRegistryFile().providers.find((p: any) => p.provider.id === 'p-del2')).toBeUndefined();
+    expect(
+      readRegistryFile().providers.find((p: any) => p.provider.id === 'p-del2')
+    ).toBeUndefined();
     expect(keychain.deleteSecret).toHaveBeenCalledWith('provider:p-del2');
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
@@ -494,7 +505,9 @@ describe('AgentConfigManager keychain opt-in registration', () => {
     // "No registry found at  — nothing to migrate." } (empty path).
     expect(result.success).toBe(true);
     if (!result.success) throw new Error('expected success');
-    expect(result.data.providers.find((p: any) => p.provider.id === 'p-m069')?.keychainSecretRef).toBe('provider:p-m069');
+    expect(
+      result.data.providers.find((p: any) => p.provider.id === 'p-m069')?.keychainSecretRef
+    ).toBe('provider:p-m069');
     expect(store.get('provider:p-m069')).toBe(realKey);
 
     const file = JSON.parse(fs.readFileSync(registryPath, 'utf8'));

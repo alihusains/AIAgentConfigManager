@@ -28,3 +28,13 @@ dist/
 # Build artifacts
 packages/cli/vendor/
 *.tgz
+
+# Playwright artifacts (GUI responsive test runs)
+packages/gui/test-results/
+packages/gui/playwright-report/
+
+# Tooling / local-agent runtime state (never commit)
+.repowise/
+.vscode/
+.mcp.json
+agent-config-logo.jpeg

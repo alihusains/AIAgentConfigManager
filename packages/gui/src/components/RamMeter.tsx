@@ -11,6 +11,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
+import { Tooltip } from '../ui';
 
 interface Stats {
   rssBytes: number;
@@ -41,6 +42,8 @@ export function RamMeter() {
 
   useEffect(() => {
     let alive = true;
+    let id: ReturnType<typeof setInterval> | undefined;
+
     const tick = async () => {
       const res = await api.getSystemStats();
       if (!alive) return;
@@ -54,11 +57,32 @@ export function RamMeter() {
         setError(true);
       }
     };
-    void tick();
-    const id = setInterval(tick, 2000);
+
+    // Audit D3: don't poll a hidden tab. The interval starts on mount and
+    // on every visibility change; it stops whenever the tab is hidden.
+    const start = () => {
+      if (id === undefined && !document.hidden) {
+        void tick();
+        id = setInterval(tick, 2000);
+      }
+    };
+    const stop = () => {
+      if (id !== undefined) {
+        clearInterval(id);
+        id = undefined;
+      }
+    };
+    const onVisibility = () => {
+      if (document.hidden) stop();
+      else start();
+    };
+
+    start();
+    document.addEventListener('visibilitychange', onVisibility);
     return () => {
       alive = false;
-      clearInterval(id);
+      stop();
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, []);
 
@@ -67,7 +91,8 @@ export function RamMeter() {
     : 'loading…';
 
   return (
-    <div className='ram-meter' title={title}>
+    <Tooltip content={title} disabled={!stats}>
+    <div className='ram-meter'>
       <svg width={W} height={H} className='ram-meter-spark' aria-hidden='true'>
         {path ? (
           <path d={path} className='ram-meter-path' fill='none' strokeWidth='1.5' />
@@ -77,6 +102,7 @@ export function RamMeter() {
       </svg>
       <span className='ram-meter-value'>{stats ? fmtMB(stats.rssBytes) : error ? '—' : '…'}</span>
     </div>
+    </Tooltip>
   );
 }
 

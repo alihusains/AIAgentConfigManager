@@ -15,7 +15,9 @@
  *  SectionHeader view/group heading (title, description, actions slot)
  *  Field         form row (`.form-group` label + control + help)
  *  Toggle        accessible `.switch` on/off (role="switch")
- *  Modal         `.modal` dialog via portal; Escape + backdrop close, cleaned up
+ *  Modal         `.modal` dialog via portal; Escape + backdrop close, focus trap +
+ *                restore (audit A1)
+ *  Tooltip       hover/focus/long-press hint replacing native `title` (audit A9)
  *
  * Memoization notes: leaf/presentational components with primitive props are
  * wrapped in React.memo (Badge, Button, StatCard, EmptyState, SectionHeader,
@@ -35,3 +37,4 @@ export { Toggle, type ToggleProps } from './Toggle';
 export { Modal, type ModalProps } from './Modal';
 export { Status, type StatusProps, type StatusKind } from './Status';
 export { Skeleton, type SkeletonProps } from './Skeleton';
+export { Tooltip, type TooltipProps } from './Tooltip';

@@ -22,6 +22,7 @@ import {
   AlertTriangle,
   ChevronRight,
 } from 'lucide-react';
+import { Tooltip } from '../ui';
 
 type RawConfigResult = { path: string; content: string; exists: boolean };
 
@@ -78,9 +79,9 @@ function InfoRow({
         )}
       </div>
       {has && onReveal && (
-        <button className="btn-ghost btn-icon btn-sm" title="Reveal folder" onClick={onReveal}>
+        <Tooltip content="Reveal folder"><button className="btn-ghost btn-icon btn-sm" onClick={onReveal}>
           <FolderOpen size={14} />
-        </button>
+        </button></Tooltip>
       )}
     </div>
   );
@@ -200,7 +201,7 @@ export function AgentDetailView({ agentId }: { agentId: string | null }) {
           <AgentIconTile icon={icon} id={agentId} size={64} />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-2xl font-bold">{name}</h2>
+              <h1 className="text-2xl font-bold">{name}</h1>
               {installed ? (
                 <span className="badge badge-success">
                   <Check size={12} className="inline mr-1" />
@@ -235,9 +236,9 @@ export function AgentDetailView({ agentId }: { agentId: string | null }) {
                 <ExternalLink size={14} /> Website
               </a>
             )}
-            <button className="btn-secondary btn-sm" title="Refresh" disabled={loading || catalogLoading} onClick={() => { void loadCatalog(); void refreshAll(); }}>
+            <Tooltip content="Refresh"><button className="btn-secondary btn-sm" disabled={loading || catalogLoading} onClick={() => { void loadCatalog(); void refreshAll(); }}>
               <RefreshCw size={14} className={catalogLoading || loading ? 'animate-spin' : ''} />
-            </button>
+            </button></Tooltip>
             {installed && (
               <button className="btn-secondary btn-sm" onClick={() => viewConfig()}>
                 <FileCode size={14} /> View Config
@@ -266,13 +267,15 @@ export function AgentDetailView({ agentId }: { agentId: string | null }) {
             <p className="adr-stat-label">Providers</p>
           </div>
         </div>
-        <div className="adr-stat" title={mcpOverloaded ? `${mcpServers.length} MCP servers assigned — high server counts can slow an agent down or overwhelm its tool-selection` : undefined}>
+        <Tooltip content={mcpOverloaded ? `${mcpServers.length} MCP servers assigned — high server counts can slow an agent down or overwhelm its tool-selection` : undefined} disabled={!mcpOverloaded}>
+        <div className="adr-stat">
           <Server size={18} className={mcpOverloaded ? 'text-warning' : ''} />
           <div>
             <p className={mcpOverloaded ? 'text-warning' : ''}>{mcpServers.length}</p>
             <p className="adr-stat-label">MCP Servers{mcpOverloaded ? ' ⚠' : ''}</p>
           </div>
         </div>
+        </Tooltip>
         <div className="adr-stat">
           <FileText size={18} />
           <div>
@@ -367,9 +370,9 @@ export function AgentDetailView({ agentId }: { agentId: string | null }) {
                       )}
                     </p>
                   </div>
+                  <Tooltip content="Remove from this agent">
                   <button
                     className="btn-ghost btn-icon btn-sm"
-                    title="Remove from this agent"
                     onClick={async () => {
                       const ok = await useStore.getState().toggleProviderAgent(entry.provider.id, agentId);
                       if (ok) addToast({ type: 'success', title: 'Removed', message: `${entry.provider.name} removed from ${name}` });
@@ -377,6 +380,7 @@ export function AgentDetailView({ agentId }: { agentId: string | null }) {
                   >
                     <XIcon size={14} />
                   </button>
+                  </Tooltip>
                 </div>
               ))}
             </div>
@@ -390,7 +394,6 @@ export function AgentDetailView({ agentId }: { agentId: string | null }) {
               MCP Servers
               <span
                 className={`badge ml-2 ${mcpOverloaded ? 'badge-warning' : 'badge-primary'}`}
-                title={mcpOverloaded ? `${mcpServers.length} MCP servers assigned — high server counts can slow an agent down or overwhelm its tool-selection` : undefined}
               >
                 {mcpOverloaded && <AlertTriangle size={12} className="inline mr-1" />}
                 {mcpServers.length}
@@ -427,9 +430,9 @@ export function AgentDetailView({ agentId }: { agentId: string | null }) {
                       {entry.server.command || entry.server.url || '—'}
                     </p>
                   </div>
+                  <Tooltip content="Remove from this agent">
                   <button
                     className="btn-ghost btn-icon btn-sm"
-                    title="Remove from this agent"
                     onClick={async () => {
                       const ok = await useStore.getState().toggleMCPAgent(entry.server.name, agentId);
                       if (ok) addToast({ type: 'success', title: 'Removed', message: `${entry.server.name} removed from ${name}` });
@@ -437,6 +440,7 @@ export function AgentDetailView({ agentId }: { agentId: string | null }) {
                   >
                     <XIcon size={14} />
                   </button>
+                  </Tooltip>
                 </div>
               ))}
             </div>

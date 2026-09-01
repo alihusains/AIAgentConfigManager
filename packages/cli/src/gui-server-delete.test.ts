@@ -46,7 +46,7 @@ function makeModel(providerId: string): ModelConfig {
 
 /** Issue a request exactly the way packages/gui/src/api.ts does. */
 async function api(method: string, urlPath: string, body?: unknown) {
-  const res = await fetch(`http://127.0.0.1:${handle.port}${urlPath}?t=${handle.token}`, {
+  const res = await fetch(`http://127.0.0.1:${handle.port}${urlPath}`, {
     method,
     headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
     body: body !== undefined ? JSON.stringify(body) : undefined,

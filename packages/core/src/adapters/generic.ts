@@ -46,6 +46,7 @@ import {
   stringifyConfig,
   validateAgentConfig,
   backupFile,
+  isSafeConfigPath,
 } from '../utils';
 import * as path from 'node:path';
 
@@ -101,7 +102,6 @@ export interface GenericAdapterOptions {
 
 export class GenericAdapter implements AgentAdapter {
   readonly info: AgentInfo;
-  private readonly configTemplate: string;
   private readonly mcpTemplate: string | null;
   private readonly providerStoreTemplate: string | null;
   private readonly providerStorePaths: Record<Platform, string> | undefined;
@@ -115,7 +115,6 @@ export class GenericAdapter implements AgentAdapter {
   private providerStoreRawCache: Record<string, unknown> | null = null;
 
   constructor(options: GenericAdapterOptions) {
-    this.configTemplate = options.configPath;
     this.mcpTemplate = options.mcpPath || null;
     this.providerStoreTemplate = options.providerStorePath || null;
     this.providerStorePaths = options.providerStorePaths;
@@ -244,6 +243,23 @@ export class GenericAdapter implements AgentAdapter {
     return Boolean(v) && typeof v === 'object' && !Array.isArray(v);
   }
 
+  /**
+   * Deep-clone a cached raw record via a JSON round-trip. The cache is always
+   * JSON-derived (parsed from disk or built from parsed input) so the round
+   * trip is safe; the try/catch turns the theoretical throw into a clean error
+   * instead of an unhandled one, and falls back to an empty object so a
+   * poisoned cache cannot wedge a write.
+   */
+  private cloneCache(cache: Record<string, unknown> | null): Record<string, unknown> {
+    if (!cache) return {};
+    try {
+      return JSON.parse(JSON.stringify(cache)) as Record<string, unknown>;
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      throw new Error(`Failed to clone cached config: ${reason}`);
+    }
+  }
+
   private mapToMCPServer(entry: Record<string, unknown>): Partial<MCPServerConfig> {
     const command = entry.command;
     const rawType = entry.type;
@@ -284,7 +300,7 @@ export class GenericAdapter implements AgentAdapter {
     };
   }
 
-  private encodeMCP(servers: MCPServerConfig[]): unknown {
+  private encodeMCP(servers: MCPServerConfig[]): Record<string, unknown> | MCPServerConfig[] {
     if (this.mcpShape === 'array') {
       return servers.map(({ name, ...rest }) => ({ name, ...rest }));
     }
@@ -426,11 +442,19 @@ export class GenericAdapter implements AgentAdapter {
     }
 
     const configPath = this.getConfigPath();
+    // Refuse to write to a path that is not a valid absolute path on this OS.
+    // A foreign-OS drive path (`C:\...` on a POSIX host) would otherwise
+    // become a literal file in the current working directory. This guards
+    // EVERY materialization path (addCustomAgent, importRegistry, resync,
+    // registerProvider) in one place, not just the API entry points.
+    if (!isSafeConfigPath(configPath)) {
+      throw new Error(
+        `Refusing to write config to "${configPath}": not a valid absolute path on this OS`
+      );
+    }
     await this.ensureDir(configPath);
 
-    const mainRaw: Record<string, unknown> = this.mainRawCache
-      ? JSON.parse(JSON.stringify(this.mainRawCache))
-      : {};
+    const mainRaw: Record<string, unknown> = this.cloneCache(this.mainRawCache);
     // Keep unknown keys, drop the managed ones (rebuilt below)
     delete mainRaw.modelProviders;
     delete mainRaw.models;
@@ -449,9 +473,7 @@ export class GenericAdapter implements AgentAdapter {
     if (mcpPath && !sameFileMCP) {
       // Separate MCP file: never write mcpServers into the main config
       await this.ensureDir(mcpPath);
-      const mcpRaw: Record<string, unknown> = this.mcpRawCache
-        ? JSON.parse(JSON.stringify(this.mcpRawCache))
-        : {};
+      const mcpRaw: Record<string, unknown> = this.cloneCache(this.mcpRawCache);
       delete mcpRaw.mcpServers;
       const mcpFile: Record<string, unknown> = {
         ...mcpRaw,

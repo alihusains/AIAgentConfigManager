@@ -45,6 +45,7 @@ function buildItems(
   providers: { id: string; name: string }[],
   setActiveView: (v: View) => void,
   openAgent: (id: string) => void,
+  openProvider: (id: string) => void,
   toggleTheme: () => void
 ): PaletteItem[] {
   const views: { view: View; label: string }[] = [
@@ -54,6 +55,7 @@ function buildItems(
     { view: 'agents', label: 'Agents' },
     { view: 'skills', label: 'Skills' },
     { view: 'tools', label: 'CLI Tools' },
+    { view: 'env-vars', label: 'Environment' },
     { view: 'settings', label: 'Settings' },
   ];
 
@@ -69,7 +71,9 @@ function buildItems(
     label: p.name,
     group: 'Providers',
     description: p.id,
-    action: () => setActiveView('providers'),
+    // Deep-link to the provider's detail page, not the generic list
+    // (audit D2 — parity with the agent items' openAgent behavior).
+    action: () => openProvider(p.id),
   }));
 
   const agentItems: PaletteItem[] = agents.map((a) => ({
@@ -104,7 +108,7 @@ export function CommandPalette() {
   const listRef = useRef<HTMLUListElement>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
 
-  const { agents, registry, setActiveView, openAgent } = useStore();
+  const { agents, registry, setActiveView, openAgent, openProvider } = useStore();
 
   // Build the full item list (memoized on data changes)
   const allItems = useMemo(() => {
@@ -113,8 +117,8 @@ export function CommandPalette() {
       name: rp.provider.name,
     }));
     const agentList = agents.map((a) => ({ id: a.id, name: a.name }));
-    return buildItems(agentList, providers, setActiveView, openAgent, toggleTheme);
-  }, [agents, registry, setActiveView, openAgent, toggleTheme]);
+    return buildItems(agentList, providers, setActiveView, openAgent, openProvider, toggleTheme);
+  }, [agents, registry, setActiveView, openAgent, openProvider, toggleTheme]);
 
   // Filter by query
   const filtered = useMemo(() => {

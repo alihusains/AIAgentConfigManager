@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
-import { Plus, Bot } from 'lucide-react';
 import type { DetectedAgent } from '@ai-agent-config/core';
+import { Bot, Plus } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Tooltip } from '../ui';
 import { AgentIconTile } from './AgentIcon';
 
 export interface AgentPickerProps {
@@ -41,13 +42,15 @@ export function AgentPicker({ targets, agents, onToggle, kind = 'mcp' }: AgentPi
 
   return (
     <div className="relative" ref={ref}>
-      <button
-        className="btn-ghost btn-icon btn-sm"
-        title="Install / remove this entry on agents"
-        onClick={() => setOpen((o) => !o)}
-      >
-        <Plus size={14} />
-      </button>
+      <Tooltip content="Install / remove this entry on agents">
+        <button
+          type="button"
+          className="btn-ghost btn-icon btn-sm"
+          onClick={() => setOpen((o) => !o)}
+        >
+          <Plus size={14} />
+        </button>
+      </Tooltip>
       {open && (
         <div className="popover">
           <div className="flex items-center gap-2 px-1 py-1 mb-1">

@@ -115,7 +115,14 @@ describe('M071: drift detection (detectDrift)', () => {
 
   it('detects drift when a registry-managed MCP server is edited in the agent file', async () => {
     const reg = await manager.registerMCPServer(
-      { name: 'acme-mcp', type: 'stdio', command: 'npx', args: ['-y', 'acme'], env: {}, enabled: true },
+      {
+        name: 'acme-mcp',
+        type: 'stdio',
+        command: 'npx',
+        args: ['-y', 'acme'],
+        env: {},
+        enabled: true,
+      },
       ['demo']
     );
     expect(reg.success).toBe(true);
@@ -131,7 +138,14 @@ describe('M071: drift detection (detectDrift)', () => {
 
   it('detects drift when a registry-managed MCP server disappears from the agent file', async () => {
     const reg = await manager.registerMCPServer(
-      { name: 'acme-mcp', type: 'stdio', command: 'npx', args: ['-y', 'acme'], env: {}, enabled: true },
+      {
+        name: 'acme-mcp',
+        type: 'stdio',
+        command: 'npx',
+        args: ['-y', 'acme'],
+        env: {},
+        enabled: true,
+      },
       ['demo']
     );
     expect(reg.success).toBe(true);
@@ -175,5 +189,48 @@ describe('M071: drift detection (detectDrift)', () => {
     expect(drift.drifted).toBe(false);
     const restored = readJson(configPath);
     expect(restored.modelProviders[0].config.baseUrl).toBe('https://api.example.com/v1');
+  });
+
+  it('resyncAgent restores the registry version and clears drift', async () => {
+    await registerProvider();
+    const cfg = readJson(configPath);
+    cfg.modelProviders[0].config.baseUrl = 'https://hacked.example.com/v1';
+    fs.writeFileSync(configPath, JSON.stringify(cfg, null, 2));
+
+    let drift = await manager.detectDrift('demo');
+    expect(drift.drifted).toBe(true);
+
+    const resync = await manager.resyncAgent('demo');
+    expect(resync.success).toBe(true);
+
+    drift = await manager.detectDrift('demo');
+    expect(drift.drifted).toBe(false);
+    const restored = readJson(configPath);
+    expect(restored.modelProviders[0].config.baseUrl).toBe('https://api.example.com/v1');
+  });
+
+  it('resyncAgent reports an error for an unknown agent', async () => {
+    const resync = await manager.resyncAgent('nope');
+    expect(resync.success).toBe(false);
+    expect(resync.error).toBeDefined();
+  });
+
+  it('addCustomAgent rejects a foreign-OS drive path instead of writing a literal file', async () => {
+    // A Windows path on a POSIX host: unvalidated, this would create a literal
+    // `C:\Users\...` file in the current working directory (the 2026-09-01 leak).
+    const foreignPath =
+      process.platform === 'win32'
+        ? '/Users/someone/.agent/config.json'
+        : 'C:\\Users\\someone\\.agent\\config.json';
+    const res = await manager.addCustomAgent({
+      id: 'foreign',
+      name: 'Foreign',
+      configPath: foreignPath,
+      format: 'json',
+    });
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/not a valid absolute path/);
+    // And nothing was written to the cwd.
+    expect(fs.existsSync(foreignPath)).toBe(false);
   });
 });

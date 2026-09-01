@@ -325,18 +325,31 @@ export class OpenCodeStyleAdapter implements AgentAdapter {
       const baseURL = (provider.config.baseUrl as string) || existingOptions.baseURL;
       const apiKey = provider.config.apiKey as string | undefined;
 
+      // Registry-managed fields win over the on-disk entry (re-sync must be
+      // able to restore them, M071); fall back to disk only when the
+      // registry entry doesn't carry the field at all.
+      const env =
+        (provider.config.env as string[] | undefined) || existing?.env || [
+          this.deriveEnvVar(provider.name || provider.id),
+        ];
+      const npm =
+        (provider.config.npm as string | undefined) ||
+        existing?.npm ||
+        '@ai-sdk/openai-compatible';
+      const registryOptions = (provider.config.options as
+        | Record<string, unknown>
+        | undefined) ?? undefined;
+
       const entry: OpenCodeStyleProvider = {
         // The provider's own name always wins so a rename via
         // updateModelProvider persists. (An unchanged on-disk name is
         // preserved because transformFromRaw reads it back into provider.name.)
         name: provider.name,
-        env: existing?.env || [this.deriveEnvVar(provider.name || provider.id)],
-        npm:
-          existing?.npm ||
-          (provider.config.npm as string | undefined) ||
-          '@ai-sdk/openai-compatible',
+        env,
+        npm,
         options: {
           ...existingOptions,
+          ...(registryOptions ?? {}),
           ...(baseURL ? { baseURL } : {}),
           ...(apiKey ? { apiKey: apiKey } : {}),
         },
@@ -443,6 +456,30 @@ export class OpenCodeStyleAdapter implements AgentAdapter {
         models: entry.models.map((m) => ({ ...m, providerId: id })),
       },
     ];
+  }
+
+  /**
+   * Wire-format projection for drift comparison (M071): this family's
+   * provider schema is fixed — `name`, `npm`, `env`, and an `options` object
+   * the @ai-sdk package defines. Fields like `wireApi` (a Codex TOML field
+   * stamped on shared registry entries) have no representation here, so
+   * comparing them against disk would yield phantom drift no re-sync can
+   * clear. Project to the expressible subset.
+   */
+  expressibleProviderConfig(config: Record<string, unknown>): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    // `options` is the wire object the SDK consumes; its keys are SDK-defined
+    // (baseURL, apiKey, headers, …) — everything inside is expressible.
+    if (config.options && typeof config.options === 'object') {
+      out.options = config.options;
+    }
+    // Scalar fields with a home in the provider block itself.
+    if (config.baseUrl !== undefined) out.baseUrl = config.baseUrl;
+    if (config.apiKey !== undefined) out.apiKey = config.apiKey;
+    if (config.npm !== undefined) out.npm = config.npm;
+    if (config.env !== undefined) out.env = config.env;
+    if (config.headers !== undefined) out.headers = config.headers;
+    return out;
   }
 
   private getDefaultConfig(): AgentConfig {

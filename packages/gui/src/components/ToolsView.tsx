@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import type { AgentJob, CliToolStatus, ToolUpdateStatus } from '@ai-agent-config/core';
 import { useStore } from '../store';
-import { Badge, Button, Card, EmptyState, SectionHeader, StatCard } from '../ui';
+import { Badge, Button, Card, EmptyState, SectionHeader, StatCard, Tooltip } from '../ui';
 import {
   ArrowUpCircle,
   Boxes,
@@ -72,16 +72,20 @@ const UpdateCell = memo(function UpdateCell({
   }
   if (update.method === 'unsupported') {
     return (
-      <span className="text-tertiary text-xs" title={update.reason}>
+      <Tooltip content={update.reason}>
+      <span className="text-tertiary text-xs">
         manual
       </span>
+      </Tooltip>
     );
   }
   if (!update.latestVersion) {
     return (
-      <span className="text-tertiary text-xs" title={update.reason}>
+      <Tooltip content={update.reason}>
+      <span className="text-tertiary text-xs">
         unknown
       </span>
+      </Tooltip>
     );
   }
   if (!update.updateAvailable) {
@@ -120,9 +124,11 @@ const ToolRow = memo(function ToolRow({
       <td>
         <div className="min-w-0">
           <p className="font-medium">{tool.label}</p>
-          <p className="text-xs text-tertiary truncate" title={tool.description}>
+          <Tooltip content={tool.description}>
+          <p className="text-xs text-tertiary truncate">
             {tool.description}
           </p>
+          </Tooltip>
         </div>
       </td>
       <td>
@@ -149,10 +155,12 @@ const ToolRow = memo(function ToolRow({
       </td>
       <td>
         {tool.installed && tool.path ? (
-          <span className="font-mono text-xs text-secondary break-all" title={tool.path}>
+          <Tooltip content={tool.path}>
+          <span className="font-mono text-xs text-secondary break-all">
             {foundBy ? <span className="text-tertiary">{foundBy} · </span> : null}
             {tool.path}
           </span>
+          </Tooltip>
         ) : (
           <span className="text-tertiary text-xs">—</span>
         )}
@@ -355,7 +363,7 @@ export function ToolsView() {
   );
 
   return (
-    <div className="p-4">
+    <div className="page-container">
       <SectionHeader
         title="CLI Tools"
         description="Important CLIs on this machine — runtimes, package managers, and toolchains — with version and resolved path."

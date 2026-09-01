@@ -1,4 +1,5 @@
-import { memo, type ReactNode } from 'react';
+import { type ReactElement, type ReactNode, isValidElement, memo } from 'react';
+import { Tooltip } from './Tooltip';
 
 /**
  * Badge — a tinted status pill.
@@ -6,6 +7,10 @@ import { memo, type ReactNode } from 'react';
  * Thin, memoized wrapper over the shared `.badge .badge-*` CSS so callers get
  * a typed `variant` prop instead of hand-joining class strings. Renders a
  * `<span>`; costs essentially nothing and bails out of re-renders via memo.
+ *
+ * `title` renders as the styled Tooltip (themeable, touch-capable — audit A9)
+ * instead of a native title attribute: the badge keeps the native attribute
+ * as a queryable/AT fallback, and gains hover/focus/long-press behavior.
  */
 
 export type BadgeVariant =
@@ -34,7 +39,7 @@ export const Badge = memo(function Badge({
   className,
   children,
 }: BadgeProps) {
-  return (
+  const span = (
     <span
       className={className ? `badge badge-${variant} ${className}` : `badge badge-${variant}`}
       title={title}
@@ -42,5 +47,12 @@ export const Badge = memo(function Badge({
       {dot && <span className="live-dot" />}
       {children}
     </span>
+  );
+  // Audit A9: styled tooltip instead of native-title-only. isValidElement
+  // narrows span to ReactElement for Tooltip's children type.
+  return title && isValidElement(span) ? (
+    <Tooltip content={title}>{span as ReactElement}</Tooltip>
+  ) : (
+    span
   );
 });
