@@ -90,6 +90,7 @@ import {
   storeProviderApiKeyInKeychain,
   migrateProviderApiKeyToKeychain,
   deleteProviderKeychainSecret,
+  resolveProviderApiKey,
   addProviderAgents,
   removeProviderAgent,
   addMCPServerAgents,
@@ -1007,6 +1008,9 @@ export class AgentConfigManager {
    * Materialize the registry-managed providers + MCP servers into one agent's
    * config file. Entries the agent does not manage (agent-local providers,
    * permissions, custom settings) are left untouched.
+   *
+   * CRITICAL: resolves keychain-backed API keys before writing so agents
+   * receive the real credentials (Phase 1 Secrets M048).
    */
   private async materializeAgent(
     agentId: string,
@@ -1025,7 +1029,7 @@ export class AgentConfigManager {
       const registry = await this.requireRegistry();
       const current = await adapter.readConfig();
 
-      const target = this.computeMaterializedState(
+      const target = await this.computeMaterializedState(
         registry,
         current,
         agentId,
@@ -1063,14 +1067,19 @@ export class AgentConfigManager {
    * file — the exact target state `materializeAgent` writes. Shared with
    * `detectDrift` so drift detection compares against the same computation
    * without duplicating the provider/server assembly logic.
+   *
+   * Phase 1 (Secrets M048): resolves keychain-backed API keys so materialized
+   * providers have the real credentials (not empty strings). Keychain-backed
+   * entries carry keychainSecretRef but empty config.apiKey; this method
+   * fetches the real key before returning so adapters can write working config.
    */
-  private computeMaterializedState(
+  private async computeMaterializedState(
     registry: Registry,
     current: AgentConfig,
     agentId: string,
     staleProviderIds: ReadonlySet<string> = new Set(),
     staleServerNames: ReadonlySet<string> = new Set()
-  ): { modelProviders: ModelProvider[]; models: ModelConfig[]; mcpServers: MCPServerConfig[] } {
+  ): Promise<{ modelProviders: ModelProvider[]; models: ModelConfig[]; mcpServers: MCPServerConfig[] }> {
     const adapter = this.adapters.get(agentId);
     if (!adapter) return { modelProviders: [], models: [], mcpServers: [] };
     const targetedProviders = registry.providers.filter((p) => p.agentIds.includes(agentId));
@@ -1090,9 +1099,20 @@ export class AgentConfigManager {
 
     // Drop registry-managed entries that do NOT target this agent; upsert
     // those that do; leave everything else (agent-local) untouched.
+    // Phase 1 (Secrets M048): resolve keychain keys before materializing.
+    const registryProvidersList: ModelProvider[] = [];
+    for (const rp of targetedProviders) {
+      const resolved = await resolveProviderApiKey(rp);
+      const provider = { ...rp.provider };
+      if (resolved !== null) {
+        provider.config = { ...provider.config, apiKey: resolved };
+      }
+      registryProvidersList.push(provider);
+    }
+
     const modelProviders: ModelProvider[] = current.modelProviders
       .filter((p) => !registryProviderIds.has(p.id))
-      .concat(targetedProviders.map((rp) => ({ ...rp.provider })))
+      .concat(registryProvidersList)
       .concat(alternateProviders.map((d) => ({ ...d.provider })));
 
     const models: ModelConfig[] = current.models
@@ -1171,7 +1191,7 @@ export class AgentConfigManager {
     try {
       const registry = await this.requireRegistry();
       const current = await adapter.readConfig();
-      const target = this.computeMaterializedState(registry, current, agentId);
+      const target = await this.computeMaterializedState(registry, current, agentId);
 
       // Registry-managed ids/names for THIS agent only (targeted entries +
       // their alternate-wire siblings); stale sets are empty — drift about
@@ -1717,7 +1737,10 @@ export class AgentConfigManager {
     // Final write-side guard: a foreign-OS drive path (e.g. from an imported
     // registry) would otherwise be written as a literal file in the cwd.
     if (!isSafeConfigPath(target)) {
-      return { success: false, error: `Refusing to write to "${target}": not a valid absolute path on this OS` };
+      return {
+        success: false,
+        error: `Refusing to write to "${target}": not a valid absolute path on this OS`,
+      };
     }
     try {
       const existed = await fileExists(target);

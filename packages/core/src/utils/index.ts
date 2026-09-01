@@ -7,6 +7,9 @@ import { parse as parseTOML } from 'toml';
 import { z } from 'zod';
 import { type ConfigFormat, type Platform, type AgentConfig, AgentConfigSchema } from '../types';
 
+// Re-export redaction utilities for public use
+export { maskKey, maskKeyWithPrefix, looksLikeSecret } from './redact';
+
 // ============================================================================
 // Environment Detection
 // ============================================================================

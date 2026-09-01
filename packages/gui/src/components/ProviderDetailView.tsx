@@ -29,6 +29,7 @@ import { Status } from '../ui';
 import { ProtocolTicks, ApiVerifier } from './ProviderVerify';
 import type { ProviderApiCapabilities } from '@ai-agent-config/core';
 import { Tooltip } from '../ui';
+import { maskKey } from '../utils';
 
 const TABS = [
   { id: 'overview', label: 'Overview', icon: Database },
@@ -505,16 +506,14 @@ function ApiConfigTab({
       <section className="card">
         <h3 className="card-title">API Key</h3>
         <div className="flex items-center gap-2">
-          <code className="flex-1 text-sm break-all">
+          <code className="flex-1 text-sm break-all font-mono">
             {apiKey
               ? revealed
                 ? apiKey
-                : apiKey.length > 8
-                  ? `${apiKey.slice(0, 8)}••••••••${apiKey.slice(-4)}`
-                  : '••••••••'
+                : maskKey(apiKey)
               : '—'}
           </code>
-          <Tooltip content={revealed ? 'Hide API key' : 'Reveal API key'}>
+          <Tooltip content={revealed ? 'Hide API key — masks the key in the UI' : 'Reveal API key — shows the full key in plain text'}>
           <button
             className="btn-ghost btn-icon btn-sm"
             onClick={() => setRevealed((r) => !r)}
@@ -534,7 +533,7 @@ function ApiConfigTab({
           </Tooltip>
         </div>
         <p className="text-xs text-tertiary mt-2">
-          Stored on this machine only — never sent anywhere else.
+          Stored on this machine only — never sent anywhere else. The key is masked by default; use the eye icon to reveal.
         </p>
       </section>
 

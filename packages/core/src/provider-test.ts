@@ -17,6 +17,7 @@ import type {
   ProviderProbeDetail,
   ProviderVerificationResult,
 } from './types';
+import { maskKey as maskKeySrc } from './utils';
 
 export interface ProbeProviderOptions {
   /** e.g. https://api.openai.com/v1 or https://ic-chat.devenv.icm/api/v1 */
@@ -37,11 +38,9 @@ const ANTHROPIC_VERSION = '2023-06-01';
 // Helpers
 // ============================================================================
 
-/** Mask a key for display purposes (e.g. `sk-a3…9z`) without revealing it. */
+/** Mask a key for display purposes (e.g. `sk-a3…9z12`) in curl commands. */
 function maskKey(key?: string): string {
-  if (!key) return '<no-api-key>';
-  if (key.length <= 8) return '***';
-  return `${key.slice(0, 4)}…${key.slice(-2)}`;
+  return maskKeySrc(key);
 }
 
 /** Build a readable, re-runnable curl command for one probe (key masked). */

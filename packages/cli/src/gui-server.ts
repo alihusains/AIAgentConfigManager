@@ -366,9 +366,7 @@ export async function startGuiServer(
       // has Origin/Referer matching Host; a cross-origin page's does not. A
       // non-browser curl/CLI call sends neither, so it passes.
       const host = req.headers.host;
-      const isSameOrigin = (
-        value: string | undefined
-      ): boolean => {
+      const isSameOrigin = (value: string | undefined): boolean => {
         if (!value || !host) return true; // no header / no host → not cross-origin
         try {
           const u = new URL(value);

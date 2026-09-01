@@ -75,7 +75,37 @@ Registered agents (24): aider, amazonq, chatgpt, claude-code, cline, continue, c
 
 ---
 
-## 4. What was completed this session
+## 4. What was completed this session (Phase 1 M048 - Keychain Wiring)
+
+**Phase 1 (Secrets) M048: Registry Materialization — Complete ✅**
+
+Wired OS keychain storage into the registry materialization flow. The task bridges the gap between Phase 1's foundation (keychain module + opt-in storage functions) and agent materialization (writing real credentials to agent config files).
+
+**What was delivered:**
+- Made `computeMaterializedState` async (was synchronous) to support keychain resolution
+- Added keychain secret resolution in materialization: before writing provider config to agents, `resolveProviderApiKey()` is called on every registry provider to fetch real keys from the keychain
+- Keychain-backed providers (those with `keychainSecretRef` but empty `config.apiKey`) now materialize with their real credentials from the OS keychain
+- Plaintext providers (no `keychainSecretRef`) are unchanged — backward compatible
+- Graceful degradation: when keychain is unavailable or missing an entry, resolution returns null and materialization proceeds with empty key (no crash, no silent fallback)
+- New comprehensive test suite (`registry-materialization.test.ts`, 5 tests) validates the full roundtrip: register → keychain → reference in registry.json → materialize → agent config has real key
+- **All 315 core tests pass**, including 21 existing registry tests + 5 new materialization tests
+
+**Code changes:**
+- `packages/core/src/index.ts`: Made `computeMaterializedState` async, added keychain resolution loop before materialization, updated both call sites, imported `resolveProviderApiKey`
+- `packages/core/src/registry-materialization.test.ts`: New 290-line test file validating keychain wiring end-to-end
+- No breaking changes; adapters' `writeConfig` methods are unchanged
+
+**Exit criteria met:**
+- ✅ Registry.json never contains plaintext API keys for keychain-backed providers (only references like `provider:openai-main`)
+- ✅ getProvider → resolveProviderApiKey returns actual key by reading from keychain
+- ✅ Tests prove the roundtrip works (5 new tests all passing)
+- ✅ CI/headless degrades gracefully when keychain unavailable (returns null, no exception)
+
+**Impact on next tasks:** T2 (Per-agent env-var policy) and T3 (Key redaction) now have working keychain infrastructure underneath. Agents will receive working credentials during materialization. Phase 1 foundational wiring is complete.
+
+---
+
+## 4a. What was completed in prior sessions
 
 **Bugs fixed (all were silent data-loss classes):**
 - **Provider delete cascade** (`9303f5c`) — founder-reported and founder-verified. Two defects: provider IDs containing spaces (e.g. `icm llm router`) were URL-encoded by the GUI and never decoded server-side; and a route returned HTTP 200 when the result carried warnings but no error string, producing a success toast for a delete that never happened. Regression tests in `packages/cli/src/gui-server-delete.test.ts`.

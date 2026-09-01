@@ -2368,8 +2368,8 @@ describe('ProviderDetailView', () => {
     fireEvent.click(apiTab);
 
     await waitFor(() => {
-      // Key should be masked (showing ••••••••)
-      expect(screen.getByText(/••••••••/)).toBeInTheDocument();
+      // Key should be masked (showing sk-…6789 format)
+      expect(screen.getByText(/sk-…\w{4}/)).toBeInTheDocument();
     });
 
     // Full key should NOT be visible
@@ -2385,11 +2385,12 @@ describe('ProviderDetailView', () => {
     fireEvent.click(apiTab);
 
     await waitFor(() => {
-      expect(screen.getByText(/••••••••/)).toBeInTheDocument();
+      // Masked key format: "sk-…6789" (first 3 chars + ellipsis + last 4)
+      expect(screen.getByText(/sk-…\w{4}/)).toBeInTheDocument();
     });
 
     // Click reveal button
-    const revealBtn = screen.getByTitle('Reveal API key');
+    const revealBtn = screen.getByTitle('Reveal API key — shows the full key in plain text');
     fireEvent.click(revealBtn);
 
     await waitFor(() => {

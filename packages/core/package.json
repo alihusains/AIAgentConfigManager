@@ -10,6 +10,11 @@
       "import": "./dist/index.js",
       "require": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./dist/utils/redact": {
+      "import": "./dist/utils/redact.js",
+      "require": "./dist/utils/redact.js",
+      "types": "./dist/utils/redact.d.ts"
     }
   },
   "scripts": {
