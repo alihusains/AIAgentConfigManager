@@ -731,6 +731,24 @@ export async function startGuiServer(
         });
       }
 
+      // ---- Permissions ----
+      // GET /api/permissions/audit — P2-T2: scan all adapters for permission
+      // rules and flag contradictions (e.g., "Cursor allows bash but Claude
+      // forbids it"). Returns per-agent summaries, global contradictions, and
+      // risk scores (LOW/MEDIUM/HIGH).
+      if (
+        method === 'GET' &&
+        parts.length === 3 &&
+        parts[1] === 'permissions' &&
+        parts[2] === 'audit'
+      ) {
+        return handle(async () => {
+          const result = await manager.auditPermissions();
+          if (!result.success) return { error: result.error, status: 500 };
+          return { data: result.data };
+        });
+      }
+
       // ---- Registry import/export ----
       // GET /api/registry/export — the server's authoritative registry (QA
       // finding M2): the GUI's export button downloads this instead of

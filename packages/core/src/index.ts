@@ -53,6 +53,8 @@ import type {
   ModelConfig,
   MCPServerConfig,
   PermissionConfig,
+  PermissionAuditResult,
+  PermissionContradiction,
   Platform,
   OperationResult,
   Registry,
@@ -1950,6 +1952,160 @@ export class AgentConfigManager {
     if (adapter) {
       const config = await adapter.readConfig();
       this.configs.set(agentId, config);
+    }
+  }
+
+  /**
+   * P2-T2: Audit permissions across all 24 adapters, flag contradictions
+   * (e.g., "Cursor allows bash but Claude forbids it"), and compute per-agent
+   * and global risk scores.
+   *
+   * Returns:
+   * - Per-agent summaries: count of allowed/denied patterns, contradictions
+   * - Global contradictions: patterns with mixed allow/deny across agents
+   * - Risk levels: HIGH (2+ agents with opposite rules), MEDIUM (1 agent
+   *   disagrees), LOW (unanimous or unique)
+   */
+  async auditPermissions(): Promise<OperationResult<PermissionAuditResult>> {
+    try {
+      const result: PermissionAuditResult = {
+        scannedAt: new Date().toISOString(),
+        totalAgents: this.adapters.size,
+        agentsWithPermissions: 0,
+        perAgent: [],
+        globalContradictions: [],
+        summary: {
+          highRiskCount: 0,
+          mediumRiskCount: 0,
+          lowRiskCount: 0,
+        },
+      };
+
+      // Map: pattern+type → {allowingAgents, denyingAgents}
+      const permissionMap = new Map<
+        string,
+        { pattern: string; type: string; allowing: Set<string>; denying: Set<string> }
+      >();
+
+      // Step 1: Scan all adapters for permissions
+      for (const [agentId, adapter] of this.adapters) {
+        try {
+          const config = await adapter.readConfig();
+          const perms = config.permissions || [];
+
+          if (perms.length === 0) continue;
+
+          result.agentsWithPermissions++;
+          const agentName = adapter.info.name;
+
+          // Counters for this agent
+          let allowedCount = 0;
+          let deniedCount = 0;
+          const agentContradictions: PermissionContradiction[] = [];
+
+          // Process each permission
+          for (const perm of perms) {
+            if (perm.allowed) allowedCount++;
+            else deniedCount++;
+
+            // Record in global map
+            const key = `${perm.pattern}::${perm.type}`;
+            let entry = permissionMap.get(key);
+            if (!entry) {
+              entry = {
+                pattern: perm.pattern,
+                type: perm.type,
+                allowing: new Set(),
+                denying: new Set(),
+              };
+              permissionMap.set(key, entry);
+            }
+
+            if (perm.allowed) {
+              entry.allowing.add(agentId);
+            } else {
+              entry.denying.add(agentId);
+            }
+          }
+
+          // Per-agent summary
+          result.perAgent.push({
+            agentId,
+            agentName,
+            totalPermissions: perms.length,
+            allowedPatterns: allowedCount,
+            deniedPatterns: deniedCount,
+            contradictions: agentContradictions,
+          });
+        } catch (error) {
+          // Agent config unreadable; skip it gracefully
+          // (e.g., detect-only agent with no local config)
+        }
+      }
+
+      // Step 2: Identify contradictions and calculate risk levels
+      for (const [_key, entry] of permissionMap) {
+        if (entry.allowing.size > 0 && entry.denying.size > 0) {
+          const allowingAgents = Array.from(entry.allowing).sort();
+          const denyingAgents = Array.from(entry.denying).sort();
+
+          // Risk level: HIGH if 2+ agents on each side, MEDIUM if 1 vs any, LOW otherwise
+          const riskLevel =
+            allowingAgents.length >= 2 && denyingAgents.length >= 2
+              ? 'HIGH'
+              : allowingAgents.length > 0 && denyingAgents.length > 0
+                ? 'MEDIUM'
+                : 'LOW';
+
+          const contradiction: PermissionContradiction = {
+            pattern: entry.pattern,
+            type: entry.type as
+              | 'tool'
+              | 'directory'
+              | 'url'
+              | 'command'
+              | 'mcp'
+              | 'custom',
+            allowingAgents,
+            denyingAgents,
+            riskLevel,
+          };
+
+          result.globalContradictions.push(contradiction);
+
+          // Update summary
+          if (riskLevel === 'HIGH') result.summary.highRiskCount++;
+          else if (riskLevel === 'MEDIUM') result.summary.mediumRiskCount++;
+          else result.summary.lowRiskCount++;
+
+          // Add contradiction to per-agent summaries
+          for (const agentId of allowingAgents) {
+            const summary = result.perAgent.find((s) => s.agentId === agentId);
+            if (summary) {
+              summary.contradictions.push(contradiction);
+            }
+          }
+          for (const agentId of denyingAgents) {
+            const summary = result.perAgent.find((s) => s.agentId === agentId);
+            if (summary) {
+              summary.contradictions.push(contradiction);
+            }
+          }
+        }
+      }
+
+      // Sort contradictions by risk level (HIGH first)
+      result.globalContradictions.sort((a: PermissionContradiction, b: PermissionContradiction) => {
+        const riskOrder: Record<string, number> = { HIGH: 0, MEDIUM: 1, LOW: 2 };
+        return (riskOrder[a.riskLevel] ?? 2) - (riskOrder[b.riskLevel] ?? 2);
+      });
+
+      return { success: true, data: result };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
     }
   }
 

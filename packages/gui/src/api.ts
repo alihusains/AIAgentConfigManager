@@ -207,6 +207,45 @@ export const api = {
       { overwrite }
     ),
 
+  // --- Permissions ---
+  /**
+   * P2-T2: Audit permissions across all 24 adapters, flag contradictions
+   * (e.g., "Cursor allows bash but Claude forbids it"), and compute per-agent
+   * and global risk scores.
+   */
+  auditPermissions: () =>
+    request<{
+      scannedAt: string;
+      totalAgents: number;
+      agentsWithPermissions: number;
+      perAgent: Array<{
+        agentId: string;
+        agentName: string;
+        totalPermissions: number;
+        allowedPatterns: number;
+        deniedPatterns: number;
+        contradictions: Array<{
+          pattern: string;
+          type: string;
+          allowingAgents: string[];
+          denyingAgents: string[];
+          riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
+        }>;
+      }>;
+      globalContradictions: Array<{
+        pattern: string;
+        type: string;
+        allowingAgents: string[];
+        denyingAgents: string[];
+        riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
+      }>;
+      summary: {
+        highRiskCount: number;
+        mediumRiskCount: number;
+        lowRiskCount: number;
+      };
+    }>('GET', '/api/permissions/audit'),
+
   // --- Registry import/export ---
   /**
    * Download the server's authoritative registry (QA finding M2: the export
