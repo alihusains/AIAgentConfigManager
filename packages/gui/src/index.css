@@ -1464,14 +1464,14 @@ select.input {
   justify-content: center;
   border: none;
   border-radius: 50%;
-  background: var(--bg-tertiary);
+  background: var(--icon-bg-container);
   color: var(--text-primary);
   box-shadow: 0 0 0 1px var(--border-primary);
   font-size: 11px;
   line-height: 1;
   cursor: pointer;
   opacity: 0;
-  transition: opacity var(--transition-fast), background var(--transition-fast);
+  transition: opacity var(--transition-fast), background-color var(--transition-fast);
 }
 
 .mcp-agent-avatar:hover .mcp-avatar-remove,
@@ -1480,7 +1480,7 @@ select.input {
 }
 
 .mcp-avatar-remove:hover {
-  background: var(--bg-active);
+  background: var(--icon-bg-container-hover);
 }
 
 .mcp-avatar-more {
@@ -1491,7 +1491,7 @@ select.input {
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-full);
-  background: var(--bg-tertiary);
+  background: var(--icon-bg-container);
   box-shadow: 0 0 0 2px var(--bg-secondary);
   font-size: 10px;
   font-weight: 600;
