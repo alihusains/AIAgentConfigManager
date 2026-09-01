@@ -25,6 +25,7 @@ export type View =
   | 'skills'
   | 'tools'
   | 'env-vars'
+  | 'permissions'
   | 'settings';
 
 export interface Toast {

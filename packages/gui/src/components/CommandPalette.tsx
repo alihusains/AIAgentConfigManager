@@ -56,6 +56,7 @@ function buildItems(
     { view: 'skills', label: 'Skills' },
     { view: 'tools', label: 'CLI Tools' },
     { view: 'env-vars', label: 'Environment' },
+    { view: 'permissions', label: 'Permissions' },
     { view: 'settings', label: 'Settings' },
   ];
 

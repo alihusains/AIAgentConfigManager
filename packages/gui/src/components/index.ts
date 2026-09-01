@@ -7,5 +7,6 @@ export { MCPView } from './MCPView';
 export { AgentsView } from './AgentsView';
 export { AgentDetailView } from './AgentDetailView';
 export { SettingsView } from './SettingsView';
+export { PermissionsView } from './PermissionsView';
 export { AgentPicker } from './AgentPicker';
 export { ToastContainer } from './Toast';
