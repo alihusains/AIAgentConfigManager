@@ -12,6 +12,7 @@ import {
   Terminal,
   Sparkles,
   KeyRound,
+  Shield,
 } from 'lucide-react';
 import { Tooltip } from '../ui';
 
@@ -28,6 +29,7 @@ const REGISTRY_VIEWS = [
   { id: 'skills', label: 'Skills', icon: Sparkles },
   { id: 'tools', label: 'CLI Tools', icon: Terminal },
   { id: 'env-vars', label: 'Environment', icon: KeyRound },
+  { id: 'permissions', label: 'Permissions', icon: Shield },
 ] as const;
 
 export function Sidebar({ onClose }: SidebarProps) {
@@ -96,9 +98,13 @@ export function Sidebar({ onClose }: SidebarProps) {
     >
       <div className="sidebar-header">
         <div className="flex items-center gap-3">
-          <div className="sidebar-brand-mark">
-            <Database size={18} />
-          </div>
+          <img
+            src="/logo-icon-32.png"
+            alt="AI Agent Config Manager"
+            className="sidebar-brand-icon"
+            width={32}
+            height={32}
+          />
           <div className="min-w-0">
             <div className="sidebar-title">AI Config</div>
             <div className="text-xs text-tertiary">registry-first manager</div>

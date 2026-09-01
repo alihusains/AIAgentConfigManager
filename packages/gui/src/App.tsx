@@ -11,6 +11,7 @@ import { ToolsView } from './components/ToolsView';
 import { SkillsView } from './components/SkillsView';
 import { EnvVarsView } from './components/EnvVarsView';
 import { SettingsView } from './components/SettingsView';
+import { PermissionsView } from './components/PermissionsView';
 import { RamMeter } from './components/RamMeter';
 import { ToastContainer } from './components/Toast';
 import { ThemeToggle, toggleTheme } from './components/ThemeToggle';
@@ -28,6 +29,7 @@ const VALID_VIEWS: View[] = [
   'skills',
   'tools',
   'env-vars',
+  'permissions',
   'settings',
 ];
 
@@ -179,6 +181,8 @@ function App() {
         return <EnvVarsView />;
       case 'tools':
         return <ToolsView />;
+      case 'permissions':
+        return <PermissionsView />;
       case 'settings':
         return <SettingsView />;
       default:
@@ -229,6 +233,20 @@ function App() {
               aria-label="Toggle sidebar"
             >
               {sidebarOpen ? <X size={18} /> : <Menu size={18} />}
+            </button>
+            <button
+              className="btn-ghost btn-icon flex-shrink-0 hover:bg-bg-hover"
+              onClick={() => setActiveView('overview')}
+              aria-label="Home"
+              title="Go to Overview"
+            >
+              <img
+                src="/logo-full-40.png"
+                alt="Home"
+                width={40}
+                height={40}
+                style={{ maxWidth: '40px', maxHeight: '40px' }}
+              />
             </button>
             <Breadcrumbs />
           </div>
