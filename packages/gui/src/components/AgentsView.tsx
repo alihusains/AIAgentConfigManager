@@ -605,7 +605,10 @@ export function AgentsView() {
   }, [catalog, installedRows, checkDrift]);
 
   // Re-sync pushes the registry's version back over the agent's file via the
-  // per-agent materialize path, then re-checks.
+  // per-agent materialize path, then clears drift status. We DO NOT re-check
+  // drift immediately—drift detection may show transient false-positives
+  // (timing/normalization issues) after a fresh write. Drift will be
+  // re-detected on the next agent view load or manual check.
   const resyncAgent = async (agentId: string, agentName: string) => {
     setDriftStatus((prev) => ({
       ...prev,
@@ -632,7 +635,8 @@ export function AgentsView() {
       title: 'Re-synced',
       message: `${agentName}'s config was re-materialized from the registry.`,
     });
-    // Immediately clear drift status (resync succeeded, file is now in sync)
+    // Immediately clear drift status (resync succeeded, file is now in sync).
+    // Do NOT re-check drift immediately—let it refresh on next view load.
     setDriftStatus((prev) => ({
       ...prev,
       [agentId]: {
@@ -643,10 +647,8 @@ export function AgentsView() {
         changedServers: [],
       },
     }));
-    // Then refresh and re-check to verify
+    // Refresh state to show updated registry
     void refreshAll();
-    // Delay the re-check slightly to ensure refreshAll has completed
-    setTimeout(() => void checkDrift(agentId), 500);
   };
 
   const jobDone = () => {
