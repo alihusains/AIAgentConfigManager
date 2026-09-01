@@ -109,6 +109,11 @@
   --transition-normal: 200ms ease-out;
   --transition-slow: 220ms ease-out;
 
+  /* Micro-interactions — common transitions for UI polish */
+  --transition-all: all var(--transition-normal);
+  --transition-shadow: box-shadow var(--transition-fast), border-color var(--transition-fast);
+  --transition-hover: background-color var(--transition-fast), transform var(--transition-fast);
+
   /* Glass / atmosphere — see .glass-surface / .ambient-glow / .grain-texture
      utility classes below; not applied to components yet (downstream tasks). */
   --surface-glass: rgba(255, 255, 255, 0.68);
@@ -233,6 +238,12 @@ body {
 :focus-visible {
   outline: 2px solid var(--border-focus);
   outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Smooth transitions for interactive elements */
+a, button, input, select, textarea {
+  transition: var(--transition-fast);
 }
 
 /* Skip-to-content link (audit H1): hidden until keyboard-focused, then pinned
@@ -847,11 +858,18 @@ body {
   transition: background-color var(--transition-fast), border-color var(--transition-fast),
     box-shadow var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
   white-space: nowrap;
+  user-select: none;
 }
 
 .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  pointer-events: none;
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
 }
 
 .btn-primary {
@@ -864,6 +882,7 @@ body {
   background: var(--accent-primary-hover);
   box-shadow: var(--elevation-2), 0 0 0 4px
     color-mix(in srgb, var(--accent-primary) 18%, transparent);
+  transform: translateY(-1px);
 }
 
 .btn-primary:active:not(:disabled) {
@@ -882,6 +901,7 @@ body {
   background: var(--bg-hover);
   border-color: var(--border-secondary);
   box-shadow: var(--elevation-2);
+  transform: translateY(-1px);
 }
 
 .btn-secondary:active:not(:disabled) {
@@ -891,15 +911,18 @@ body {
 .btn-ghost {
   background: transparent;
   color: var(--text-secondary);
+  transition: var(--transition-hover);
 }
 
 .btn-ghost:hover:not(:disabled) {
   background: color-mix(in srgb, var(--accent-primary) 8%, transparent);
   color: var(--text-primary);
+  transform: translateY(-1px);
 }
 
 .btn-ghost:active:not(:disabled) {
   background: color-mix(in srgb, var(--accent-primary) 14%, transparent);
+  transform: scale(0.98);
 }
 
 .btn-danger {
@@ -910,6 +933,9 @@ body {
 
 .btn-danger:hover:not(:disabled) {
   background: color-mix(in srgb, var(--accent-error) 86%, #000);
+  box-shadow: var(--elevation-2), 0 0 0 4px
+    color-mix(in srgb, var(--accent-error) 18%, transparent);
+  transform: translateY(-1px);
 }
 
 .btn-danger:active:not(:disabled) {
@@ -937,20 +963,23 @@ body {
   background: var(--bg-primary);
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-md);
-  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background-color var(--transition-fast);
+}
+
+.input:hover:not(:focus) {
+  border-color: var(--border-secondary);
+  background-color: color-mix(in srgb, var(--bg-primary) 98%, var(--accent-primary));
 }
 
 .input:focus {
   border-color: var(--border-focus);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-primary) 20%, transparent);
-}
-
-.input:hover:not(:focus) {
-  border-color: var(--border-secondary);
+  outline: none;
 }
 
 .input::placeholder {
   color: var(--text-tertiary);
+  opacity: 0.8;
 }
 
 .input-error {
@@ -958,7 +987,12 @@ body {
 }
 
 .input-error:focus {
+  border-color: var(--accent-error);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-error) 20%, transparent);
+}
+
+.input-error:hover:not(:focus) {
+  border-color: color-mix(in srgb, var(--accent-error) 70%, var(--border-primary));
 }
 
 /* Native <select> elements styled as inputs (they carry .input too). */
@@ -984,7 +1018,12 @@ select.input {
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-lg);
   padding: 16px;
-  transition: box-shadow var(--transition-normal), border-color var(--transition-normal);
+  transition: box-shadow var(--transition-normal), border-color var(--transition-normal), background-color var(--transition-normal);
+}
+
+.card:hover {
+  border-color: color-mix(in srgb, var(--accent-primary) 30%, var(--border-primary));
+  box-shadow: var(--elevation-2);
 }
 
 .card-header {
@@ -1286,6 +1325,7 @@ select.input {
 
 .table tr:hover td {
   background: var(--bg-hover);
+  transition: background-color var(--transition-fast);
 }
 
 .table td:first-child,
@@ -1551,11 +1591,17 @@ select.input {
   display: flex;
   flex-direction: column;
   height: 100%;
+  transition: transform var(--transition-normal);
+  box-shadow: inset -1px 0 0 var(--border-primary);
 }
 
 .sidebar-header {
   padding: 18px 16px;
   border-bottom: 1px solid var(--border-primary);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent-primary) 4%, transparent), transparent);
 }
 
 .sidebar-brand-mark {
@@ -1610,9 +1656,10 @@ select.input {
   border: none;
   border-radius: var(--radius-full);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: var(--transition-all);
   width: 100%;
   text-align: left;
+  user-select: none;
 }
 
 .nav-item:focus-visible {
@@ -1623,6 +1670,7 @@ select.input {
 .nav-item:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
+  transform: translateX(4px);
 }
 
 .nav-item.active {
@@ -1803,19 +1851,21 @@ select.input {
   align-items: center;
   gap: 5px;
   padding: 3px 8px;
-  border: none;
+  border: 1px solid transparent;
   border-radius: var(--radius-sm, 6px);
   background: transparent;
   color: var(--text-secondary);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: var(--transition-all);
 }
 
 .breadcrumbs-link:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
+  border-color: var(--border-primary);
+  transform: translateX(2px);
 }
 
 .breadcrumbs-current {
@@ -1848,12 +1898,15 @@ select.input {
   z-index: 1000;
   padding: 24px;
   animation: fadeIn 150ms ease;
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
 }
 
 .modal {
   background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-lg), 0 0 0 1px color-mix(in srgb, var(--accent-primary) 10%, transparent);
   /* Wide enough for the verifier probe cards + forms side by side */
   max-width: 780px;
   width: 100%;
@@ -1888,15 +1941,23 @@ select.input {
   height: 32px;
   border-radius: var(--radius-md);
   background: transparent;
-  border: none;
+  border: 1px solid transparent;
   color: var(--text-tertiary);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: var(--transition-all);
+  flex-shrink: 0;
 }
 
 .modal-close:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
+  border-color: var(--border-primary);
+  transform: rotate(90deg);
+}
+
+.modal-close:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
 }
 
 .modal-body {
@@ -1976,6 +2037,7 @@ select.input {
   flex-direction: column;
   gap: 8px;
   z-index: 1001;
+  pointer-events: none;
 }
 
 .toast {
@@ -1986,10 +2048,12 @@ select.input {
   background: var(--bg-primary);
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-lg), 0 0 0 1px color-mix(in srgb, var(--accent-primary) 10%, transparent);
   min-width: 280px;
   max-width: 420px;
   animation: slideInRight 200ms ease;
+  pointer-events: auto;
+  transition: var(--transition-all);
 }
 
 .toast-success {
@@ -2037,14 +2101,16 @@ select.input {
   justify-content: center;
   border-radius: var(--radius-sm);
   background: transparent;
-  border: none;
+  border: 1px solid transparent;
   color: var(--text-tertiary);
   cursor: pointer;
+  transition: var(--transition-all);
 }
 
 .toast-close:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
+  border-color: var(--border-primary);
 }
 
 @keyframes slideInRight {
@@ -2521,12 +2587,34 @@ textarea.input {
   border-top-color: var(--accent-primary);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
 }
 
 @keyframes spin {
   to {
     transform: rotate(360deg);
   }
+}
+
+/* Loading states */
+.btn-loading {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+.btn-loading::before {
+  content: "";
+  width: 16px;
+  height: 16px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  opacity: 0.6;
 }
 
 /* Responsive */
@@ -2856,6 +2944,13 @@ textarea {
   overflow: hidden;
   flex-shrink: 0;
   user-select: none;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.avatar:hover {
+  transform: scale(1.05) translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 
 .avatar + .avatar {
@@ -3131,6 +3226,19 @@ textarea {
 }
 
 /* ============================================================================
+   Header / Navigation Bar Styling
+   ============================================================================ */
+
+header {
+  transition: var(--transition-all);
+  background: linear-gradient(180deg, var(--bg-canvas), color-mix(in srgb, var(--bg-canvas) 95%, transparent));
+}
+
+header button {
+  transition: var(--transition-all);
+}
+
+/* ============================================================================
    Dashboard layout
    ============================================================================ */
 
@@ -3185,12 +3293,13 @@ textarea {
   color: inherit;
   appearance: none;
   cursor: pointer;
-  transition: border-color var(--transition-fast), box-shadow var(--transition-normal);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-normal), transform var(--transition-fast);
 }
 
 .bento-card:hover {
   border-color: color-mix(in srgb, var(--bento-tint) 45%, var(--border-primary));
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
 }
 
 .bento-card:focus-visible {
