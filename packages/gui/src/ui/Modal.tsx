@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { X } from 'lucide-react';
+import X from 'lucide-react/dist/esm/icons/x.js';
 
 /**
  * Modal — the shared dialog (`.modal-overlay` > `.modal`).

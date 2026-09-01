@@ -1,7 +1,13 @@
 import { memo, useCallback, useRef, useState, type ChangeEvent } from 'react';
 import { useStore } from '../store';
 import { api } from '../api';
-import { Download, Upload, Database, Info, AlertTriangle, Clock, HardDrive } from 'lucide-react';
+import Download from 'lucide-react/dist/esm/icons/download.js';
+import Upload from 'lucide-react/dist/esm/icons/upload.js';
+import Database from 'lucide-react/dist/esm/icons/database.js';
+import Info from 'lucide-react/dist/esm/icons/info.js';
+import AlertTriangle from 'lucide-react/dist/esm/icons/alert-triangle.js';
+import Clock from 'lucide-react/dist/esm/icons/clock.js';
+import HardDrive from 'lucide-react/dist/esm/icons/hard-drive.js';
 import { SectionHeader, Card, Badge, Button } from '../ui';
 
 /**

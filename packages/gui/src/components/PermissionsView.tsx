@@ -1,7 +1,11 @@
 import { memo, useEffect, useState, useCallback } from 'react';
 import { api } from '../api';
 import { SectionHeader, Card, Badge, Button } from '../ui';
-import { AlertTriangle, AlertCircle, CheckCircle2, RefreshCw, Shield } from 'lucide-react';
+import AlertTriangle from 'lucide-react/dist/esm/icons/alert-triangle.js';
+import AlertCircle from 'lucide-react/dist/esm/icons/alert-circle.js';
+import CheckCircle2 from 'lucide-react/dist/esm/icons/check-circle-2.js';
+import RefreshCw from 'lucide-react/dist/esm/icons/refresh-cw.js';
+import Shield from 'lucide-react/dist/esm/icons/shield.js';
 
 /**
  * Permissions View — P2-T2 GUI tab

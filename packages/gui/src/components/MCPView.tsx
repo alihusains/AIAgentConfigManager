@@ -5,7 +5,13 @@ import { AgentIconTile } from './AgentIcon';
 import { useAgentCatalog } from '../hooks/useAgentCatalog';
 import { ToolCountCell } from './MCPToolCountCell';
 import type { MCPServerConfig, DetectedAgent } from '@ai-agent-config/core';
-import { Plus, Edit, Trash2, Server, Terminal, Globe, Link } from 'lucide-react';
+import Plus from 'lucide-react/dist/esm/icons/plus.js';
+import Edit from 'lucide-react/dist/esm/icons/edit.js';
+import Trash2 from 'lucide-react/dist/esm/icons/trash-2.js';
+import Server from 'lucide-react/dist/esm/icons/server.js';
+import Terminal from 'lucide-react/dist/esm/icons/terminal.js';
+import Globe from 'lucide-react/dist/esm/icons/globe.js';
+import Link from 'lucide-react/dist/esm/icons/link.js';
 import { Tooltip } from '../ui';
 
 const TYPE_ICONS: Record<MCPServerConfig['type'], React.ReactNode> = {

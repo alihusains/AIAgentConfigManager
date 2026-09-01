@@ -1,5 +1,13 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { KeyRound, Eye, EyeOff, Plus, Edit, Trash2, Search, RefreshCw, Lock } from 'lucide-react';
+import KeyRound from 'lucide-react/dist/esm/icons/key-round.js';
+import Eye from 'lucide-react/dist/esm/icons/eye.js';
+import EyeOff from 'lucide-react/dist/esm/icons/eye-off.js';
+import Plus from 'lucide-react/dist/esm/icons/plus.js';
+import Edit from 'lucide-react/dist/esm/icons/edit.js';
+import Trash2 from 'lucide-react/dist/esm/icons/trash-2.js';
+import Search from 'lucide-react/dist/esm/icons/search.js';
+import RefreshCw from 'lucide-react/dist/esm/icons/refresh-cw.js';
+import Lock from 'lucide-react/dist/esm/icons/lock.js';
 import type { EnvVarEntry } from '@ai-agent-config/core';
 import { api } from '../api';
 import { useStore } from '../store';

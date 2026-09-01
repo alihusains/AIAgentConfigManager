@@ -1,4 +1,6 @@
-import { Check, Copy, Plus } from 'lucide-react';
+import Check from 'lucide-react/dist/esm/icons/check.js';
+import Copy from 'lucide-react/dist/esm/icons/copy.js';
+import Plus from 'lucide-react/dist/esm/icons/plus.js';
 import { useState } from 'react';
 import { Tooltip } from '../ui';
 

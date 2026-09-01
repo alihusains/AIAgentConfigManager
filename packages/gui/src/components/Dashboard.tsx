@@ -5,7 +5,12 @@ import { ApiTypeBadges } from './ApiTypeBadges';
 import { AgentIconTile } from './AgentIcon';
 import { providerApiLabel } from './ProviderVerify';
 import { Skeleton, Tooltip } from '../ui';
-import { Database, Server, Bot, UserPlus, AlertTriangle, ArrowRight } from 'lucide-react';
+import Database from 'lucide-react/dist/esm/icons/database.js';
+import Server from 'lucide-react/dist/esm/icons/server.js';
+import Bot from 'lucide-react/dist/esm/icons/bot.js';
+import UserPlus from 'lucide-react/dist/esm/icons/user-plus.js';
+import AlertTriangle from 'lucide-react/dist/esm/icons/alert-triangle.js';
+import ArrowRight from 'lucide-react/dist/esm/icons/arrow-right.js';
 import type { ProviderApiKind } from '@ai-agent-config/core';
 
 /**

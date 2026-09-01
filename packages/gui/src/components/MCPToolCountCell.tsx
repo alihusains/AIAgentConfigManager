@@ -1,4 +1,5 @@
-import { AlertTriangle, Loader2 } from 'lucide-react';
+import AlertTriangle from 'lucide-react/dist/esm/icons/alert-triangle.js';
+import Loader2 from 'lucide-react/dist/esm/icons/loader-2.js';
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { Badge, Tooltip } from '../ui';

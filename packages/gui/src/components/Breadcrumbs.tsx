@@ -1,4 +1,4 @@
-import { Home } from 'lucide-react';
+import Home from 'lucide-react/dist/esm/icons/home.js';
 import { useStore, type View } from '../store';
 import { AgentIconTile } from './AgentIcon';
 

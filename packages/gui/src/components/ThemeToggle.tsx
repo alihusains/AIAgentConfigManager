@@ -13,7 +13,8 @@
  * so this attribute is the one and only theme switch.
  */
 import { useEffect, useState } from 'react';
-import { Sun, Moon } from 'lucide-react';
+import Sun from 'lucide-react/dist/esm/icons/sun.js';
+import Moon from 'lucide-react/dist/esm/icons/moon.js';
 import { Tooltip } from '../ui';
 
 const THEME_KEY = 'aacm-theme';

@@ -15,7 +15,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useStore, type View } from '../store';
 import { toggleTheme } from './ThemeToggle';
-import { Search, CornerDownLeft } from 'lucide-react';
+import Search from 'lucide-react/dist/esm/icons/search.js';
+import CornerDownLeft from 'lucide-react/dist/esm/icons/corner-down-left.js';
 
 // ---------------------------------------------------------------------------
 // Types

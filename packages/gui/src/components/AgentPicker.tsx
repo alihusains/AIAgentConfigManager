@@ -1,5 +1,6 @@
 import type { DetectedAgent } from '@ai-agent-config/core';
-import { Bot, Plus } from 'lucide-react';
+import Bot from 'lucide-react/dist/esm/icons/bot.js';
+import Plus from 'lucide-react/dist/esm/icons/plus.js';
 import { useEffect, useRef, useState } from 'react';
 import { Tooltip } from '../ui';
 import { AgentIconTile } from './AgentIcon';

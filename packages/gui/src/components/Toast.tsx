@@ -1,6 +1,10 @@
 import { useEffect, useRef } from 'react';
 import { useStore } from '../store';
-import { X, CheckCircle, AlertCircle, AlertTriangle, Info } from 'lucide-react';
+import X from 'lucide-react/dist/esm/icons/x.js';
+import CheckCircle from 'lucide-react/dist/esm/icons/check-circle.js';
+import AlertCircle from 'lucide-react/dist/esm/icons/alert-circle.js';
+import AlertTriangle from 'lucide-react/dist/esm/icons/alert-triangle.js';
+import Info from 'lucide-react/dist/esm/icons/info.js';
 
 export function ToastContainer() {
   const { toasts, removeToast } = useStore();
