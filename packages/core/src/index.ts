@@ -63,6 +63,9 @@ import type {
   MaterializeResult,
   CustomAgentDef,
   ProviderApiCapabilities,
+  KeyLocationScanResult,
+  KeyStorageLocation,
+  ProviderKeyLocation,
 } from './types';
 import { listAvailableAdapters, resolveConfigPathForAgent, createGenericAdapter } from './adapters';
 import {
@@ -1947,6 +1950,123 @@ export class AgentConfigManager {
     if (adapter) {
       const config = await adapter.readConfig();
       this.configs.set(agentId, config);
+    }
+  }
+
+  /**
+   * T4: Scan where provider keys are stored — registry (keychain refs or
+   * plaintext) and agent configs (plaintext). Returns a comprehensive report
+   * of each provider's key locations and a risk assessment.
+   */
+  async scanKeyLocations(): Promise<OperationResult<KeyLocationScanResult>> {
+    try {
+      const registry = await this.requireRegistry();
+      const registryPath = this.registryFilePath;
+      const result: KeyLocationScanResult = {
+        scannedAt: new Date().toISOString(),
+        providers: [],
+        summary: {
+          totalProviders: 0,
+          keychainBacked: 0,
+          plaintextOnly: 0,
+          mixed: 0,
+        },
+      };
+
+      // Map to deduplicate providers when they appear in multiple agents
+      const providerMap = new Map<
+        string,
+        { entry: RegistryProvider; agentIds: Set<string> }
+      >();
+
+      // Step 1: Collect registry providers
+      for (const entry of registry.providers) {
+        providerMap.set(entry.provider.id, {
+          entry,
+          agentIds: new Set(entry.agentIds),
+        });
+      }
+
+      // Step 2: Scan each provider's keys
+      for (const [providerId, { entry, agentIds }] of providerMap) {
+        const locations: KeyStorageLocation[] = [];
+
+        // Registry keychain reference
+        if (entry.keychainSecretRef) {
+          locations.push({
+            type: 'keychain',
+            reference: entry.keychainSecretRef,
+          });
+        } else if (entry.provider.config.apiKey) {
+          // Registry plaintext
+          locations.push({
+            type: 'registry-plaintext',
+            path: registryPath,
+          });
+        }
+
+        // Step 3: Scan agent configs for plaintext keys
+        for (const agentId of agentIds) {
+          try {
+            const adapter = this.adapters.get(agentId);
+            if (!adapter) continue;
+            const config = await adapter.readConfig();
+            const providerInAgent = config.modelProviders.find(
+              (p: ModelProvider) => p.id === providerId
+            );
+            if (providerInAgent?.config?.apiKey) {
+              locations.push({
+                type: 'agent-plaintext',
+                agentId,
+                configPath: adapter.getConfigPath(getCurrentPlatform()),
+              });
+            }
+          } catch {
+            // Agent config unreadable; skip it
+          }
+        }
+
+        // If no locations found, record as missing
+        if (locations.length === 0) {
+          locations.push({ type: 'missing' });
+        }
+
+        // Assess risk level
+        const hasKeychain = locations.some((l: KeyStorageLocation) => l.type === 'keychain');
+        const plaintextCount = locations.filter(
+          (l: KeyStorageLocation) => l.type === 'registry-plaintext' || l.type === 'agent-plaintext'
+        ).length;
+        const riskLevel: 'high' | 'medium' | 'low' =
+          plaintextCount >= 2 ? 'high' : plaintextCount === 1 ? 'medium' : 'low';
+
+        result.providers.push({
+          providerId,
+          providerName: entry.provider.name,
+          locations,
+          isKeychain: hasKeychain,
+          isPlaintext: plaintextCount > 0,
+          riskLevel,
+        });
+      }
+
+      // Step 4: Calculate summary
+      result.summary.totalProviders = result.providers.length;
+      result.summary.keychainBacked = result.providers.filter(
+        (p: ProviderKeyLocation) => p.isKeychain && !p.isPlaintext
+      ).length;
+      result.summary.plaintextOnly = result.providers.filter(
+        (p: ProviderKeyLocation) => !p.isKeychain && p.isPlaintext
+      ).length;
+      result.summary.mixed = result.providers.filter(
+        (p: ProviderKeyLocation) => p.isKeychain && p.isPlaintext
+      ).length;
+
+      return { success: true, data: result };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
     }
   }
 

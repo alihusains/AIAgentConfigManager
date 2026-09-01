@@ -617,3 +617,36 @@ export interface MaterializeResult {
   errors: string[];
   warnings: string[];
 }
+
+// ============================================================================
+// Key Location Scanning (T4: "Where do my keys live" feature)
+// ============================================================================
+
+/** Where a provider's API key is stored */
+export type KeyStorageLocation =
+  | { type: 'keychain'; reference: string }
+  | { type: 'registry-plaintext'; path: string }
+  | { type: 'agent-plaintext'; agentId: string; configPath: string }
+  | { type: 'missing' };
+
+/** Per-provider key location report */
+export interface ProviderKeyLocation {
+  providerId: string;
+  providerName: string;
+  locations: KeyStorageLocation[];
+  isKeychain: boolean; // true if any location is keychain
+  isPlaintext: boolean; // true if any location is plaintext (registry or agent)
+  riskLevel: 'high' | 'medium' | 'low'; // high = plaintext in multiple places, medium = one plaintext, low = keychain only
+}
+
+/** Result of scanning all key locations */
+export interface KeyLocationScanResult {
+  scannedAt: string;
+  providers: ProviderKeyLocation[];
+  summary: {
+    totalProviders: number;
+    keychainBacked: number;
+    plaintextOnly: number;
+    mixed: number;
+  };
+}
