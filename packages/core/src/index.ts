@@ -24,6 +24,9 @@ export * from './adapters';
 // Maintained agent catalog (known agent CLIs + install/uninstall allow-list)
 export * from './agent-catalog';
 
+// CLI tools catalog (searchable, browsable 50+ popular tools with install commands)
+export * from './cli-tools-catalog';
+
 // Provider API verification (probe /models, /chat/completions, /responses)
 export * from './provider-test';
 

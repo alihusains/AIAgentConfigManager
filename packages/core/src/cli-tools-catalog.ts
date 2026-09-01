@@ -26,7 +26,6 @@ export interface CLITool {
     yum?: string;
     cargo?: string;
     python?: string;
-    pip?: string;
     manual?: string;
   };
   platforms: ('darwin' | 'linux' | 'win32')[];
