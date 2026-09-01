@@ -1863,6 +1863,7 @@ select.input {
   display: flex;
   flex-direction: column;
   animation: slideUp 200ms ease;
+  contain: layout paint;
 }
 
 .modal-header {

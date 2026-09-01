@@ -1181,6 +1181,7 @@ export class AgentConfigManager {
     const adapter = this.adapters.get(agentId);
     if (!adapter) return { success: false, error: `Agent "${agentId}" not found` };
     const materialize = await this.syncAgents([agentId]);
+    console.log(`[resyncAgent] ${agentId} materialize result:`, materialize); // DEBUG
     const data = await this.getRegistryState();
     return {
       success: materialize.ok,

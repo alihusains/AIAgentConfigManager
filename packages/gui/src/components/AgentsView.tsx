@@ -570,6 +570,7 @@ export function AgentsView() {
       },
     }));
     const res = await api.checkAgentDrift(agentId);
+    console.log(`[checkDrift] ${agentId}:`, res); // DEBUG
     setDriftStatus((prev) => ({
       ...prev,
       [agentId]: res?.ok && res.data
@@ -611,12 +612,14 @@ export function AgentsView() {
       [agentId]: { ...prev[agentId], resyncing: true },
     }));
     const res = await api.resyncAgent(agentId);
+    console.log(`[resync] ${agentId}:`, res); // DEBUG
     const ok = res.ok;
     setDriftStatus((prev) => ({
       ...prev,
       [agentId]: { ...prev[agentId], resyncing: false },
     }));
     if (!ok) {
+      console.error(`[resync] Failed for ${agentId}:`, res.error); // DEBUG
       addToast({
         type: 'error',
         title: 'Re-sync failed',
