@@ -321,20 +321,34 @@ export function AgentsView() {
   const customAgents = registry?.customAgents || [];
   const p = (platform as 'darwin' | 'win32' | 'linux') || 'darwin';
 
-  const loadCatalog = useCallback(async () => {
-    const res = await api.getAgentCatalog();
-    if (!res.ok || !res.data) {
-      setCatalogError(res.error || 'Failed to load agent catalog');
-      return;
-    }
-    setCatalog(res.data.agents);
-    setCatalogMeta(res.data.meta);
-    setCatalogError(null);
-  }, []);
-
+  // Load catalog once on mount, with timeout to prevent hanging
   useEffect(() => {
+    let mounted = true;
+    const loadCatalog = async () => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+      try {
+        const res = await api.getAgentCatalog();
+        clearTimeout(timeoutId);
+        if (!mounted) return;
+        if (!res.ok || !res.data) {
+          setCatalogError(res.error || 'Failed to load agent catalog');
+          return;
+        }
+        setCatalog(res.data.agents);
+        setCatalogMeta(res.data.meta);
+        setCatalogError(null);
+      } catch (err) {
+        clearTimeout(timeoutId);
+        if (!mounted) return;
+        setCatalogError('Failed to load agent catalog — connection timeout');
+      }
+    };
     void loadCatalog();
-  }, [loadCatalog]);
+    return () => {
+      mounted = false;
+    };
+  }, []); // Empty deps: load once on mount only
 
   const openFileEditor = async (
     agentId: string,
