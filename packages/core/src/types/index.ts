@@ -211,6 +211,40 @@ export interface PermissionConfig {
 }
 
 // ============================================================================
+// Permission Audit Types
+// ============================================================================
+
+export interface PermissionContradiction {
+  pattern: string;
+  type: 'tool' | 'directory' | 'url' | 'command' | 'mcp' | 'custom';
+  allowingAgents: string[];
+  denyingAgents: string[];
+  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
+}
+
+export interface AgentPermissionSummary {
+  agentId: string;
+  agentName: string;
+  totalPermissions: number;
+  allowedPatterns: number;
+  deniedPatterns: number;
+  contradictions: PermissionContradiction[];
+}
+
+export interface PermissionAuditResult {
+  scannedAt: string;
+  totalAgents: number;
+  agentsWithPermissions: number;
+  perAgent: AgentPermissionSummary[];
+  globalContradictions: PermissionContradiction[];
+  summary: {
+    highRiskCount: number;
+    mediumRiskCount: number;
+    lowRiskCount: number;
+  };
+}
+
+// ============================================================================
 // Agent Configuration Schema
 // ============================================================================
 
