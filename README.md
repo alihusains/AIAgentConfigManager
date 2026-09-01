@@ -1,365 +1,299 @@
 <div align="center">
 
-# 🚀 Agent Config Manager — Unified Orchestration
+# 🚀 Agent Config Manager
 
 **Configure Once. Distribute Everywhere.**
 
 [![GitHub Stars](https://img.shields.io/github/stars/alihusains/AIAgentConfigManager?style=flat-square&logo=github)](https://github.com/alihusains/AIAgentConfigManager)
 [![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](./LICENSE)
-[![Version](https://img.shields.io/badge/version-v0.4.0-3b82f6?style=flat-square)](https://github.com/alihusains/AIAgentConfigManager/releases)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-0f172a?style=flat-square)](https://github.com/alihusains/AIAgentConfigManager)
 
-**Stop repeating AI agent configuration work.** Manage providers, MCP servers, skills, and CLI tools from one beautiful, unified dashboard.
+**Imagine this:** you add one AI provider, click one button, and every AI agent on your machine picks it up instantly. No copy-paste. No SSH sessions. No "which file was that again?"
 
-[⭐ Star us on GitHub](#) • [📖 Read Docs](#) • [🐛 Report Issues](#) • [💬 Join Community](#)
+Agent Config Manager is a simple dashboard that keeps all your AI agents (Claude, OpenCode, Pi, Gemini, and 20+ more) in perfect sync. Think of it as the settings app for your AI toolkit.
+
+[⭐ Star us on GitHub](https://github.com/alihusains/AIAgentConfigManager) • [🐛 Report Issues](https://github.com/alihusains/AIAgentConfigManager/issues) • [💬 Join the Discussion](https://github.com/alihusains/AIAgentConfigManager/discussions)
 
 </div>
 
 ---
 
-## 🎯 The Problem (You Know This Pain)
+## 😩 The Problem (Sound Familiar?)
 
-You're managing **multiple AI agents** (Claude, OpenCode, Pi, Mimo, Gemini, etc.) and **every single time** you need to:
+You use more than one AI agent. Maybe Claude for coding, Gemini for research, OpenCode for scripts. Each one asks for the same things:
 
-### The Headache
-- ❌ Add a new provider? Type the **same API key into 5+ config files** manually
-- ❌ Rotate credentials? Hunt through **10+ agent configs** to update
-- ❌ Add MCP server? **Hand-edit JSON → TOML → JSONC → hope you didn't typo**
-- ❌ Install skill? **Download and configure in each agent individually**
-- ❌ Update CLI tool? **Manual `npm install -g`** for every tool
-- ❌ Track environment variables? **SSH to different machines** or grep `.bashrc`
-- ❌ Fix config errors? **Wonder which agent has outdated config**
+- An API key
+- A list of models
+- MCP servers for extra tools
+- Environment variables
 
-### The Cost
-- 🕐 **Hours per week** on repetitive setup work
-- 🔐 **Security risk:** Credentials scattered across multiple files
-- 📊 **Config drift:** Agents silently go out of sync
-- 😤 **Frustration:** "Why isn't there a central tool for this?"
+And every single one stores them in a **different file, in a different format**.
 
-**Total time wasted:** Managing 8 agents × 10 minutes per change = 80 minutes = **1.3 hours per single update**
+So when life happens, you do the same boring work over and over:
+
+- ❌ **New API key?** Type it into 5 config files by hand.
+- ❌ **Key expired?** Hunt through 10 files to find and fix it.
+- ❌ **New MCP server?** Edit JSON here, TOML there, JSONC somewhere else. Then pray there are no typos.
+- ❌ **New skill?** Download it, copy it, repeat for every agent.
+- ❌ **Anything broken?** No idea which agent is out of date until it fails.
+
+**The math is brutal.** One small change across 8 agents takes about 80 minutes. And you do this kind of thing every week.
+
+> "Why is there no central place for this?"
+> You, every single time.
+
+This tool exists because you deserved a better answer.
 
 ---
 
-## ✨ The Solution: Agent Config Manager
+## 💡 The Solution (Dead Simple)
 
-**One unified registry. Multiple agents. One-click synchronization.**
-
-### How It Works (Dead Simple)
-
-1. **Add provider once** to the registry (API key, base URL, model list)
-2. **Select which agents** need it (multi-select or "Select All")
-3. **Click "Deploy"** → Tool writes config to ALL agents in their native formats
-4. **Done.** Changes sync instantly across every agent.
+**One place to manage everything. One click to push it everywhere.**
 
 ```
-Add Provider → Select Agents → Click Deploy → ✨ Magic → All agents configured
+Add it once  →  Pick your agents  →  Click Deploy  →  ✅ Done
 ```
 
-### Real-World Example
+That's the whole product. Three steps, 30 seconds.
 
-**Scenario:** You add OpenRouter (50+ LLM access)
+**Real example:** you want OpenRouter (50+ models) on all your agents.
 
-| Manual Work | Agent Config Manager |
+| The old way | With Agent Config Manager |
 |---|---|
-| SSH into 8 machines | Open dashboard |
-| Edit each agent's config file | Click "Add Provider" |
-| Copy-paste OpenRouter config | Select 8 agents |
-| **Verify each one worked** | Click "Deploy" |
-| Fix typos across 5 files | ✅ **Done in 30 seconds** |
-| **Total: 20-30 minutes** | **Total: 30 seconds** |
+| SSH into machines, open each config file | Open the dashboard |
+| Copy-paste the same key 8 times | Click "Add Provider", paste once |
+| Hope there are no typos | Click "Deploy" |
+| 20-30 minutes, with stress | **30 seconds, zero stress** |
+
+And the best part: your configs stay in the normal files your agents already use (JSON, TOML, etc.). No lock-in. No mystery formats.
 
 ---
 
-## 🎁 Core Features That Save Your Life
+## 🎁 What It Does for You
 
-### 1. **Centralized Provider Management**
-- Add providers (OpenAI, Anthropic, OpenRouter, Mistral, Nvidia, etc.) **once**
-- Define API keys, base URLs, and models in **one place**
-- **Bulk assign** to multiple agents with a click
-- Per-protocol API verification (Chat Completions ✓, Anthropic ✓, Responses ✓)
-- Zero repeated configuration work
+Here's the full picture, in plain language:
 
-### 2. **MCP Server Distribution**
-- Register MCP servers **once**
-- **Assign to agents with a click** (auth-required servers handled gracefully)
-- Remove from all agents **at once**
-- Auto-materialization in each agent's format
-
-### 3. **Skill & Tool Assignment**
-- Browse skill library (Python, JavaScript, data analysis, etc.)
-- **Download and assign to multiple agents in bulk**
-- Track which agents have which skills
-- **Update all at once**
-
-### 4. **CLI Tool Management**
-- Auto-detect installed tools (Node, npm, pnpm, Bun, Git, Python, etc.)
-- **Check for updates with one click**
-- **Update all tools at once** → No per-tool management
-- Live version tracking against npm registry
-
-### 5. **Agent Update Management**
-- Detect when agents have updates available
-- **Update individual agents or all at once**
-- Live installation feedback and progress tracking
-- Auto-detect agents after updates
-
-### 6. **Environment Variable Dashboard**
-- View all env vars in one place
-- Sensitive values redacted for security
-- Edit/add/remove vars without terminal access
-- One-click reveal for specific sensitive values
-
-### 7. **Per-Agent Configuration**
-- View raw config files for each agent
-- Edit config directly in dashboard
-- Reveal agent folder on your system
-- Track config drift and auto-resync
-
-### 8. **Agent Discovery**
-- Browse catalog of 20+ supported agents
-- One-click install new agents
-- Get notified of new agents in the market
-- Live progress tracking
-
-### 9. **Security & Config Consistency**
-- Drift detection: spot out-of-band config changes
-- Auto-resync to push registry version back to disk
-- OS Keychain integration for secrets (Phase 1)
-- Prevent configuration conflicts
-
-### 10. **Beautiful Dashboard**
-- Dark/light mode toggle
-- WCAG AA compliant contrast ratios
-- Responsive design (desktop, tablet, mobile)
-- Lightning-fast performance (103 KB gzipped)
+1. **🔑 Provider Management** - Add a provider (OpenAI, Anthropic, OpenRouter, Mistral, and more) once, then assign it to any number of agents. It even verifies your API key works before you deploy.
+2. **🔌 MCP Servers** - Register a server once, assign it to agents with a click. Remove it from all agents at once.
+3. **🧩 Skills & Tools** - Browse a library of skills, install them on multiple agents in one go, and see who has what.
+4. **⚙️ CLI Tools** - See every tool installed on your machine (Node, npm, pnpm, Git, Python, and more). One click shows what's outdated. One more click updates everything.
+5. **🤖 Agent Updates** - Know when your agents have updates available, and update one or all of them.
+6. **🌍 Environment Variables** - View and edit env vars in one place. Sensitive values stay hidden unless you reveal them.
+7. **📋 Per-Agent Config** - Peek at any agent's raw config, edit it directly, and open the folder on your system.
+8. **🔍 Agent Discovery** - Browse 20+ agents you can install, and get notified when new ones appear.
+9. **🛡️ Drift Detection** - If someone (or something) edits a config file behind the dashboard's back, it flags the mismatch and offers a one-click resync.
+10. **🎨 A Dashboard You Won't Hate** - Dark and light mode, fast (103 KB gzipped), and works on desktop, tablet, and phone.
 
 ---
 
-## 📊 Time Saved (Real Numbers)
+## ⏱️ The Time Math (Real Numbers)
 
-| Workflow | Manual | Agent Config Manager | Savings |
-|----------|--------|----------------------|---------|
+| Task | Old Way | With ACM | You Save |
+|------|---------|----------|----------|
 | Add 1 provider to 5 agents | 25 min | 2 min | **23 min** |
 | Update 10 CLI tools | 20 min | 30 sec | **19.5 min** |
 | Manage 50 MCP servers | 2+ hours | 10 min | **1 hr 50 min** |
-| Check CLI updates across team | 30 min | 1 click | **29 min** |
-| Rotate credentials (5 agents) | 15 min | 5 min | **10 min** |
-| **Per week** | **10+ hours** | **30 minutes** | **9.5 hours saved** |
+| Rotate credentials across 5 agents | 15 min | 5 min | **10 min** |
+| **Your typical week** | **10+ hours** | **30 minutes** | **9.5 hours** |
+
+That's almost a full workday back, every single week.
 
 ---
 
-## 🌟 Who's Using This?
+## 📦 How to Install (Seriously, 3 Steps)
 
-- 🤖 **AI Developers** — Managing 5-20 different agents daily
-- 👨‍💼 **Tech Leaders** — Standardizing LLM access across teams
-- 🔬 **Researchers** — Benchmarking multiple models quickly
-- 🏢 **DevOps Teams** — Centralizing AI infrastructure
-- 📊 **ML Engineers** — Experimenting with different providers
+### What You Need First
 
----
-
-## 🚀 Quick Start (2 Minutes)
-
-### Requirements
-- Node.js 18+ OR Bun OR pnpm
-- At least one AI agent installed
+- **Node.js 20 or newer** (check with `node --version`)
+- Any AI agent you want to manage (Claude, OpenCode, etc.)
 - macOS, Linux, or Windows
 
-### Installation
+### Step 1: Get the Code
 
 ```bash
-# Clone the repo
 git clone https://github.com/alihusains/AIAgentConfigManager
 cd AIAgentConfigManager
-
-# Install dependencies
-pnpm install
-
-# Start the dashboard
-pnpm run start
 ```
 
-**Dashboard opens at:** `http://localhost:4321`
+### Step 2: Install Dependencies
 
-That's it. You're done.
+```bash
+pnpm install
+```
+
+> Don't have pnpm? Install it once with `npm install -g pnpm`.
+
+### Step 3: Start the Dashboard
+
+```bash
+pnpm build
+pnpm start
+```
+
+### Step 4: Open Your Browser
+
+Go to `http://localhost:4321` - the dashboard opens right there.
+
+That's it. You're set up. 🎉
+
+### Useful Commands While You're Here
+
+```bash
+pnpm stop      # Stop the dashboard
+pnpm health    # Check that everything is running
+pnpm acm       # Use the CLI directly (acm list-agents, acm detect, etc.)
+```
+
+---
+
+## 🧭 How to Use It (3 Real Workflows)
+
+### Workflow 1: Add a New Provider to All Your Agents (30 seconds)
+
+1. Open the dashboard at `http://localhost:4321`.
+2. Go to **Providers** and click **Add Provider**.
+3. Pick a provider (say, OpenRouter), paste your API key, and choose the models you want.
+4. Click **Verify** - the tool tests the key against the provider so you know it works.
+5. Select the agents that should get it (or hit **Select All**).
+6. Click **Deploy**.
+
+**Result:** every selected agent now has the provider in its own native config format. No copy-paste, no typos.
+
+### Workflow 2: Update All Your CLI Tools (1 click)
+
+1. Go to **Tools** in the sidebar.
+2. You'll see everything installed on your machine (Node, npm, pnpm, Git, Python, and more) with a green check or an "update available" badge.
+3. Click **Update All**.
+4. Watch the live progress as each tool updates.
+
+**Result:** your whole toolchain is current. No more `npm outdated` roulette.
+
+### Workflow 3: Fix Drift (When a Config Goes Out of Sync)
+
+1. The dashboard watches your agent config files. If a file changes outside the dashboard (manual edit, another tool, a teammate on the same machine), it flags the mismatch.
+2. Go to the affected agent's config view.
+3. You'll see the difference between the registry version and the file on disk.
+4. Click **Resync** to push the registry version back to disk.
+
+**Result:** all agents back in perfect agreement, in one click.
+
+### Prefer the Terminal?
+
+The dashboard has a full CLI twin. A few favorites:
+
+```bash
+pnpm acm list-agents          # See all detected agents
+pnpm acm detect               # Re-scan your machine
+pnpm acm show-config claude   # View one agent's config
+pnpm acm gui                  # Start the dashboard
+```
+
+---
+
+## 🌟 Who This Is For
+
+- 🤖 **AI Developers** - juggling 5-20 agents daily
+- 👨‍💼 **Tech Leaders** - standardizing LLM access across a team
+- 🔬 **Researchers** - benchmarking many models at once
+- 🏢 **DevOps Teams** - centralizing AI infrastructure
+- 📊 **ML Engineers** - experimenting across providers
+
+If you manage more than two AI agents, this saves you time. Every day.
 
 ---
 
 ## 🔌 Supported Providers
 
-### OpenAI-Compatible (Add Custom URLs)
-- **OpenAI** — GPT-4, GPT-3.5
-- **OpenRouter** — 100+ model aggregator
-- **Mistral** — Mistral models
-- **Nvidia** — Nvidia NIM API
-- **Together AI** — Open source model hosting
-- **Replicate** — LLM inference
-- **HuggingFace** — Open models
-- **Ollama** — Local model hosting
-- **LM Studio** — Local LLMs
-- **Grok** (xAI)
-- **DeepSeek** — Open source LLMs
-- **Any OpenAI-compatible API** — Custom endpoints supported
+**OpenAI-compatible** (works with any custom endpoint too):
+OpenAI, OpenRouter, Mistral, Nvidia NIM, Together AI, Replicate, HuggingFace, Ollama, LM Studio, Grok (xAI), DeepSeek
 
-### Native Protocols
-- **Anthropic** — Claude models
-- **Google Gemini** — Google's LLMs
-- **Custom endpoints** — BYO API-compatible service
+**Native protocols:**
+Anthropic (Claude), Google Gemini, and any custom API-compatible service.
 
 ---
 
-## 🎯 Supported Agents (Core + Catalog)
+## 🤖 Supported Agents
 
-**Core Adapters (Full Support):**
-- Claude (Anthropic)
-- OpenCode / Codex
-- Reasoning (reasonix)
-- Junie (Google)
-- FreeBuff
-- Kilo
-- Mimo
-- Pi (Inflection)
-- OMP (One Model Platform)
+**Full support (core adapters):**
+Claude (Anthropic), OpenCode / Codex, Reasoning (reasonix), Junie (Google), FreeBuff, Kilo, Mimo, Pi (Inflection), OMP (One Model Platform)
 
-**Auto-Discovery:** 20+ agents detected from catalog
+**Plus 20+ more** detected automatically from the agent catalog.
 
 ---
 
 ## 🔒 Security First
 
-- ✅ **OS Keychain Integration** — API keys stored securely (macOS, Windows, Linux)
-- ✅ **Local-First** — Everything runs on your machine, no cloud sync
-- ✅ **Secrets Redacted** — Sensitive values hidden by default
-- ✅ **Zero Telemetry** — We don't track what you do
-- ✅ **Open Source** — Audit the code yourself (MIT License)
+- ✅ **OS Keychain** - API keys stored in your system's secure keychain (macOS, Windows, Linux)
+- ✅ **Local-first** - everything runs on your machine. Nothing goes to the cloud.
+- ✅ **Secrets redacted** - sensitive values are hidden by default
+- ✅ **Zero telemetry** - we don't track anything
+- ✅ **Open source** - MIT licensed. Read the code, audit it, trust it.
 
 ---
 
-## 📈 Why You Should Use This
+## 🛣️ Coming Next
 
-✅ **Save 10+ hours per week** — No more config duplication  
-✅ **Type-Safe** — Written in TypeScript, battle-tested  
-✅ **Open Source** — MIT License, community-driven  
-✅ **Privacy-First** — Runs locally, no cloud required  
-✅ **Beautiful UI** — Modern dashboard with dark mode  
-✅ **One-Click Deploy** — Changes propagate to all agents instantly  
-✅ **Zero Lock-In** — All configs remain in standard formats (JSON, TOML, JSONC)  
-
----
-
-## 🛣️ Roadmap (Coming Soon)
-
-- 🔄 **Cloud Sync** — Optional multi-device configuration sync
-- 👥 **Team Collaboration** — Shared provider libraries and permissions
-- 🪝 **Webhooks** — Trigger automation on configuration changes
-- 🔌 **REST API** — Programmatic config management
-- 📱 **Mobile App** — Manage configs on the go
-- 🎨 **Enhanced UI** — More visualizations and settings
-- 🔧 **Plugin System** — Custom adapters for new agents
-- 📊 **Analytics** — Usage tracking and insights
+- ☁️ Optional cloud sync across your devices
+- 👥 Team collaboration with shared provider libraries
+- 🪝 Webhooks to trigger automation on config changes
+- 🔌 A REST API for programmatic management
+- 📱 Mobile app for configs on the go
+- 🔧 A plugin system for custom agent adapters
 
 ---
 
-## 🤝 Contributing (Yes, We Want Your Help!)
+## 🤝 Contributing
 
-Found a bug? Have a feature idea? **Please contribute!**
+We'd love your help. Here's how to get involved:
 
-### 🐛 Report Issues
-**[Open a GitHub Issue](https://github.com/alihusains/AIAgentConfigManager/issues)**
+### 🐛 Found a Bug?
 
-Include:
-- Operating system (macOS, Linux, Windows)
-- Node.js version
+[Open an issue](https://github.com/alihusains/AIAgentConfigManager/issues) with:
+- Your operating system (macOS, Linux, Windows)
+- Your Node.js version
 - Steps to reproduce
-- Expected vs. actual behavior
-- Screenshots/logs
+- What you expected vs. what happened
+- Screenshots or logs (big help!)
 
-### ✨ Request Features
-**[Start a GitHub Discussion](https://github.com/alihusains/AIAgentConfigManager/discussions)**
+### ✨ Have an Idea?
 
-Tell us:
-- What problem does it solve?
-- How would you use it?
-- Alternative approaches?
+[Start a discussion](https://github.com/alihusains/AIAgentConfigManager/discussions) and tell us:
+- What problem it solves
+- How you'd use it
+- What you've tried as an alternative
 
-### 🔨 Contribute Code
+### 🔨 Want to Write Code?
+
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
+2. Create a branch: `git checkout -b feature/amazing-feature`
+3. Commit your changes: `git commit -m 'Add amazing feature'`
+4. Push it: `git push origin feature/amazing-feature`
 5. Open a Pull Request
 
-### 📝 Improve Documentation
-- Write guides and tutorials
-- Improve this README
-- Fix typos and clarify explanations
-
-### 🎨 Design & UX
-- Suggest UI improvements
-- Propose new workflows
-- Share design ideas
+Docs, design, and UX ideas are welcome too. This project grows because people like you show up.
 
 ---
 
-## 📞 Support & Community
+## 💬 Get Help & Stay in the Loop
 
-### Get Help
-- 📖 [Read the Documentation](https://github.com/alihusains/AIAgentConfigManager/wiki)
-- 💬 [Join GitHub Discussions](https://github.com/alihusains/AIAgentConfigManager/discussions)
-- 🐛 [File an Issue](https://github.com/alihusains/AIAgentConfigManager/issues)
-
-### Stay Updated
-- ⭐ **Star this repo** on GitHub
-- 🔔 **Watch for releases**
-- 🐦 **Follow us on Twitter** [@agentconfig](#)
+- 📖 [GitHub Wiki](https://github.com/alihusains/AIAgentConfigManager/wiki)
+- 💬 [GitHub Discussions](https://github.com/alihusains/AIAgentConfigManager/discussions)
+- 🐛 [GitHub Issues](https://github.com/alihusains/AIAgentConfigManager/issues)
+- ⭐ Star the repo so you don't lose it
+- 🔔 Watch for releases
 
 ---
 
-## 📊 Stats
+## 💭 What People Say
 
-- ⭐ **GitHub Stars:** [Join our community!](https://github.com/alihusains/AIAgentConfigManager)
-- 📦 **npm Downloads:** Growing daily
-- 🐛 **Issues Resolved:** 50+
-- 🚀 **Releases:** 10+ stable versions
-- 💬 **Community Members:** 500+
+> "This tool saved me 10+ hours a week. Absolutely game-changing."
+> - Senior AI Engineer
 
----
+> "Finally, a sane way to manage multiple agents. Why didn't this exist sooner?"
+> - ML Research Lead
 
-## 📜 License
-
-**MIT License** — Free for personal and commercial use
-
-Copyright © 2024 Agent Config Manager Contributors
-
-See [LICENSE](./LICENSE) for details.
-
----
-
-## 🙏 Acknowledgments
-
-Built by developers, for developers. Special thanks to:
-- The AI agent community for inspiration
-- Open source maintainers
-- Every contributor who made this better
-
----
-
-## 🔗 Links
-
-- 🌐 **GitHub:** [github.com/alihusains/AIAgentConfigManager](https://github.com/alihusains/AIAgentConfigManager)
-- 📚 **Docs:** [GitHub Wiki](https://github.com/alihusains/AIAgentConfigManager/wiki)
-- 💬 **Discussions:** [GitHub Discussions](https://github.com/alihusains/AIAgentConfigManager/discussions)
-- 🐛 **Issues:** [GitHub Issues](https://github.com/alihusains/AIAgentConfigManager/issues)
-
----
-
-## 💭 What Developers Say
-
-> *"This tool saved me 10+ hours a week. Absolutely game-changing."* — Senior AI Engineer
-
-> *"Finally, a sane way to manage multiple agents. Why didn't this exist sooner?"* — ML Research Lead
-
-> *"Beautiful UI and actually intuitive. Highly recommend."* — Full-Stack Developer
+> "Beautiful UI and actually intuitive. Highly recommend."
+> - Full-Stack Developer
 
 ---
 
@@ -367,10 +301,12 @@ Built by developers, for developers. Special thanks to:
 
 ## 🎯 Ready to Stop Repeating Configuration Work?
 
-### ⭐ Star Us | 🚀 Install | 💬 Share Feedback | 🤝 Contribute
+### ⭐ Star Us | 🚀 Install in 3 Steps | 💬 Share Feedback
 
 **Let's make AI agent management simple. Together.**
 
 Made with ❤️ by the Agent Config Manager team
+
+**MIT License** - free for personal and commercial use. [See LICENSE](./LICENSE)
 
 </div>
