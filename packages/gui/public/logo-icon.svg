@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-label="AI Agent Config Manager">
+  <title>AI Agent Config Manager</title>
+  <!-- Simplified mark: hexagon core with three spokes to cyan nodes.
+       The hexagon is drawn larger than in logo-full so it stays legible
+       at 24-32px sidebar sizes. -->
+  <g stroke="#8b5cf6" stroke-width="28" stroke-linecap="round" fill="none">
+    <line x1="512" y1="512" x2="232" y2="232"/>
+    <line x1="512" y1="512" x2="792" y2="232"/>
+    <line x1="512" y1="512" x2="792" y2="792"/>
+  </g>
+  <polygon points="512,320 677,416 677,608 512,704 347,608 347,416" fill="rgba(139,92,246,0.12)" stroke="#8b5cf6" stroke-width="40" stroke-linejoin="round"/>
+  <g fill="#22d3ee">
+    <circle cx="232" cy="232" r="64"/>
+    <circle cx="792" cy="232" r="64"/>
+    <circle cx="792" cy="792" r="64"/>
+  </g>
+</svg>
