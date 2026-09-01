@@ -403,6 +403,10 @@ export class GenericAdapter implements AgentAdapter {
           modelProviders = decoded.modelProviders;
           models = decoded.models;
         }
+      } else {
+        // Provider store file doesn't exist yet; initialize to empty object so
+        // writeConfig can properly encode providers on first write (M071 resync fix)
+        this.providerStoreRawCache = {};
       }
     }
 
