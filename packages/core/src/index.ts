@@ -939,6 +939,15 @@ export class AgentConfigManager {
       entry.description = updates.description?.trim() || undefined;
     if (updates.configPath !== undefined) {
       if (!updates.configPath.trim()) return { success: false, error: 'Config path is required' };
+      // Same foreign-OS guard as addCustomAgent: a `C:\...` path imported from
+      // another machine would otherwise become a literal file in the cwd when
+      // the adapter re-materializes below.
+      if (!isSafeConfigPath(updates.configPath)) {
+        return {
+          success: false,
+          error: `Config path "${updates.configPath}" is not a valid absolute path on this OS — update it before the agent can be used.`,
+        };
+      }
       entry.configPath = updates.configPath.trim();
     }
     if (updates.mcpPath !== undefined) entry.mcpPath = updates.mcpPath.trim() || undefined;
@@ -1705,6 +1714,11 @@ export class AgentConfigManager {
     const targetPath = await this.resolveAgentFilePath(agentId, kind);
     if (!targetPath.success) return { success: false, error: targetPath.error };
     const target = targetPath.data as string;
+    // Final write-side guard: a foreign-OS drive path (e.g. from an imported
+    // registry) would otherwise be written as a literal file in the cwd.
+    if (!isSafeConfigPath(target)) {
+      return { success: false, error: `Refusing to write to "${target}": not a valid absolute path on this OS` };
+    }
     try {
       const existed = await fileExists(target);
       const backupPath = existed ? await backupFile(target) : null;

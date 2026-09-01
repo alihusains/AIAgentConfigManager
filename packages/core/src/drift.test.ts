@@ -233,4 +233,25 @@ describe('M071: drift detection (detectDrift)', () => {
     // And nothing was written to the cwd.
     expect(fs.existsSync(foreignPath)).toBe(false);
   });
+
+  it('updateCustomAgent also rejects a foreign-OS drive path (P1: guard parity with addCustomAgent)', async () => {
+    // First create a valid agent, then try to point it at a foreign path.
+    const goodPath = path.join(tmpHome, 'agent', 'config.json');
+    const added = await manager.addCustomAgent({
+      id: 'movable',
+      name: 'Movable',
+      configPath: goodPath,
+      format: 'json',
+    });
+    expect(added.success).toBe(true);
+
+    const foreignPath =
+      process.platform === 'win32'
+        ? '/Users/someone/.agent/config.json'
+        : 'C:\\Users\\someone\\.agent\\config.json';
+    const res = await manager.updateCustomAgent('movable', { configPath: foreignPath });
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/not a valid absolute path/);
+    expect(fs.existsSync(foreignPath)).toBe(false);
+  });
 });

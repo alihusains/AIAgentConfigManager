@@ -222,6 +222,38 @@ describe('custom agent delete with percent-encoded ids (QA finding C1)', () => {
     expect(String(json.error)).not.toContain('TypeError');
   });
 
+  // CSRF guard: a state-changing request carrying a cross-origin Origin must be
+  // rejected with 403, even though the server is loopback-only. A same-origin
+  // request (Origin matching the Host) and a headerless CLI/curl call both pass.
+  it('CSRF: a cross-origin POST is rejected with 403', async () => {
+    const res = await fetch(`http://127.0.0.1:${handle.port}/api/agents/custom`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'http://evil.example.com',
+      },
+      body: JSON.stringify({ id: 'hax', configPath: path.join(tmpHome, 'hax.json') }),
+    });
+    expect(res.status).toBe(403);
+    const json: any = await res.json();
+    expect(json.ok).toBe(false);
+    expect(String(json.error)).toMatch(/CSRF/);
+  });
+
+  it('CSRF: a same-origin POST passes the guard (reaches the route)', async () => {
+    const host = `127.0.0.1:${handle.port}`;
+    const res = await fetch(`http://127.0.0.1:${handle.port}/api/agents/custom`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: `http://${host}`,
+      },
+      body: JSON.stringify({}),
+    });
+    // Not a CSRF 403 — it reaches the route and fails validation (400, 'Agent id is required').
+    expect(res.status).toBe(400);
+  });
+
   // QA finding M4: a no-op PUT must say so explicitly (`changed: false`).
   it('QA M4: PUT /api/agents/custom/:id with an empty body reports changed:false', async () => {
     const { status, json } = await api('PUT', '/api/agents/custom/agent-a', {});

@@ -351,6 +351,37 @@ export async function startGuiServer(
     const parts = url.pathname.split('/').filter(Boolean); // e.g. ['api','providers','x','agents','y']
     const method = req.method || 'GET';
 
+    // ---- CSRF guard (state-changing methods) ----
+    // The server is loopback-only, so a malicious local page can still reach it.
+    // A cross-origin browser request always carries an Origin/Referer that does
+    // NOT match this server's own origin; the GUI (same-origin fetch) does.
+    // GETs stay open (read-only; /api/health must remain probeable). A direct
+    // non-browser curl/CLI call has no Origin header and is allowed.
+    const isMutation = method === 'POST' || method === 'PUT' || method === 'DELETE';
+    if (isMutation) {
+      const origin = req.headers.origin;
+      const referer = req.headers.referer;
+      // Same-origin check against the request's own Host header (works for any
+      // port, including the ephemeral port tests use). A same-origin GUI fetch
+      // has Origin/Referer matching Host; a cross-origin page's does not. A
+      // non-browser curl/CLI call sends neither, so it passes.
+      const host = req.headers.host;
+      const isSameOrigin = (
+        value: string | undefined
+      ): boolean => {
+        if (!value || !host) return true; // no header / no host → not cross-origin
+        try {
+          const u = new URL(value);
+          return u.host === host;
+        } catch {
+          return true; // unparseable → don't reject
+        }
+      };
+      if (!isSameOrigin(origin) || !isSameOrigin(referer)) {
+        return send(403, { ok: false, error: 'Cross-origin request rejected (CSRF guard)' });
+      }
+    }
+
     // ================= REST routes =================
     if (parts[0] !== 'api') return serveStatic(req, res, distDir);
 
