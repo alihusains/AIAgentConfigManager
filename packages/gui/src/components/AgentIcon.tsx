@@ -138,9 +138,10 @@ export function AgentIconTile({
         height: size,
         // Real logos carry their own colors, so use a neutral surface; the
         // tinted background only shows for the glyph fallback.
+        // In dark mode, use lighter background (secondary) for better contrast
         background: hasLogo
-          ? 'color-mix(in srgb, var(--bg-tertiary) 60%, transparent)'
-          : `color-mix(in srgb, ${color} 16%, transparent)`,
+          ? 'color-mix(in srgb, var(--bg-secondary) 80%, transparent)'
+          : `color-mix(in srgb, ${color} 24%, transparent)`,
         color,
         borderRadius: Math.round(size * 0.28),
       }}
