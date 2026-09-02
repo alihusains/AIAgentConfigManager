@@ -177,11 +177,6 @@ function AvailableList({
   platform: string;
   onInstall: (agent: CatalogAgent) => void;
 }) {
-  const { containerRef, onScroll, range } = useWindowedList(
-    agents.length,
-    AVAIL_ROW_HEIGHT
-  );
-
   if (agents.length === 0) {
     return (
       <div className="p-4 text-center text-tertiary text-sm">
@@ -190,25 +185,16 @@ function AvailableList({
     );
   }
 
-  const visible = agents.slice(range.start, range.end);
-
   return (
-    <div className="agent-window avail-window" ref={containerRef} onScroll={onScroll}>
-      <div className="agent-window-viewport" style={{ height: range.totalHeight }}>
-        <div
-          className="agent-window-slice"
-          style={{ transform: `translateY(${range.offsetTop}px)` }}
-        >
-          {visible.map((a) => (
-            <AvailableRow
-              key={a.id}
-              agent={a}
-              installCmd={commandFor(a, 'install', platform)}
-              onInstall={onInstall}
-            />
-          ))}
-        </div>
-      </div>
+    <div className="flex flex-col gap-0 divide-y divide-border-primary">
+      {agents.map((a) => (
+        <AvailableRow
+          key={a.id}
+          agent={a}
+          installCmd={commandFor(a, 'install', platform)}
+          onInstall={onInstall}
+        />
+      ))}
     </div>
   );
 }
