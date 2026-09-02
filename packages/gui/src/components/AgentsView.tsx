@@ -137,33 +137,35 @@ const AvailableRow = memo(function AvailableRow({
 }) {
   const handleClick = useCallback(() => onInstall(agent), [onInstall, agent]);
   return (
-    <div className="avail-row" style={{ height: AVAIL_ROW_HEIGHT }}>
+    <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 px-4 py-4 hover:bg-bg-secondary transition-colors">
       <AgentIconTile icon={agent.icon} id={agent.id} size={32} />
-      <div className="avail-meta">
-        <div className="avail-name-row">
-          <span className="avail-name">{agent.name}</span>
-          <span className={`badge ${STATUS_BADGE[agent.status] || 'badge-neutral'}`}>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1 flex-wrap">
+          <span className="font-medium text-sm">{agent.name}</span>
+          <span className={`badge badge-sm ${STATUS_BADGE[agent.status] || 'badge-neutral'}`}>
             {agent.status}
           </span>
         </div>
         <Tooltip content={agent.description || agent.id}>
-        <span className="avail-id">
-          {agent.id}
-          {agent.description ? ` — ${agent.description}` : ''}
-        </span>
+          <span className="text-xs text-tertiary line-clamp-1">
+            {agent.id}
+            {agent.description ? ` — ${agent.description}` : ''}
+          </span>
         </Tooltip>
       </div>
-      <ApiTypeBadges kinds={agent.apiTypes} compact />
-      {installCmd ? (
-        <Tooltip content={installCmd}>
-        <button className="btn-primary btn-sm" onClick={handleClick}>
-          <Download size={14} />
-          Install
-        </button>
-        </Tooltip>
-      ) : (
-        <span className="text-tertiary text-xs">manual</span>
-      )}
+      <div className="flex items-center gap-2 flex-wrap justify-between sm:justify-end">
+        <ApiTypeBadges kinds={agent.apiTypes} compact />
+        {installCmd ? (
+          <Tooltip content={installCmd}>
+            <button className="btn-primary btn-sm whitespace-nowrap" onClick={handleClick}>
+              <Download size={14} />
+              Install
+            </button>
+          </Tooltip>
+        ) : (
+          <span className="text-tertiary text-xs whitespace-nowrap">manual</span>
+        )}
+      </div>
     </div>
   );
 });
