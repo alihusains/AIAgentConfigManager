@@ -23,7 +23,7 @@ import {
   Save,
   ArrowUpCircle,
   Sparkles,
-  Copy,
+  Clipboard,
 } from 'lucide-react';
 import { AgentIconTile } from './AgentIcon';
 import { CodeEditor } from './CodeEditor';
@@ -148,44 +148,56 @@ const AvailableRow = memo(function AvailableRow({
   }, [installCmd]);
 
   return (
-    <div className="flex flex-col sm:flex-row sm:items-start gap-4 px-4 py-5 hover:bg-bg-secondary transition-colors">
-      <AgentIconTile icon={agent.icon} id={agent.id} size={48} />
+    <div className="flex flex-col sm:flex-row gap-6 px-4 py-6 hover:bg-bg-secondary transition-colors border-b border-border-primary last:border-b-0">
+      {/* Left: Big Logo */}
+      <div className="flex-shrink-0">
+        <AgentIconTile icon={agent.icon} id={agent.id} size={64} />
+      </div>
+
+      {/* Center: Name and Details */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-2 flex-wrap">
-          <span className="font-semibold text-base">{agent.name}</span>
+        <div className="flex items-center gap-3 mb-1 flex-wrap">
+          <span className="font-bold text-lg">{agent.name}</span>
           <span className={`badge badge-sm ${STATUS_BADGE[agent.status] || 'badge-neutral'}`}>
             {agent.status}
           </span>
+          <ApiTypeBadges kinds={agent.apiTypes} compact />
         </div>
+        
         <Tooltip content={agent.description || agent.id}>
-          <span className="text-sm text-tertiary line-clamp-1">
-            {agent.id}
-            {agent.description ? ` — ${agent.description}` : ''}
+          <span className="text-sm text-tertiary line-clamp-2">
+            {agent.description || agent.id}
           </span>
         </Tooltip>
+
         {installCmd && (
-          <div className="mt-2 p-2 bg-bg-tertiary rounded text-xs font-mono text-text-secondary flex items-center justify-between gap-2 group hover:bg-accent-primary/10 transition-colors">
+          <div className="mt-3 p-3 bg-bg-tertiary rounded text-xs font-mono text-text-secondary flex items-center justify-between gap-2 hover:bg-accent-primary/10 transition-colors">
             <span className="truncate">{installCmd}</span>
             <button
               type="button"
               onClick={handleCopyCommand}
-              className="btn-ghost btn-xs flex-shrink-0"
+              className="flex-shrink-0 p-1 hover:bg-bg-secondary rounded transition-colors"
               title="Copy command"
             >
-              {copied ? <Check size={14} /> : <Copy size={14} />}
+              {copied ? (
+                <Check size={16} className="text-accent-primary" />
+              ) : (
+                <Clipboard size={16} />
+              )}
             </button>
           </div>
         )}
       </div>
-      <div className="flex items-center gap-2 flex-wrap justify-between sm:justify-end flex-shrink-0">
-        <ApiTypeBadges kinds={agent.apiTypes} compact />
+
+      {/* Right: Install Button */}
+      <div className="flex-shrink-0 flex items-center">
         <Tooltip content={installCmd ? 'Install agent' : 'Manual installation required'}>
           <button 
-            className="btn-primary btn-sm whitespace-nowrap" 
+            className="btn-primary"
             onClick={handleClick}
             disabled={!installCmd}
           >
-            <Download size={14} />
+            <Download size={16} />
             Install
           </button>
         </Tooltip>
