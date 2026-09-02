@@ -153,9 +153,9 @@ const AvailableRow = memo(function AvailableRow({
     : agent.id;
 
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center gap-4 px-4 py-4 hover:bg-bg-secondary transition-colors border-b border-border-primary last:border-b-0">
+    <div className="flex flex-col sm:flex-row sm:items-center gap-3 px-4 py-2 hover:bg-bg-secondary transition-colors border-b border-border-primary last:border-b-0">
       {/* Left: Logo + Name + Tags */}
-      <div className="flex items-center gap-3 flex-shrink-0">
+      <div className="flex items-center gap-2 flex-shrink-0">
         <AgentIconTile icon={agent.icon} id={agent.id} size={56} />
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2 flex-wrap">
