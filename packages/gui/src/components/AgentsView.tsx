@@ -1006,12 +1006,21 @@ export function AgentsView() {
           </span>
         </div>
 
-        {catalogError && !catalog ? (
+        {!catalog && !catalogError ? (
+          <div className="p-6 flex flex-col items-center justify-center gap-3">
+            <div className="spinner" style={{ width: 24, height: 24 }} />
+            <p className="text-secondary text-sm">Loading agent catalog…</p>
+          </div>
+        ) : catalogError && !catalog ? (
           <div className="p-4">
             <p className="text-error text-sm">{catalogError}</p>
             <p className="text-tertiary text-xs mt-1">
               Showing the last known detection snapshot instead.
             </p>
+          </div>
+        ) : availableAgents.length === 0 ? (
+          <div className="p-4 text-center text-tertiary text-sm">
+            Every catalogued agent is installed on this machine 🎉
           </div>
         ) : (
           <AvailableList
