@@ -99,16 +99,21 @@ export function AgentIcon({ icon, id, size = 18, className }: AgentIconProps) {
  * color is derived deterministically from the agent id/name so each agent has
  * a consistent hue across the whole app (sidebar, dashboard, detail page).
  *
- * The palette is a small set of muted, warm-tuned categorical tints (defined
- * as design tokens) rather than a saturated rainbow, so agent identity stays
- * distinguishable without introducing decorative multi-hue noise.
+ * The palette uses vibrant, saturated colors optimized for visibility in
+ * dark mode while maintaining brand consistency and distinction. Colors have
+ * high saturation for maximum contrast against dark backgrounds.
  */
 const PALETTE = [
-  'var(--accent-primary)',
-  'var(--accent-info)',
-  'var(--anthropic-accent)',
-  'var(--cat-olive)',
-  'var(--accent-success)',
+  'var(--accent-primary)',        // Teal #1a7f7e (brand primary)
+  '#00d4d4',                       // Cyan (vibrant, tech-forward)
+  '#4ade80',                       // Emerald green (natural, safe)
+  '#fbbf24',                       // Amber (warm, welcoming)
+  '#60a5fa',                       // Sky blue (calm, professional)
+  '#f472b6',                       // Pink (energetic, distinct)
+  '#f97316',                       // Orange (warm energy)
+  '#a78bfa',                       // Purple (elegant, creative)
+  '#14b8a6',                       // Teal variant (consistent brand)
+  '#ec4899',                       // Rose (bold, memorable)
 ];
 
 function hueFor(seed: string): string {

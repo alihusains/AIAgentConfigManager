@@ -153,12 +153,12 @@ const AvailableRow = memo(function AvailableRow({
     : agent.id;
 
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center gap-3 px-4 py-2 hover:bg-bg-secondary transition-colors border-b border-border-primary last:border-b-0">
+    <div className="flex flex-col sm:flex-row sm:items-center gap-2 px-4 py-1.5 hover:bg-bg-secondary transition-colors border-b border-border-primary last:border-b-0">
       {/* Left: Logo + Name + Tags */}
-      <div className="flex items-center gap-2 flex-shrink-0">
+      <div className="flex items-center gap-1.5 flex-shrink-0">
         <AgentIconTile icon={agent.icon} id={agent.id} size={56} />
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex flex-col gap-0.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <span className="font-semibold text-base">{agent.name}</span>
             <span className={`badge badge-xs ${STATUS_BADGE[agent.status] || 'badge-neutral'}`}>
               {agent.status}
@@ -169,7 +169,7 @@ const AvailableRow = memo(function AvailableRow({
       </div>
 
       {/* Right: Description + Commands + Buttons */}
-      <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center gap-2">
+      <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center gap-1.5">
         {/* Description */}
         <Tooltip content={cleanDescription}>
           <span className="text-sm text-tertiary line-clamp-1 flex-1">
@@ -178,9 +178,9 @@ const AvailableRow = memo(function AvailableRow({
         </Tooltip>
 
         {/* Install Command + Copy Button + Install Button in one line */}
-        <div className="flex items-center gap-2 flex-wrap justify-between sm:justify-end flex-shrink-0">
+        <div className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap justify-between sm:justify-end flex-shrink-0 min-w-0">
           {installCmd && (
-            <div className="flex items-center gap-1 px-2 py-1 bg-bg-tertiary rounded text-xs font-mono text-text-secondary hover:bg-accent-primary/10 transition-colors">
+            <div className="flex items-center gap-1 px-2 py-1 bg-bg-tertiary rounded text-xs font-mono text-text-secondary hover:bg-accent-primary/10 transition-colors flex-1 sm:flex-none">
               <span className="truncate max-w-[200px]">{installCmd}</span>
               <button
                 type="button"
@@ -197,7 +197,7 @@ const AvailableRow = memo(function AvailableRow({
             </div>
           )}
           <Tooltip content={installCmd ? 'Install agent' : 'Manual installation required'}>
-            <button 
+            <button
               className="btn-primary btn-sm"
               onClick={handleClick}
               disabled={!installCmd}
