@@ -34,10 +34,11 @@
   --border-focus: #6a3ff0;
 
   /* Accents — primary (actions, active nav, focus) + secondary (links, info) */
-  --accent-primary: #6a3ff0; /* brand-only (fills, borders, dots, focus rings); use --accent-primary-text for readable text */
-  --accent-primary-hover: #5f34e0;
-  --accent-secondary: #2f68c9;
-  --accent-primary-text: #5326d1; /* text-safe variant of --accent-primary; brand hex fails AA at small sizes */
+  /* Brand: Teal/Turquoise for modern, professional look */
+  --accent-primary: #1a7f7e; /* brand teal (fills, borders, dots, focus rings) */
+  --accent-primary-hover: #158a89;
+  --accent-secondary: #2d9b99;
+  --accent-primary-text: #0f5e5d; /* text-safe variant of brand teal */
 
   /* Status / semantic — brand hexes below are for fills/borders/dots only;
      the -text variants are the WCAG AA-safe colors for readable text. */
@@ -1597,11 +1598,11 @@ select.input {
 
 .sidebar-header {
   padding: 18px 16px;
-  border-bottom: 1px solid var(--border-primary);
+  border-bottom: 2px solid var(--accent-primary);
   display: flex;
   align-items: center;
   gap: 12px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--accent-primary) 4%, transparent), transparent);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent-primary) 8%, transparent), color-mix(in srgb, var(--accent-secondary) 4%, transparent));
 }
 
 .sidebar-brand-mark {

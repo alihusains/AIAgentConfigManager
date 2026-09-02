@@ -405,6 +405,45 @@ export function Dashboard() {
 
   return (
     <div className="page-container dashboard">
+      {/* Hero Banner — Brand introduction */}
+      <div className="hero-banner" style={{
+        background: 'linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%)',
+        borderRadius: 'var(--radius-lg)',
+        padding: '32px 24px',
+        marginBottom: '24px',
+        color: 'white',
+        boxShadow: 'var(--elevation-2)',
+      }}>
+        <div style={{ maxWidth: '600px' }}>
+          <h2 style={{ fontSize: '24px', fontWeight: '600', marginBottom: '8px', letterSpacing: '-0.5px' }}>
+            ✨ Configure Once. Distribute Everywhere.
+          </h2>
+          <p style={{ fontSize: '14px', lineHeight: '1.6', opacity: '0.95', marginBottom: '16px' }}>
+            Add a provider, MCP server, or skill once — then assign it to any agent with a click. 
+            No more copy-pasting the same config into 10 different places.
+          </p>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <button 
+              type="button" 
+              className="btn-primary"
+              onClick={goProviders}
+              style={{ background: 'white', color: 'var(--accent-primary)', fontWeight: '500' }}
+            >
+              Add Provider
+              <ArrowRight size={14} />
+            </button>
+            <button 
+              type="button" 
+              className="btn-secondary"
+              onClick={goMCP}
+              style={{ background: 'rgba(255,255,255,0.2)', color: 'white', border: '1px solid rgba(255,255,255,0.3)' }}
+            >
+              Manage MCP Servers
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* KPI bento grid — four differentiated stat cards, one accent each */}
       <div className="bento-grid">
         <BentoCard
