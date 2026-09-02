@@ -23,7 +23,7 @@ import {
   Save,
   ArrowUpCircle,
   Sparkles,
-  Clipboard,
+  Copy,
 } from 'lucide-react';
 import { AgentIconTile } from './AgentIcon';
 import { CodeEditor } from './CodeEditor';
@@ -147,60 +147,66 @@ const AvailableRow = memo(function AvailableRow({
     }
   }, [installCmd]);
 
-  return (
-    <div className="flex flex-col sm:flex-row gap-6 px-4 py-6 hover:bg-bg-secondary transition-colors border-b border-border-primary last:border-b-0">
-      {/* Left: Big Logo */}
-      <div className="flex-shrink-0">
-        <AgentIconTile icon={agent.icon} id={agent.id} size={64} />
-      </div>
+  // Remove agent name from description if it starts with it
+  const cleanDescription = agent.description
+    ? agent.description.replace(new RegExp(`^${agent.name}\\s*[-–—]\\s*`), '')
+    : agent.id;
 
-      {/* Center: Name and Details */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-3 mb-1 flex-wrap">
-          <span className="font-bold text-lg">{agent.name}</span>
-          <span className={`badge badge-sm ${STATUS_BADGE[agent.status] || 'badge-neutral'}`}>
-            {agent.status}
-          </span>
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-center gap-4 px-4 py-4 hover:bg-bg-secondary transition-colors border-b border-border-primary last:border-b-0">
+      {/* Left: Logo + Name + Tags */}
+      <div className="flex items-center gap-3 flex-shrink-0">
+        <AgentIconTile icon={agent.icon} id={agent.id} size={56} />
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-semibold text-base">{agent.name}</span>
+            <span className={`badge badge-xs ${STATUS_BADGE[agent.status] || 'badge-neutral'}`}>
+              {agent.status}
+            </span>
+          </div>
           <ApiTypeBadges kinds={agent.apiTypes} compact />
         </div>
-        
-        <Tooltip content={agent.description || agent.id}>
-          <span className="text-sm text-tertiary line-clamp-2">
-            {agent.description || agent.id}
+      </div>
+
+      {/* Right: Description + Commands + Buttons */}
+      <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center gap-2">
+        {/* Description */}
+        <Tooltip content={cleanDescription}>
+          <span className="text-sm text-tertiary line-clamp-1 flex-1">
+            {cleanDescription}
           </span>
         </Tooltip>
 
-        {installCmd && (
-          <div className="mt-3 p-3 bg-bg-tertiary rounded text-xs font-mono text-text-secondary flex items-center justify-between gap-2 hover:bg-accent-primary/10 transition-colors">
-            <span className="truncate">{installCmd}</span>
-            <button
-              type="button"
-              onClick={handleCopyCommand}
-              className="flex-shrink-0 p-1 hover:bg-bg-secondary rounded transition-colors"
-              title="Copy command"
+        {/* Install Command + Copy Button + Install Button in one line */}
+        <div className="flex items-center gap-2 flex-wrap justify-between sm:justify-end flex-shrink-0">
+          {installCmd && (
+            <div className="flex items-center gap-1 px-2 py-1 bg-bg-tertiary rounded text-xs font-mono text-text-secondary hover:bg-accent-primary/10 transition-colors">
+              <span className="truncate max-w-[200px]">{installCmd}</span>
+              <button
+                type="button"
+                onClick={handleCopyCommand}
+                className="flex-shrink-0 p-0.5 hover:text-accent-primary transition-colors"
+                title="Copy command"
+              >
+                {copied ? (
+                  <Check size={14} className="text-accent-primary" />
+                ) : (
+                  <Copy size={14} />
+                )}
+              </button>
+            </div>
+          )}
+          <Tooltip content={installCmd ? 'Install agent' : 'Manual installation required'}>
+            <button 
+              className="btn-primary btn-sm"
+              onClick={handleClick}
+              disabled={!installCmd}
             >
-              {copied ? (
-                <Check size={16} className="text-accent-primary" />
-              ) : (
-                <Clipboard size={16} />
-              )}
+              <Download size={14} />
+              Install
             </button>
-          </div>
-        )}
-      </div>
-
-      {/* Right: Install Button */}
-      <div className="flex-shrink-0 flex items-center">
-        <Tooltip content={installCmd ? 'Install agent' : 'Manual installation required'}>
-          <button 
-            className="btn-primary"
-            onClick={handleClick}
-            disabled={!installCmd}
-          >
-            <Download size={16} />
-            Install
-          </button>
-        </Tooltip>
+          </Tooltip>
+        </div>
       </div>
     </div>
   );
