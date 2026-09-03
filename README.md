@@ -231,7 +231,8 @@ curl, wget, tmux, ripgrep, fzf, jq, ffmpeg, imagemagick, and more
 | MCP Servers | ✅ Full support |
 | Skills Discovery | ✅ Full support |
 | CLI Tools Inventory | ✅ Full support |
-| Agent Discovery | ✅ 30+ agents cataloged |
+| Agent Discovery | ✅ 38 agents cataloged + live GitHub star rankings |
+| Live Star Rankings | ✅ Updated hourly, sort by popularity/trending |
 | Dark Mode | ✅ Full support |
 | Configuration Drift Detection | ✅ Real-time detection |
 | Environment Variables | ✅ Safe viewing & editing |
