@@ -4,6 +4,7 @@ import { api, type CatalogAgent } from '../api';
 import type { AgentCatalogEntry, Platform } from '@ai-agent-config/core';
 import { AgentIconTile } from './AgentIcon';
 import { ApiTypeBadges } from './ApiTypeBadges';
+import { AddProviderModal } from './AddProviderModal';
 import {
   ArrowLeft,
   FileCode,
@@ -21,6 +22,7 @@ import {
   Terminal,
   AlertTriangle,
   ChevronRight,
+  Plus,
 } from 'lucide-react';
 import { Tooltip } from '../ui';
 
@@ -109,6 +111,7 @@ export function AgentDetailView({ agentId }: { agentId: string | null }) {
   const [rawConfig, setRawConfig] = useState<RawConfigResult | null>(null);
   const [rawError, setRawError] = useState<string | null>(null);
   const [job, setJob] = useState<'install' | 'uninstall' | null>(null);
+  const [showAddProvider, setShowAddProvider] = useState(false);
 
   const loadCatalog = useCallback(async () => {
     setCatalogLoading(true);
@@ -345,9 +348,19 @@ export function AgentDetailView({ agentId }: { agentId: string | null }) {
               Model Providers
               <span className="badge badge-primary ml-2">{providers.length}</span>
             </h3>
-            <button className="btn-ghost btn-sm" onClick={() => setActiveView('providers')}>
-              Manage <ChevronRight size={14} />
-            </button>
+            <div className="flex gap-2">
+              <button 
+                className="btn-primary btn-sm flex items-center gap-1"
+                onClick={() => setShowAddProvider(true)}
+                title="Add a provider to this agent"
+              >
+                <Plus size={14} />
+                Add
+              </button>
+              <button className="btn-ghost btn-sm" onClick={() => setActiveView('providers')}>
+                Manage <ChevronRight size={14} />
+              </button>
+            </div>
           </div>
           {providers.length === 0 ? (
             <div className="p-4 text-sm text-tertiary">
@@ -487,6 +500,15 @@ export function AgentDetailView({ agentId }: { agentId: string | null }) {
 
       {job && catalogEntry && (
         <InstallJobModal agent={catalogEntry} action={job} platform={platform} onClose={() => setJob(null)} onDone={() => { void loadCatalog(); void refreshAll(); }} />
+      )}
+
+      {/* Add Provider Modal */}
+      {showAddProvider && (
+        <AddProviderModal 
+          onClose={() => setShowAddProvider(false)}
+          agents={agents}
+          existingIds={providers.map((p) => p.provider.id)}
+        />
       )}
     </div>
   );
