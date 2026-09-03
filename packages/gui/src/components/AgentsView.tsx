@@ -24,10 +24,15 @@ import {
   ArrowUpCircle,
   Sparkles,
   Copy,
+  Filter,
+  ArrowDown,
+  ArrowUp,
+  Search,
 } from 'lucide-react';
 import { AgentIconTile } from './AgentIcon';
 import { CodeEditor } from './CodeEditor';
 import { ApiTypeBadges } from './ApiTypeBadges';
+import { StarBadge } from './StarBadge';
 import { useWindowedList } from '../hooks/useWindowedList';
 import { MCP_SERVER_WARNING_THRESHOLD } from './AgentDetailView';
 import { Tooltip } from '../ui';
@@ -131,14 +136,16 @@ const AvailableRow = memo(function AvailableRow({
   agent,
   installCmd,
   onInstall,
+  rank,
 }: {
   agent: CatalogAgent;
   installCmd?: string;
   onInstall: (agent: CatalogAgent) => void;
+  rank?: number;
 }) {
   const handleClick = useCallback(() => onInstall(agent), [onInstall, agent]);
   const [copied, setCopied] = useState(false);
-  
+
   const handleCopyCommand = useCallback(() => {
     if (installCmd) {
       navigator.clipboard.writeText(installCmd);
@@ -153,12 +160,12 @@ const AvailableRow = memo(function AvailableRow({
     : agent.id;
 
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center gap-1 px-4 py-1 hover:bg-bg-secondary transition-colors border-b border-border-primary last:border-b-0">
+    <div className="flex flex-col sm:flex-row sm:items-center gap-2 px-4 py-3 hover:bg-bg-secondary transition-colors border-b border-border-primary last:border-b-0">
       {/* Left: Logo + Name + Tags */}
-      <div className="flex items-center gap-1 flex-shrink-0">
-        <AgentIconTile icon={agent.icon} id={agent.id} size={56} />
-        <div className="flex flex-col gap-0">
-          <div className="flex items-center gap-1 flex-wrap">
+      <div className="flex items-center gap-2 flex-shrink-0 min-w-max">
+        <AgentIconTile icon={agent.icon} id={agent.id} size={48} />
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <span className="font-semibold text-base">{agent.name}</span>
             <span className={`badge badge-xs ${STATUS_BADGE[agent.status] || 'badge-neutral'}`}>
               {agent.status}
@@ -168,45 +175,54 @@ const AvailableRow = memo(function AvailableRow({
         </div>
       </div>
 
-      {/* Right: Description + Commands + Buttons */}
-      <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center gap-1">
-        {/* Description */}
+      {/* Center: Description + Star badge */}
+      <div className="flex-1 min-w-0 flex flex-col gap-1">
         <Tooltip content={cleanDescription}>
-          <span className="text-sm text-tertiary line-clamp-1 flex-1">
+          <span className="text-sm text-tertiary line-clamp-1">
             {cleanDescription}
           </span>
         </Tooltip>
+        {agent.stars && (
+          <div className="flex items-center gap-2">
+            <StarBadge 
+              github={agent.github}
+              stars={agent.stars}
+              rank={rank}
+              compact
+            />
+          </div>
+        )}
+      </div>
 
-        {/* Install Command + Copy Button + Install Button in one line */}
-        <div className="flex items-center gap-0.5 flex-wrap sm:flex-nowrap justify-between sm:justify-end flex-shrink-0 min-w-0">
-          {installCmd && (
-            <div className="flex items-center gap-0.5 px-2 py-1 bg-bg-tertiary rounded text-xs font-mono text-text-secondary hover:bg-accent-primary/10 transition-colors flex-1 sm:flex-none">
-              <span className="truncate max-w-[200px]">{installCmd}</span>
-              <button
-                type="button"
-                onClick={handleCopyCommand}
-                className="flex-shrink-0 p-0.5 hover:text-accent-primary transition-colors"
-                title="Copy command"
-              >
-                {copied ? (
-                  <Check size={14} className="text-accent-primary" />
-                ) : (
-                  <Copy size={14} />
-                )}
-              </button>
-            </div>
-          )}
-          <Tooltip content={installCmd ? 'Install agent' : 'Manual installation required'}>
+      {/* Right: Install Command + Copy Button + Install Button */}
+      <div className="flex items-center gap-1 flex-wrap sm:flex-nowrap justify-between sm:justify-end flex-shrink-0 min-w-0">
+        {installCmd && (
+          <div className="flex items-center gap-0.5 px-2 py-1 bg-bg-tertiary rounded text-xs font-mono text-text-secondary hover:bg-accent-primary/10 transition-colors flex-1 sm:flex-none">
+            <span className="truncate max-w-[180px]">{installCmd}</span>
             <button
-              className="btn-primary btn-sm"
-              onClick={handleClick}
-              disabled={!installCmd}
+              type="button"
+              onClick={handleCopyCommand}
+              className="flex-shrink-0 p-0.5 hover:text-accent-primary transition-colors"
+              title="Copy command"
             >
-              <Download size={14} />
-              Install
+              {copied ? (
+                <Check size={12} className="text-accent-primary" />
+              ) : (
+                <Copy size={12} />
+              )}
             </button>
-          </Tooltip>
-        </div>
+          </div>
+        )}
+        <Tooltip content={installCmd ? 'Install agent' : 'Manual installation required'}>
+          <button
+            className="btn-primary btn-sm"
+            onClick={handleClick}
+            disabled={!installCmd}
+          >
+            <Download size={14} />
+            Install
+          </button>
+        </Tooltip>
       </div>
     </div>
   );
@@ -231,12 +247,13 @@ function AvailableList({
 
   return (
     <div className="flex flex-col gap-0 divide-y divide-border-primary">
-      {agents.map((a) => (
+      {agents.map((a, index) => (
         <AvailableRow
           key={a.id}
           agent={a}
           installCmd={commandFor(a, 'install', platform)}
           onInstall={onInstall}
+          rank={index}
         />
       ))}
     </div>
@@ -347,6 +364,20 @@ export function AgentsView() {
     agent: CatalogAgent;
     action: 'install' | 'uninstall';
   } | null>(null);
+
+  // Sorting and filtering for available agents
+  interface AvailableAgentFilters {
+    sortBy: 'name' | 'stars' | 'trending' | 'maintenance';
+    filterTrending: boolean;
+    filterByStatus: 'all' | 'active' | 'stale' | 'archived';
+    searchQuery: string;
+  }
+  const [availableFilters, setAvailableFilters] = useState<AvailableAgentFilters>({
+    sortBy: 'stars',
+    filterTrending: false,
+    filterByStatus: 'all',
+    searchQuery: '',
+  });
 
   const customAgents = registry?.customAgents || [];
   const p = (platform as 'darwin' | 'win32' | 'linux') || 'darwin';
@@ -514,6 +545,52 @@ export function AgentsView() {
   };
 
   // --------------------------------------------------------------------------
+  // Apply sorting and filtering to available agents
+  // --------------------------------------------------------------------------
+  const filteredAndSortedAvailable = useMemo(() => {
+    let agents = (catalog ?? []).filter((a) => !a.installed);
+
+    // Search filter
+    if (availableFilters.searchQuery) {
+      const q = availableFilters.searchQuery.toLowerCase();
+      agents = agents.filter(
+        (a) =>
+          a.name.toLowerCase().includes(q) ||
+          a.id.toLowerCase().includes(q) ||
+          a.description.toLowerCase().includes(q)
+      );
+    }
+
+    // Trending filter
+    if (availableFilters.filterTrending) {
+      agents = agents.filter((a) => a.stars && a.stars.growth30d && a.stars.growth30d >= 50);
+    }
+
+    // Maintenance status filter
+    if (availableFilters.filterByStatus !== 'all') {
+      agents = agents.filter((a) => a.stars?.maintenance === availableFilters.filterByStatus);
+    }
+
+    // Sort
+    if (availableFilters.sortBy === 'stars') {
+      agents.sort((a, b) => (b.stars?.count ?? 0) - (a.stars?.count ?? 0));
+    } else if (availableFilters.sortBy === 'trending') {
+      agents.sort((a, b) => (b.stars?.growth30d ?? 0) - (a.stars?.growth30d ?? 0));
+    } else if (availableFilters.sortBy === 'maintenance') {
+      const priority = { active: 0, stale: 1, archived: 2 };
+      agents.sort(
+        (a, b) =>
+          (priority[a.stars?.maintenance as keyof typeof priority] ?? 99) -
+          (priority[b.stars?.maintenance as keyof typeof priority] ?? 99)
+      );
+    } else if (availableFilters.sortBy === 'name') {
+      agents.sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    return agents;
+  }, [catalog, availableFilters]);
+
+  // --------------------------------------------------------------------------
   // Installed rows — from the catalog when it loaded, otherwise from the store
   // detection snapshot (graceful fallback).
   // --------------------------------------------------------------------------
@@ -578,10 +655,8 @@ export function AgentsView() {
     }));
   }, [catalog, agents, p]);
 
-  const availableAgents = useMemo(
-    () => (catalog ?? []).filter((a) => !a.installed),
-    [catalog]
-  );
+  // Use the filtered and sorted available agents
+  const availableAgents = filteredAndSortedAvailable;
 
   const installedCount = catalog
     ? installedRows.length
@@ -719,6 +794,14 @@ export function AgentsView() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <a
+            href="#/agent-rankings"
+            className="btn btn-ghost btn-sm"
+            title="View agent rankings by stars"
+          >
+            <ArrowUp size={14} />
+            Rankings
+          </a>
           <Tooltip content="Refresh catalog + detection">
           <button
             className="btn-ghost btn-sm"
@@ -852,6 +935,13 @@ export function AgentsView() {
                         status={driftStatus[row.id]}
                         onResync={() => void resyncAgent(row.id, row.name)}
                       />
+                      {row.catalogEntry?.stars && (
+                        <StarBadge
+                          github={row.catalogEntry.github}
+                          stars={row.catalogEntry.stars}
+                          compact
+                        />
+                      )}
                     </div>
                   </div>
                   <div className="chat-row-actions">
@@ -928,6 +1018,96 @@ export function AgentsView() {
             {availableAgents.length === 1 ? '' : 's'}
           </span>
         </div>
+
+        {/* Filter and Sort Controls */}
+        {!catalogError && catalog && catalog.filter((a) => !a.installed).length > 0 && (
+          <div className="px-4 py-3 border-b border-border-primary bg-bg-secondary/40 flex flex-wrap items-center gap-2">
+            {/* Search */}
+            <div className="flex items-center gap-1 px-2 py-1 bg-bg-tertiary rounded text-xs flex-1 min-w-[150px]">
+              <Search size={12} className="text-tertiary" />
+              <input
+                type="text"
+                placeholder="Search agents…"
+                className="bg-transparent border-0 outline-none flex-1 text-sm"
+                value={availableFilters.searchQuery}
+                onChange={(e) =>
+                  setAvailableFilters((f) => ({ ...f, searchQuery: e.target.value }))
+                }
+              />
+            </div>
+
+            {/* Sort */}
+            <select
+              className="input input-sm text-xs"
+              value={availableFilters.sortBy}
+              onChange={(e) =>
+                setAvailableFilters((f) => ({
+                  ...f,
+                  sortBy: e.target.value as AvailableAgentFilters['sortBy'],
+                }))
+              }
+            >
+              <option value="stars">Sort: Most Stars</option>
+              <option value="trending">Sort: Trending</option>
+              <option value="name">Sort: Name A-Z</option>
+              <option value="maintenance">Sort: Maintenance</option>
+            </select>
+
+            {/* Trending filter */}
+            <button
+              className={`btn btn-sm text-xs ${
+                availableFilters.filterTrending
+                  ? 'btn-accent'
+                  : 'btn-ghost'
+              }`}
+              onClick={() =>
+                setAvailableFilters((f) => ({
+                  ...f,
+                  filterTrending: !f.filterTrending,
+                }))
+              }
+            >
+              {availableFilters.filterTrending ? '🔥 Trending' : 'Trending'}
+            </button>
+
+            {/* Maintenance filter */}
+            <select
+              className="input input-sm text-xs"
+              value={availableFilters.filterByStatus}
+              onChange={(e) =>
+                setAvailableFilters((f) => ({
+                  ...f,
+                  filterByStatus: e.target.value as AvailableAgentFilters['filterByStatus'],
+                }))
+              }
+            >
+              <option value="all">All Status</option>
+              <option value="active">Active</option>
+              <option value="stale">Stale</option>
+              <option value="archived">Archived</option>
+            </select>
+
+            {/* Clear filters */}
+            {(availableFilters.searchQuery ||
+              availableFilters.filterTrending ||
+              availableFilters.sortBy !== 'stars' ||
+              availableFilters.filterByStatus !== 'all') && (
+              <button
+                className="btn btn-ghost btn-sm text-xs"
+                onClick={() =>
+                  setAvailableFilters({
+                    sortBy: 'stars',
+                    filterTrending: false,
+                    filterByStatus: 'all',
+                    searchQuery: '',
+                  })
+                }
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
+        )}
 
         {!catalog && !catalogError ? (
           <div className="p-6 flex flex-col items-center justify-center gap-3">

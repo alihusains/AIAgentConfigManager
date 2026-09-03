@@ -13,6 +13,7 @@ import {
   Sparkles,
   KeyRound,
   Shield,
+  TrendingUp,
 } from 'lucide-react';
 import { Tooltip } from '../ui';
 
@@ -26,6 +27,7 @@ const REGISTRY_VIEWS = [
   { id: 'providers', label: 'Providers', icon: Database },
   { id: 'mcp', label: 'MCP Servers', icon: Server },
   { id: 'agents', label: 'Agents', icon: Bot },
+  { id: 'agent-rankings', label: 'Agent Rankings', icon: TrendingUp },
   { id: 'skills', label: 'Skills', icon: Sparkles },
   { id: 'tools', label: 'CLI Tools', icon: Terminal },
   { id: 'env-vars', label: 'Environment', icon: KeyRound },

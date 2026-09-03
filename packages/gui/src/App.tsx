@@ -7,6 +7,7 @@ import { ProviderDetailView } from './components/ProviderDetailView';
 import { MCPView } from './components/MCPView';
 import { AgentsView } from './components/AgentsView';
 import { AgentDetailView } from './components/AgentDetailView';
+import { AgentRankings } from './components/AgentRankings';
 import { ToolsView } from './components/ToolsView';
 import { SkillsView } from './components/SkillsView';
 import { EnvVarsView } from './components/EnvVarsView';
@@ -29,6 +30,7 @@ const VALID_VIEWS: View[] = [
   'mcp',
   'agents',
   'agent-detail',
+  'agent-rankings',
   'skills',
   'tools',
   'env-vars',
@@ -175,6 +177,8 @@ function App() {
         return <AgentsView />;
       case 'agent-detail':
         return <AgentDetailView agentId={selectedAgentId} />;
+      case 'agent-rankings':
+        return <AgentRankings agents={agents} />;
       case 'skills':
         return <SkillsView />;
       case 'env-vars':

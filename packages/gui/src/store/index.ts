@@ -22,6 +22,7 @@ export type View =
   | 'mcp'
   | 'agents'
   | 'agent-detail'
+  | 'agent-rankings'
   | 'skills'
   | 'tools'
   | 'env-vars'
