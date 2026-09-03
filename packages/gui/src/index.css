@@ -11,58 +11,53 @@
    Canonical spec: docs/epics/agentic-control-plane-redesign-v2.md */
 
 :root {
-  /* ── Light theme (default) ───────────────────────────────────────────── */
+  /* ── WhatsApp Theme (single-theme, light only) ──────────────────────── */
   color-scheme: light;
 
-  /* Surfaces: canvas (page) → secondary (cards/sidebar) → tertiary (raised) */
-  /* WhatsApp theme: warm off-white canvas, white cards */
+  /* Surfaces: canvas (page) → primary (panels) → secondary (cards/sidebar) → tertiary (raised) */
   --bg-canvas: #efeae2;
   --bg-primary: #ffffff;
-  --bg-secondary: #ffffff;
+  --bg-secondary: #f7f8fa;
   --bg-tertiary: #ffffff;
   --bg-hover: #f0f2f5;
-  --bg-active: #e9edef;
+  --bg-active: #e5ddd5;
 
-  /* Text */
+  /* Text — dark on light */
   --text-primary: #111b21;
   --text-secondary: #54656f;
-  --text-tertiary: #667781; /* AA on --bg-secondary cards at 11–12px (audit E1) */
+  --text-tertiary: #8a8f96;
   --text-inverse: #ffffff;
 
-  /* Borders — WhatsApp light gray */
-  --border-primary: #e9edef;
-  --border-secondary: #d0cfd3;
+  /* Borders — warm tone match */
+  --border-primary: #e5ddd5;
+  --border-secondary: #dbd6d1;
   --border-focus: #00a884;
 
-  /* Accents — primary (actions, active nav, focus) + secondary (links, info) */
-  /* Brand: WhatsApp Teal for modern, professional look */
-  --accent-primary: #00a884; /* WhatsApp brand teal (fills, borders, dots, focus rings) */
-  --accent-primary-hover: #00a880;
-  --accent-secondary: #25d366;
-  --accent-primary-text: #00a884; /* text-safe variant of brand teal */
+  /* Accents — WhatsApp teal primary + blue secondary, with text-safe variants */
+  --accent-primary: #00a884;
+  --accent-primary-hover: #008a70;
+  --accent-primary-text: #005c4b;
+  --accent-secondary: #53bdeb;
 
-  /* Status / semantic — brand hexes below are for fills/borders/dots only;
-     the -text variants are the WCAG AA-safe colors for readable text. */
-  --accent-success: #25d366; /* WhatsApp green — brand-only; use --accent-success-text for readable text */
-  --accent-warning: #d4a574; /* amber for warnings; use --accent-warning-text for readable text */
-  --accent-error: #ff5757; /* red for errors; use --accent-error-text for readable text */
-  --accent-info: #3b82f6; /* blue for info; use --accent-info-text for readable text */
-  --accent-success-text: #16a34a; /* text-safe variant of --accent-success; WCAG AA */
-  --accent-warning-text: #b45309; /* text-safe variant of --accent-warning; WCAG AA */
-  --accent-error-text: #dc2626; /* text-safe variant of --accent-error; WCAG AA */
-  --accent-info-text: #2563eb; /* text-safe variant of --accent-info; WCAG AA */
+  /* Status / semantic — WhatsApp-compatible greens/ambers/reds/blues */
+  --accent-success: #d9fdd3;
+  --accent-success-text: #059669;
+  --accent-warning: #f59e0b;
+  --accent-warning-text: #92400e;
+  --accent-error: #ef4444;
+  --accent-error-text: #991b1b;
+  --accent-info: #3b82f6;
+  --accent-info-text: #1e40af;
 
-  /* Categorical — API type + agent identity tints */
-  --anthropic-accent: #b3542e;
-  --cat-olive: #6b744c;
-  --provider-anthropic: #8a6d26;
-  --provider-openai: #3a6d8c;
-  --provider-bedrock: #9c5f22;
-  --provider-vertex: #47598c;
+  /* Categorical — API type + agent identity tints (warm earth tones) */
+  --anthropic-accent: #d4a574;
+  --cat-olive: #7a9e4b;
+  --provider-anthropic: #c89858;
+  --provider-openai: #6b8dd6;
+  --provider-bedrock: #c98432;
+  --provider-vertex: #5a7bb8;
 
-  /* Shadows / elevation — soft, layered, not heavy drop-shadows.
-     --shadow-* are the legacy names components already consume; --elevation-*
-     are the v2 names they map onto. */
+  /* Shadows / elevation — soft, subtle for light theme */
   --elevation-1: 0 1px 2px 0 rgb(23 21 31 / 0.05);
   --elevation-2: 0 4px 12px -2px rgb(23 21 31 / 0.07), 0 2px 4px -2px rgb(23 21 31 / 0.05);
   --elevation-3: 0 16px 32px -8px rgb(23 21 31 / 0.14), 0 6px 12px -6px rgb(23 21 31 / 0.08);
@@ -77,8 +72,7 @@
   --radius-lg: 16px;
   --radius-full: 999px;
 
-  /* Typography — Space Grotesk for display (headers/stat numbers),
-     Inter for body/UI, JetBrains Mono for identifiers */
+  /* Typography — Space Grotesk for display, Inter for body, JetBrains Mono for code */
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: "JetBrains Mono", "Fira Code", monospace;
   --font-display: "Space Grotesk", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
@@ -89,14 +83,12 @@
   --text-size-sm: 13px;
   --text-size-base: 14px;
   --text-size-md: 15px;
-  /* lg/2xl align with the .text-lg/.text-2xl utilities that render them;
-     18/28 were never the rendered sizes anywhere (audit C4). */
   --text-size-lg: 16px;
   --text-size-xl: 20px;
   --text-size-2xl: 24px;
   --text-size-3xl: 32px;
 
-  /* Spacing — 4/8/12/16/24px scale (--space-5/7/8 kept for compatibility) */
+  /* Spacing — 4/8/12/16/24px canonical scale */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -116,64 +108,9 @@
   --transition-shadow: box-shadow var(--transition-fast), border-color var(--transition-fast);
   --transition-hover: background-color var(--transition-fast), transform var(--transition-fast);
 
-  /* Glass / atmosphere — see .glass-surface / .ambient-glow / .grain-texture
-     utility classes below; not applied to components yet (downstream tasks). */
-  --surface-glass: rgba(255, 255, 255, 0.68);
+  /* Glass / atmosphere */
+  --surface-glass: rgba(255, 255, 255, 0.85);
   --glass-blur: 20px;
-}
-
-/* ── Dark theme (unused) ─────────────────────────────────────────────────
-   Preserved for compatibility; the app now always renders light theme.
-   Dark theme CSS block is no longer applied at runtime. */
-
-html[data-theme="dark"] {
-  color-scheme: dark;
-  --bg-canvas: #111827;
-  --bg-primary: #1f2937;
-  --bg-secondary: #2d3748;
-  --bg-tertiary: #374151;
-  --bg-hover: #2d3748;
-  --bg-active: #3f4655;
-
-  --text-primary: #f3f4f6;
-  --text-secondary: #d1d5db;
-  --text-tertiary: #9ca3af;
-  --text-inverse: #111827;
-
-  --border-primary: #374151;
-  --border-secondary: #4b5563;
-  --border-focus: #00a884;
-
-  --accent-primary: #06b6d4; /* WhatsApp-inspired cyan for dark mode */
-  --accent-primary-hover: #22d3ee;
-  --accent-secondary: #06b6d4;
-  --accent-primary-text: #22d3ee; /* text-safe variant for dark mode */
-
-  --accent-success: #10b981; /* green for dark mode */
-  --accent-warning: #f59e0b; /* amber for dark mode */
-  --accent-error: #ef4444; /* red for dark mode */
-  --accent-info: #3b82f6; /* blue for dark mode */
-  --accent-success-text: #34d399; /* text-safe variant of success; WCAG AA */
-  --accent-warning-text: #fbbf24; /* text-safe variant of warning; WCAG AA */
-  --accent-error-text: #f87171; /* text-safe variant of error; WCAG AA */
-  --accent-info-text: #60a5fa; /* text-safe variant of info; WCAG AA */
-
-  --anthropic-accent: #e8927c;
-  --cat-olive: #b3bd8a;
-  --provider-anthropic: #d4b160;
-  --provider-openai: #7fb3d5;
-  --provider-bedrock: #e0a05c;
-  --provider-vertex: #8fa3d9;
-
-  --elevation-1: 0 1px 2px 0 rgb(0 0 0 / 0.35);
-  --elevation-2: 0 6px 14px -3px rgb(0 0 0 / 0.42), 0 2px 4px -2px rgb(0 0 0 / 0.32);
-  --elevation-3: 0 20px 40px -10px rgb(0 0 0 / 0.55), 0 8px 16px -8px rgb(0 0 0 / 0.42);
-  --shadow-sm: var(--elevation-1);
-  --shadow-md: var(--elevation-2);
-  --shadow-lg: var(--elevation-3);
-  --shadow-elevated: var(--elevation-3);
-
-  --surface-glass: rgba(28, 28, 37, 0.62);
 }
 
 * {
@@ -874,7 +811,7 @@ textarea {
 
 .btn-primary {
   background: var(--accent-primary);
-  color: #ffffff;
+  color: var(--text-inverse);
   box-shadow: var(--elevation-1);
 }
 
@@ -926,12 +863,12 @@ textarea {
 
 .btn-danger {
   background: var(--accent-error);
-  color: #ffffff;
+  color: var(--text-inverse);
   box-shadow: var(--elevation-1);
 }
 
 .btn-danger:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent-error) 86%, #000);
+  background: var(--accent-error);
   box-shadow: var(--elevation-2);
   transform: translateY(-1px);
 }
@@ -1296,7 +1233,7 @@ select.input {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #ffffff;
+  background: var(--text-inverse);
   box-shadow: var(--shadow-sm);
   transition: transform var(--transition-fast);
 }
@@ -1779,14 +1716,9 @@ select.input {
 }
 
 .chat-row.chat-row--active {
-  background: #f0f2f5;
+  background: var(--bg-hover);
   border-left: 3px solid var(--accent-primary);
   padding-left: calc(var(--space-2) - 3px);
-}
-
-html[data-theme="dark"] .chat-row.chat-row--active {
-  background: color-mix(in srgb, var(--accent-primary) 22%, transparent);
-  border-left: 3px solid var(--accent-primary);
 }
 
 .chat-row-avatar {
@@ -1910,7 +1842,7 @@ html[data-theme="dark"] .chat-row.chat-row--active {
   color: var(--text-secondary);
 }
 .status-label {
-  color: #54656f;
+  color: var(--text-secondary);
   font-weight: 500;
 }
 /* Colored status dots: green (success), amber (warning), red (error), blue (info), gray (neutral) */

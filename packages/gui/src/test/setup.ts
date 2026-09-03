@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest';
-import { afterEach } from 'vitest';
+import { afterEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 
 // zustand's `persist` middleware accesses localStorage when the store module is
@@ -23,6 +23,24 @@ if (typeof globalThis !== 'undefined' && !globalThis.localStorage) {
       return Object.keys(store).length;
     },
   } as unknown as Storage;
+}
+
+// Mock window.matchMedia for tests (jsdom does not implement it)
+// Used by Dashboard.tsx for prefers-reduced-motion detection
+if (typeof globalThis !== 'undefined' && typeof globalThis.window !== 'undefined') {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  });
 }
 
 // React Testing Library auto-cleanup is only wired up when globals are on and
