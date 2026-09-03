@@ -1232,6 +1232,111 @@ program
   });
 
 // ============================================================================
+// Live GitHub Stars Ranking
+// ============================================================================
+
+program
+  .command('stars')
+  .description('Show live GitHub star rankings of agents in the catalog')
+  .option('--format <format>', 'Output format: json | table | csv', 'table')
+  .option('--agent <agentId>', 'Show stars for a single agent (by id)')
+  .option('--limit <n>', 'Limit output to top N agents', '20')
+  .option('--ttl <ms>', 'Cache TTL in milliseconds (default: 1 hour)')
+  .action(async (options) => {
+    const { generateStarReport, parseGithubRepo, clearLiveStarsCache } = await import(
+      '@ai-agent-config/core'
+    );
+
+    const spinner = ora('Fetching GitHub star data...').start();
+    const start = Date.now();
+
+    try {
+      const catalog = getAgentCatalog();
+      let agents = catalog
+        .filter((e) => !options.agent || e.id === options.agent)
+        .map((e) => ({
+          id: e.id,
+          name: e.name,
+          source: e.source,
+        }));
+
+      if (!agents.length) {
+        spinner.stop();
+        if (options.agent) {
+          printError(`Agent "${options.agent}" not found in catalog`);
+        } else {
+          printError('No agents in catalog');
+        }
+        return;
+      }
+
+      const opts: any = {};
+      if (options.ttl) opts.ttlMs = Number(options.ttl);
+
+      const report = await generateStarReport(agents, opts);
+      spinner.stop();
+
+      if (options.format === 'json') {
+        console.log(JSON.stringify(report, null, 2));
+        return;
+      }
+
+      if (options.format === 'csv') {
+        console.log(
+          'Rank,Name,Stars,GitHub URL,Stars/Day,Status,Last Commit,Open Issues,Trending'
+        );
+        for (const row of report.rankings) {
+          console.log(
+            [
+              row.rank,
+              `"${row.name}"`,
+              row.stars,
+              `"${row.github_url}"`,
+              row.stars_per_day,
+              row.maintenance_status,
+              row.last_commit,
+              row.issue_count,
+              row.is_trending ? 'Yes' : 'No',
+            ].join(',')
+          );
+        }
+        return;
+      }
+
+      // Table format
+      const limit = Math.max(1, Number(options.limit) || 20);
+      const rows = report.rankings.slice(0, limit).map((r) => [
+        r.rank.toString(),
+        chalk.bold(r.name),
+        r.stars.toLocaleString(),
+        `${r.stars_per_day}`,
+        r.maintenance_status === 'active' ? chalk.green('✓ active') : chalk.gray('stale'),
+        r.is_trending ? chalk.yellow('🔥 trending') : '',
+        r.issue_count.toString(),
+      ]);
+
+      printTable(['Rank', 'Agent', 'Stars', 'Stars/Day', 'Status', 'Trending', 'Issues'], rows);
+
+      if (report.rankings.length > limit) {
+        console.log(
+          chalk.gray(`\n... and ${report.rankings.length - limit} more (use --limit to see more)`)
+        );
+      }
+
+      console.log(
+        chalk.gray(
+          `\nGenerated at ${report.generated_at} | ${report.metadata.api_calls} API calls, ${report.metadata.cache_hits} cache hits | Fetched in ${report.metadata.fetch_time_ms}ms`
+        )
+      );
+    } catch (error) {
+      spinner.stop();
+      const msg = error instanceof Error ? error.message : String(error);
+      printError(`Failed to fetch star data: ${msg}`);
+      process.exit(1);
+    }
+  });
+
+// ============================================================================
 // Dashboard lifecycle: agm start | agm stop | agm health
 // ============================================================================
 
