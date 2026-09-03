@@ -113,6 +113,12 @@ export class GenericAdapter implements AgentAdapter {
   private mainRawCache: Record<string, unknown> | null = null;
   private mcpRawCache: Record<string, unknown> | null = null;
   private providerStoreRawCache: Record<string, unknown> | null = null;
+  // Optional wire-format projection for drift comparison (M071). Adapters whose
+  // provider schema is a fixed subset of the unified config (e.g. OpenCode's
+  // options object, Qwen's baseUrl/apiKey) set this so the registry-vs-disk
+  // comparison only diffs expressible fields and ignores adapter-stamped
+  // side-channel keys. Defaults to identity (the full config is expressible).
+  expressibleProviderConfig?: (config: Record<string, unknown>) => Record<string, unknown>;
 
   constructor(options: GenericAdapterOptions) {
     this.mcpTemplate = options.mcpPath || null;

@@ -340,6 +340,66 @@ describe('qwen adapter (JSON mcpServers keyed)', () => {
     expect(after.mcpServers.github).toBeUndefined();
     expect(after.mcpServers.existing.command).toBe('node');
   });
+
+  it('materializes providers + models into Qwen\u2019s modelProviders/providerProtocol/env shape', async () => {
+    resetHome();
+    seed(
+      '~/.qwen/settings.json',
+      JSON.stringify({ telemetry: { enabled: false }, mcpServers: { keep: { command: 'k' } } })
+    );
+    const a = getAdapter('qwen')!;
+    expect(a.info.supports.modelProviders).toBe(true);
+    const current = await a.readConfig();
+    const provider: ModelProvider = {
+      id: 'b.ai',
+      name: 'B.ai',
+      type: 'openai-compatible',
+      config: { baseUrl: 'https://api.b.ai/v1', apiKey: 'sk-secret-123' },
+      enabled: true,
+      priority: 0,
+    };
+    const model: ModelConfig = {
+      id: 'deepseek-v4',
+      providerId: 'b.ai',
+      name: 'DeepSeek V4',
+      displayName: 'DeepSeek V4',
+      roles: ['chat'],
+      contextLength: 128000,
+      maxTokens: 8192,
+      temperature: 0.7,
+    };
+    // Registry materialization writes providers + models in one pass.
+    await a.writeConfig({ ...current, modelProviders: [provider], models: [model] });
+    const written = JSON.parse(readBack('~/.qwen/settings.json'));
+    // Custom provider id is mapped via providerProtocol (Qwen skips unmapped ids).
+    expect(written.providerProtocol['b.ai']).toBe('openai');
+    expect(written.modelProviders['b.ai'][0].id).toBe('deepseek-v4');
+    expect(written.modelProviders['b.ai'][0].baseUrl).toBe('https://api.b.ai/v1');
+    expect(written.modelProviders['b.ai'][0].generationConfig.contextWindowSize).toBe(128000);
+    expect(written.modelProviders['b.ai'][0].generationConfig.samplingParams.temperature).toBe(0.7);
+    // Credential materialized into env[envKey] (Qwen reads it from process.env).
+    const envKey = written.modelProviders['b.ai'][0].envKey;
+    expect(written.env[envKey]).toBe('sk-secret-123');
+    // Unknown keys + MCP preserved on the same-file write.
+    expect(written.telemetry.enabled).toBe(false);
+    expect(written.mcpServers.keep.command).toBe('k');
+
+    // Read back: providers + models decode, credential resolved from env.
+    const cfg2 = await a.readConfig();
+    expect(cfg2.modelProviders.map((p) => p.id)).toEqual(['b.ai']);
+    expect(cfg2.models.map((m) => m.id)).toEqual(['deepseek-v4']);
+    expect(cfg2.models[0].contextLength).toBe(128000);
+    expect(cfg2.models[0].customOptions?.apiKey).toBe('sk-secret-123');
+    expect(cfg2.modelProviders[0].config.baseUrl).toBe('https://api.b.ai/v1');
+
+    // Removing the provider prunes modelProviders/providerProtocol/env.
+    await a.writeConfig({ ...cfg2, modelProviders: [], models: [] });
+    const after = JSON.parse(readBack('~/.qwen/settings.json'));
+    expect(after.modelProviders?.['b.ai']).toBeUndefined();
+    expect(after.providerProtocol?.['b.ai']).toBeUndefined();
+    expect(after.env?.[envKey]).toBeUndefined();
+    expect(after.mcpServers.keep.command).toBe('k');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -611,7 +671,6 @@ describe('roo adapter (separate mcp_settings.json)', () => {
     expect(after.mcpServers.gh).toBeDefined();
   });
 });
-
 
 // ---------------------------------------------------------------------------
 // Zed — JSON settings.json, MCP under `context_servers` (NOT mcpServers)

@@ -36,20 +36,12 @@ import {
 // ============================================================================
 
 describe('Theme Tokens — Structure', () => {
-  it('should have all required color categories in light theme', () => {
-    expect(ColorTokens.light.surface).toBeDefined();
-    expect(ColorTokens.light.text).toBeDefined();
-    expect(ColorTokens.light.border).toBeDefined();
-    expect(ColorTokens.light.accent).toBeDefined();
-    expect(ColorTokens.light.categorical).toBeDefined();
-  });
-
-  it('should have all required color categories in dark theme', () => {
-    expect(ColorTokens.dark.surface).toBeDefined();
-    expect(ColorTokens.dark.text).toBeDefined();
-    expect(ColorTokens.dark.border).toBeDefined();
-    expect(ColorTokens.dark.accent).toBeDefined();
-    expect(ColorTokens.dark.categorical).toBeDefined();
+  it('should have all required color categories in WhatsApp theme', () => {
+    expect(ColorTokens.surface).toBeDefined();
+    expect(ColorTokens.text).toBeDefined();
+    expect(ColorTokens.border).toBeDefined();
+    expect(ColorTokens.accent).toBeDefined();
+    expect(ColorTokens.categorical).toBeDefined();
   });
 
   it('should define typography tokens', () => {
@@ -76,16 +68,10 @@ describe('Theme Tokens — Structure', () => {
     expect(RadiusTokens.full).toBe('999px');
   });
 
-  it('should define elevation tokens for both themes', () => {
-    expect(ElevationTokens.light[1]).toBeDefined();
-    expect(ElevationTokens.light[2]).toBeDefined();
-    expect(ElevationTokens.light[3]).toBeDefined();
-    expect(ElevationTokens.dark[1]).toBeDefined();
-    expect(ElevationTokens.dark[2]).toBeDefined();
-    expect(ElevationTokens.dark[3]).toBeDefined();
-    // Dark shadows should have higher opacity (darker)
-    expect(ElevationTokens.dark[1]).toContain('0.35');
-    expect(ElevationTokens.light[1]).toContain('0.05');
+  it('should define elevation tokens', () => {
+    expect(ElevationTokens[1]).toBeDefined();
+    expect(ElevationTokens[2]).toBeDefined();
+    expect(ElevationTokens[3]).toBeDefined();
   });
 
   it('should define motion tokens', () => {
@@ -96,42 +82,23 @@ describe('Theme Tokens — Structure', () => {
 });
 
 // ============================================================================
-// CSS Variable Consistency Tests (Invariant: single-source-of-truth dark theme)
+// CSS Variable Consistency Tests (Invariant: single-theme WhatsApp)
 // ============================================================================
 
 describe('Theme Tokens — Consistency & Single Source of Truth', () => {
-  it('should have no phantom CSS variables (all light vars in dark)', () => {
-    const { valid, missing } = validateTokenConsistency();
-    expect(valid).toBe(true);
-    if (!valid) {
-      throw new Error(
-        `Token consistency failed: missing ${missing.tokens.length} ${missing.theme} tokens: ${missing.tokens.join(', ')}`
-      );
-    }
-  });
-
-  it('should have more light variables than dark (dark only overrides)', () => {
-    const lightCount = Object.keys(CSSVariables.light).length;
-    const darkCount = Object.keys(CSSVariables.dark).length;
-    // Dark theme only overrides color/shadow/accent tokens, not typography/spacing/radius/motion
-    expect(lightCount).toBeGreaterThan(darkCount);
-    expect(darkCount).toBeGreaterThan(20); // At least all the color/shadow/accent overrides
-  });
-
   it('should have CSS variables for all semantic categories', () => {
-    const cssLight = CSSVariables.light;
-    // Surfaces
-    expect(cssLight['--bg-canvas']).toBeDefined();
-    expect(cssLight['--bg-primary']).toBeDefined();
-    expect(cssLight['--bg-secondary']).toBeDefined();
+    // Single WhatsApp theme: check for all required CSS variables
+    expect(CSSVariables['--bg-canvas']).toBeDefined();
+    expect(CSSVariables['--bg-primary']).toBeDefined();
+    expect(CSSVariables['--bg-secondary']).toBeDefined();
     // Text
-    expect(cssLight['--text-primary']).toBeDefined();
-    expect(cssLight['--text-tertiary']).toBeDefined();
+    expect(CSSVariables['--text-primary']).toBeDefined();
+    expect(CSSVariables['--text-tertiary']).toBeDefined();
     // Accents (brand + text-safe)
-    expect(cssLight['--accent-primary']).toBeDefined();
-    expect(cssLight['--accent-primary-text']).toBeDefined();
-    expect(cssLight['--accent-success']).toBeDefined();
-    expect(cssLight['--accent-success-text']).toBeDefined();
+    expect(CSSVariables['--accent-primary']).toBeDefined();
+    expect(CSSVariables['--accent-primary-text']).toBeDefined();
+    expect(CSSVariables['--accent-success']).toBeDefined();
+    expect(CSSVariables['--accent-success-text']).toBeDefined();
   });
 });
 
@@ -147,28 +114,13 @@ describe('Theme Tokens — Color Well-Formedness', () => {
     return isValidHex(value) || isValidRgba(value);
   }
 
-  it('should have valid hex or rgba colors in light theme', () => {
-    const light = ColorTokens.light;
+  it('should have valid hex or rgba colors in WhatsApp theme', () => {
     const allValues: string[] = [
-      ...Object.values(light.surface),
-      ...Object.values(light.text),
-      ...Object.values(light.border),
-      ...Object.values(light.accent),
-      ...Object.values(light.categorical),
-    ];
-    allValues.forEach((val) => {
-      expect(validateColorValue(val as string)).toBe(true);
-    });
-  });
-
-  it('should have valid hex or rgba colors in dark theme', () => {
-    const dark = ColorTokens.dark;
-    const allValues: string[] = [
-      ...Object.values(dark.surface),
-      ...Object.values(dark.text),
-      ...Object.values(dark.border),
-      ...Object.values(dark.accent),
-      ...Object.values(dark.categorical),
+      ...Object.values(ColorTokens.surface),
+      ...Object.values(ColorTokens.text),
+      ...Object.values(ColorTokens.border),
+      ...Object.values(ColorTokens.accent),
+      ...Object.values(ColorTokens.categorical),
     ];
     allValues.forEach((val) => {
       expect(validateColorValue(val as string)).toBe(true);
@@ -226,32 +178,19 @@ describe('Theme Tokens — WCAG AA Contrast', () => {
     expect(sameColor).toBeCloseTo(1, 1);
   });
 
-  it('should measure dark theme text colors against dark backgrounds', () => {
-    const darkThemeBg = ColorTokens.dark.surface.canvas;
-    const darkThemeText = ColorTokens.dark.text.primary;
-    const ratio = getContrastRatio(darkThemeText, darkThemeBg);
-    expect(ratio).toBeGreaterThanOrEqual(4.5);
-  });
-
-  it('should measure light theme text colors against light backgrounds', () => {
-    const lightThemeBg = ColorTokens.light.surface.canvas;
-    const lightThemeText = ColorTokens.light.text.primary;
-    const ratio = getContrastRatio(lightThemeText, lightThemeBg);
+  it('should measure WhatsApp theme text colors against canvas backgrounds', () => {
+    const themeBg = ColorTokens.surface.canvas;
+    const themeText = ColorTokens.text.primary;
+    const ratio = getContrastRatio(themeText, themeBg);
     expect(ratio).toBeGreaterThanOrEqual(4.5);
   });
 
   it('should have text-safe accent variants that pass WCAG AA', () => {
-    // Dark theme: --accent-primary-text on canvas
-    const darkAccentText = ColorTokens.dark.accent.primaryText;
-    const darkCanvas = ColorTokens.dark.surface.canvas;
-    const darkRatio = getContrastRatio(darkAccentText, darkCanvas);
-    expect(darkRatio).toBeGreaterThanOrEqual(4.5);
-
-    // Light theme: --accent-primary-text on canvas
-    const lightAccentText = ColorTokens.light.accent.primaryText;
-    const lightCanvas = ColorTokens.light.surface.canvas;
-    const lightRatio = getContrastRatio(lightAccentText, lightCanvas);
-    expect(lightRatio).toBeGreaterThanOrEqual(4.5);
+    // WhatsApp theme: --accent-primary-text on canvas
+    const accentText = ColorTokens.accent.primaryText;
+    const canvas = ColorTokens.surface.canvas;
+    const ratio = getContrastRatio(accentText, canvas);
+    expect(ratio).toBeGreaterThanOrEqual(4.5);
   });
 });
 
@@ -260,14 +199,9 @@ describe('Theme Tokens — WCAG AA Contrast', () => {
 // ============================================================================
 
 describe('Theme Tokens — getTokenValue Helper', () => {
-  it('should return light theme values by default', () => {
+  it('should return WhatsApp theme values', () => {
     const val = getTokenValue('--bg-canvas', false);
-    expect(val).toBe(ColorTokens.light.surface.canvas);
-  });
-
-  it('should return dark theme values when isDark=true', () => {
-    const val = getTokenValue('--bg-canvas', true);
-    expect(val).toBe(ColorTokens.dark.surface.canvas);
+    expect(val).toBe(ColorTokens.surface.canvas);
   });
 
   it('should return empty string for non-existent tokens', () => {
@@ -276,12 +210,8 @@ describe('Theme Tokens — getTokenValue Helper', () => {
   });
 
   it('should return the text-safe accent variants', () => {
-    const darkPrimary = getTokenValue('--accent-primary-text', true);
-    const lightPrimary = getTokenValue('--accent-primary-text', false);
-    expect(darkPrimary).toBe(ColorTokens.dark.accent.primaryText);
-    expect(lightPrimary).toBe(ColorTokens.light.accent.primaryText);
-    // Ensure they are different in the two themes
-    expect(darkPrimary).not.toBe(lightPrimary);
+    const primary = getTokenValue('--accent-primary-text', false);
+    expect(primary).toBe(ColorTokens.accent.primaryText);
   });
 });
 

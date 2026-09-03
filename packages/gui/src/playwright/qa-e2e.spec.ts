@@ -93,17 +93,6 @@ test('command palette opens with Cmd-K and navigates', async ({ page }) => {
   console.log('PALETTE CLOSED AFTER ESC:', !stillVisible);
 });
 
-test('theme toggle changes data-theme', async ({ page }) => {
-  const before = await page.evaluate(() => document.documentElement.getAttribute('data-theme'));
-  // Press 't' to toggle theme
-  await page.keyboard.press('t');
-  await page.waitForTimeout(400);
-  const after = await page.evaluate(() => document.documentElement.getAttribute('data-theme'));
-  console.log('THEME BEFORE:', before, 'AFTER:', after);
-  expect(before).not.toBe(after);
-  await shot(page, 'theme-toggled');
-});
-
 test('keyboard navigation: Tab reaches interactive elements', async ({ page }) => {
   await page.goto(`${BASE}/#/providers`, { waitUntil: 'networkidle' });
   await page.waitForTimeout(500);

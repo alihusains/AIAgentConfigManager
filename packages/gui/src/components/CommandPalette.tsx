@@ -14,7 +14,6 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useStore, type View } from '../store';
-import { toggleTheme } from './ThemeToggle';
 import Search from 'lucide-react/dist/esm/icons/search.js';
 import CornerDownLeft from 'lucide-react/dist/esm/icons/corner-down-left.js';
 
@@ -26,7 +25,6 @@ interface PaletteItem {
   id: string;
   label: string;
   group: string;
-  icon?: React.ReactNode;
   action: () => void;
   /** Secondary text shown under the label (e.g. provider ID, agent path) */
   description?: string;
@@ -46,8 +44,7 @@ function buildItems(
   providers: { id: string; name: string }[],
   setActiveView: (v: View) => void,
   openAgent: (id: string) => void,
-  openProvider: (id: string) => void,
-  toggleTheme: () => void
+  openProvider: (id: string) => void
 ): PaletteItem[] {
   const views: { view: View; label: string }[] = [
     { view: 'overview', label: 'Overview' },
@@ -86,16 +83,7 @@ function buildItems(
     action: () => openAgent(a.id),
   }));
 
-  const actionItems: PaletteItem[] = [
-    {
-      id: 'action-theme',
-      label: 'Toggle theme',
-      group: 'Actions',
-      action: toggleTheme,
-    },
-  ];
-
-  return [...navItems, ...providerItems, ...agentItems, ...actionItems];
+  return [...navItems, ...providerItems, ...agentItems];
 }
 
 // ---------------------------------------------------------------------------
@@ -119,8 +107,8 @@ export function CommandPalette() {
       name: rp.provider.name,
     }));
     const agentList = agents.map((a) => ({ id: a.id, name: a.name }));
-    return buildItems(agentList, providers, setActiveView, openAgent, openProvider, toggleTheme);
-  }, [agents, registry, setActiveView, openAgent, openProvider, toggleTheme]);
+    return buildItems(agentList, providers, setActiveView, openAgent, openProvider);
+  }, [agents, registry, setActiveView, openAgent, openProvider]);
 
   // Filter by query
   const filtered = useMemo(() => {

@@ -3,27 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="light dark" />
+    <meta name="color-scheme" content="light" />
     <title>AI Agent Config Manager</title>
     <link rel="icon" type="image/x-icon" href="/favicon.ico" sizes="16x16 32x32" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
-    <script>
-      // Resolve data-theme before first paint so there is never a flash of
-      // the wrong colors: stored choice wins; otherwise follow the OS.
-      // (CSS has a single canonical dark block keyed on data-theme="dark"
-      // — no prefers-color-scheme copy — so this attribute is the only
-      // theme switch, set here and kept in sync by ThemeToggle.)
-      try {
-        var t = localStorage.getItem("aacm-theme");
-        if (t !== "light" && t !== "dark")
-          t = window.matchMedia("(prefers-color-scheme: dark)").matches
-            ? "dark"
-            : "light";
-        document.documentElement.setAttribute("data-theme", t);
-      } catch (e) {
-        document.documentElement.setAttribute("data-theme", "light");
-      }
-    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <!-- Display face (Space Grotesk, headers/stat numbers), UI face (Inter

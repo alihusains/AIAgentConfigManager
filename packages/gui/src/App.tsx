@@ -14,7 +14,6 @@ import { SettingsView } from './components/SettingsView';
 import { PermissionsView } from './components/PermissionsView';
 import { RamMeter } from './components/RamMeter';
 import { ToastContainer } from './components/Toast';
-import { ThemeToggle, toggleTheme } from './components/ThemeToggle';
 import { Breadcrumbs } from './components/Breadcrumbs';
 import { CommandPalette } from './components/CommandPalette';
 import Menu from 'lucide-react/dist/esm/icons/menu.js';
@@ -151,16 +150,13 @@ function App() {
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
 
-  // Global keyboard shortcuts: Shift+R refresh, t theme toggle (ignored while typing)
+  // Global keyboard shortcuts: Shift+R refresh (ignored while typing)
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (isTypingTarget(document.activeElement)) return;
       if (e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey && e.key.toLowerCase() === 'r') {
         e.preventDefault();
         refreshAll();
-      } else if (!e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey && e.key === 't') {
-        e.preventDefault();
-        toggleTheme();
       }
     };
     window.addEventListener('keydown', onKeyDown);
@@ -282,7 +278,6 @@ function App() {
               <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
               Refresh
             </button>
-            <ThemeToggle />
           </div>
         </header>
 

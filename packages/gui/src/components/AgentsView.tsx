@@ -779,250 +779,143 @@ export function AgentsView() {
             </button>
           </div>
         </div>
-        <div className="table-container">
-          <table className="table agents-table">
-            <thead>
-              <tr>
-                <th>Agent</th>
-                <th>API</th>
-                <th>Status</th>
-                <th>Config File</th>
-                <th>Config Path</th>
-                <th>MCP File</th>
-                <th>MCP Servers</th>
-                <th style={{ width: '130px' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {installedRows.map((row) => (
-                <tr key={row.id}>
-                  <td>
-                    <div className="flex items-center gap-3 min-w-0">
-                      <AgentIconTile
-                        icon={row.catalogEntry?.icon}
-                        id={row.id}
-                        size={40}
-                      />
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <p className="font-medium truncate">{row.name}</p>
-                          {!row.known && (
-                            <Tooltip content="Discovered on this machine but not in the maintained catalog yet">
-                            <span
-                              className="badge badge-neutral"
-                            >
-                              new
-                            </span>
-                            </Tooltip>
-                          )}
-                          <DriftBadge
-                            status={driftStatus[row.id]}
-                            onResync={() => void resyncAgent(row.id, row.name)}
-                          />
-                        </div>
-                        <p className="text-xs text-tertiary">{row.id}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    <ApiTypeBadges kinds={row.catalogEntry?.apiTypes} compact />
-                  </td>
-                  <td>
-                    <div className="flex flex-col gap-1">
-                      <span className="badge badge-success">
-                        <span className="live-dot" />
-                        {row.detection.version || 'installed'}
-                      </span>
-                      {row.detection.binaryPath && (
-                        <Tooltip
-                          content={
-                            row.detection.detectedBy
-                              ? `found via ${row.detection.detectedBy}`
-                              : row.detection.binaryPath
-                          }
-                          disabled={!row.detection.detectedBy && !row.detection.binaryPath}
-                        >
-                        <span
-                          className="text-xs text-tertiary font-mono"
-                        >
-                          {row.detection.binaryPath}
-                          {row.detection.detectedBy && (
-                            <span className="text-tertiary">
-                              {' '}
-                              ({row.detection.detectedBy})
-                            </span>
-                          )}
-                        </span>
-                        </Tooltip>
-                      )}
-                      {updateStatus[row.id]?.checking ? (
-                        <span className="text-xs text-tertiary flex items-center gap-1">
-                          <div className="spinner" style={{ width: 11, height: 11 }} />
-                          checking…
-                        </span>
-                      ) : updateStatus[row.id]?.updateAvailable ? (
-                        <Tooltip content={`Update to ${updateStatus[row.id]?.latestVersion}`}>
-                        <button
-                          className="btn-secondary btn-sm"
-                          disabled={updateStatus[row.id]?.updating}
-                          onClick={() => runUpdate(row.id, row.name)}
-                        >
-                          {updateStatus[row.id]?.updating ? (
-                            <div className="spinner" style={{ width: 12, height: 12 }} />
-                          ) : (
-                            <ArrowUpCircle size={12} />
-                          )}
-                          Update to {updateStatus[row.id]?.latestVersion}
-                        </button>
-                        </Tooltip>
-                      ) : updateStatus[row.id] && updateStatus[row.id].method !== 'unsupported' ? (
-                        <span className="text-xs text-tertiary">up to date</span>
-                      ) : null}
-                    </div>
-                  </td>
-                  <td>
-                    <span
-                      className={`badge ${row.detection.configExists ? 'badge-success' : 'badge-neutral'}`}
-                    >
-                      {row.detection.configExists ? 'exists' : 'missing'}
-                    </span>
-                  </td>
-                  <td className="font-mono text-xs path-cell">
-                    <div className="flex items-center gap-1.5">
-                      <Tooltip content={row.configPath}>
-                      <span className="flex-1 min-w-0 break-words">
-                        {row.configPath}
-                      </span>
-                      </Tooltip>
-                      <Tooltip content="Edit config file">
-                      <button
-                        className="btn-ghost btn-icon btn-sm flex-shrink-0"
-                        onClick={() => openFileEditor(row.id, row.name, 'config')}
-                      >
-                        <Edit size={13} />
-                      </button>
-                      </Tooltip>
-                    </div>
-                    {/* Model config lives in a genuinely different file only for a
-                        couple of agents (e.g. reasonix's separate credentials) — show
-                        it as a note here instead of a whole redundant column, since in
-                        every other case it's identical to the path above. */}
-                    {row.modelPath &&
-                      row.modelPath !== row.configPath &&
-                      row.modelPath !== 'same file' && (
-                        <Tooltip content={row.modelPath}>
-                        <div className="text-xs text-tertiary mt-0.5">
-                          model: {row.modelPath}
-                        </div>
-                        </Tooltip>
-                      )}
-                    {row.credentialPath && (
-                      <Tooltip content={row.credentialPath}>
-                      <div className="text-xs text-tertiary mt-0.5">
-                        keys: {row.credentialPath}
-                      </div>
-                      </Tooltip>
-                    )}
-                  </td>
-                  <td className="font-mono text-xs path-cell">
-                    {row.mcpPath && row.mcpPath !== 'same file' ? (
-                      <div className="flex items-center gap-1.5">
-                        <Tooltip content={row.mcpPath}>
-                        <span className="flex-1 min-w-0 break-words">
-                          {row.mcpPath}
-                        </span>
-                        </Tooltip>
-                        <Tooltip content="Edit MCP file">
-                        <button
-                          className="btn-ghost btn-icon btn-sm flex-shrink-0"
-                          onClick={() => openFileEditor(row.id, row.name, 'mcp')}
-                        >
-                          <Edit size={13} />
-                        </button>
-                        </Tooltip>
-                      </div>
-                    ) : row.mcpPath === 'same file' ? (
-                      <span className="text-tertiary">same file</span>
-                    ) : (
-                      <span className="text-tertiary">—</span>
-                    )}
-                  </td>
-                  <td>
-                    {(() => {
-                      const count = (registry?.mcpServers || []).filter(
-                        (m) => m.agentIds.includes(row.id)
-                      ).length;
-                      const over = count > MCP_SERVER_WARNING_THRESHOLD;
-                      return (
-                        <Tooltip content={over ? `${count} MCP servers assigned — high server counts can slow an agent down or overwhelm its tool-selection` : `${count} MCP server${count === 1 ? '' : 's'} assigned`}>
-                        <span
-                          className={`badge ${over ? 'badge-warning' : 'badge-neutral'}`}
-                        >
-                          {over && <AlertTriangle size={11} className="inline mr-1" />}
-                          {count}
-                        </span>
-                        </Tooltip>
-                      );
-                    })()}
-                  </td>
-                  <td>
-                    <div className="flex items-center gap-1">
-                      <RowActionsMenu
-                        open={openMenuFor === row.id}
-                        onToggle={() =>
-                          setOpenMenuFor(openMenuFor === row.id ? null : row.id)
-                        }
-                        onClose={() => setOpenMenuFor(null)}
-                        items={[
-                          {
-                            label: 'Reveal config folder',
-                            onClick: () => {
-                              setOpenMenuFor(null);
-                              revealAgent(row.id);
-                            },
-                          },
-                          ...(row.mcpPath && row.mcpPath !== 'same file'
-                            ? [
-                                {
-                                  label: 'Reveal MCP folder',
-                                  onClick: () => {
-                                    setOpenMenuFor(null);
-                                    revealAgent(row.id, 'mcp');
-                                  },
-                                },
-                              ]
-                            : []),
-                        ]}
-                      />
-                      {row.catalogEntry &&
-                        commandFor(row.catalogEntry, 'uninstall', p) && (
-                          <Tooltip content={commandFor(row.catalogEntry, 'uninstall', p)}>
-                          <button
-                            className="btn-danger btn-sm"
-                            onClick={() =>
-                              setJob({
-                                agent: row.catalogEntry!,
-                                action: 'uninstall',
-                              })
-                            }
-                          >
-                            Uninstall
-                          </button>
+        <div className="chat-list">
+          {installedRows.length === 0 ? (
+            <div className="empty-state py-8">
+              <p className="text-center text-tertiary text-sm">No agents installed yet — pick one below to install.</p>
+            </div>
+          ) : (
+            installedRows.map((row) => {
+              const mcpCount = (registry?.mcpServers || []).filter(
+                (m) => m.agentIds.includes(row.id)
+              ).length;
+              const mcpOver = mcpCount > MCP_SERVER_WARNING_THRESHOLD;
+              return (
+                <div key={row.id} className="chat-row-card">
+                  <div className="chat-row-avatar">
+                    <AgentIconTile
+                      icon={row.catalogEntry?.icon}
+                      id={row.id}
+                      size={40}
+                    />
+                  </div>
+                  <div className="chat-row-content">
+                    <div className="chat-row-header">
+                      <div className="chat-row-label">{row.name}</div>
+                      <div className="flex items-center gap-1">
+                        {!row.known && (
+                          <Tooltip content="Discovered on this machine but not in the maintained catalog yet">
+                            <span className="badge badge-neutral text-xs">new</span>
                           </Tooltip>
                         )}
+                        {mcpCount > 0 && (
+                          <Tooltip content={mcpOver ? `${mcpCount} MCP servers assigned — high server counts can slow an agent down` : `${mcpCount} MCP server${mcpCount === 1 ? '' : 's'} assigned`}>
+                            <span className={`badge ${mcpOver ? 'badge-warning' : 'badge-neutral'} text-xs`}>
+                              {mcpOver && <AlertTriangle size={10} className="inline mr-0.5" />}
+                              MCP: {mcpCount}
+                            </span>
+                          </Tooltip>
+                        )}
+                      </div>
                     </div>
-                  </td>
-                </tr>
-              ))}
-              {installedRows.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="text-center text-tertiary py-8">
-                    No agents installed yet — pick one below to install.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                    <div className="chat-row-preview">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs">{row.id}</span>
+                        <span className="badge badge-success text-xs">
+                          <span className="live-dot" />
+                          {row.detection.version || 'installed'}
+                        </span>
+                        {updateStatus[row.id]?.checking ? (
+                          <span className="text-xs text-tertiary flex items-center gap-1">
+                            <div className="spinner" style={{ width: 10, height: 10 }} />
+                            checking…
+                          </span>
+                        ) : updateStatus[row.id]?.updateAvailable ? (
+                          <Tooltip content={`Update to ${updateStatus[row.id]?.latestVersion}`}>
+                            <button
+                              className="btn-secondary btn-sm text-xs px-2 py-0.5"
+                              disabled={updateStatus[row.id]?.updating}
+                              onClick={() => runUpdate(row.id, row.name)}
+                            >
+                              {updateStatus[row.id]?.updating ? (
+                                <div className="spinner" style={{ width: 10, height: 10 }} />
+                              ) : (
+                                <ArrowUpCircle size={10} />
+                              )}
+                              Update
+                            </button>
+                          </Tooltip>
+                        ) : null}
+                      </div>
+                      <ApiTypeBadges kinds={row.catalogEntry?.apiTypes} compact />
+                      <DriftBadge
+                        status={driftStatus[row.id]}
+                        onResync={() => void resyncAgent(row.id, row.name)}
+                      />
+                    </div>
+                  </div>
+                  <div className="chat-row-actions">
+                    <RowActionsMenu
+                      open={openMenuFor === row.id}
+                      onToggle={() =>
+                        setOpenMenuFor(openMenuFor === row.id ? null : row.id)
+                      }
+                      onClose={() => setOpenMenuFor(null)}
+                      items={[
+                        {
+                          label: 'Reveal config folder',
+                          onClick: () => {
+                            setOpenMenuFor(null);
+                            revealAgent(row.id);
+                          },
+                        },
+                        {
+                          label: 'Edit config file',
+                          onClick: () => {
+                            setOpenMenuFor(null);
+                            openFileEditor(row.id, row.name, 'config');
+                          },
+                        },
+                        ...(row.mcpPath && row.mcpPath !== 'same file'
+                          ? [
+                              {
+                                label: 'Reveal MCP folder',
+                                onClick: () => {
+                                  setOpenMenuFor(null);
+                                  revealAgent(row.id, 'mcp');
+                                },
+                              },
+                              {
+                                label: 'Edit MCP file',
+                                onClick: () => {
+                                  setOpenMenuFor(null);
+                                  openFileEditor(row.id, row.name, 'mcp');
+                                },
+                              },
+                            ]
+                          : []),
+                        ...(row.catalogEntry &&
+                        commandFor(row.catalogEntry, 'uninstall', p)
+                          ? [
+                              {
+                                label: 'Uninstall',
+                                onClick: () => {
+                                  setOpenMenuFor(null);
+                                  setJob({
+                                    agent: row.catalogEntry!,
+                                    action: 'uninstall',
+                                  });
+                                },
+                              },
+                            ]
+                          : []),
+                      ]}
+                    />
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
 

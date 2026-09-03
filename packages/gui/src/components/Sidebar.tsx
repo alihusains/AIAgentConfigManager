@@ -79,13 +79,17 @@ export function Sidebar({ onClose }: SidebarProps) {
     return (
       <button
         key={view.id}
-        className={`nav-item ${isActive ? 'active' : ''}`}
+        className={`chat-row ${isActive ? 'chat-row--active' : ''}`}
         onClick={() => setActiveView(view.id)}
         aria-current={isActive ? 'page' : undefined}
       >
-        <Icon className="nav-item-icon" />
-        <span className="flex-1 truncate">{view.label}</span>
-        {count !== undefined && <span className="nav-item-count">{count}</span>}
+        <div className="chat-row-avatar">
+          <Icon className="chat-row-icon" />
+        </div>
+        <div className="chat-row-content">
+          <div className="chat-row-label">{view.label}</div>
+        </div>
+        {count !== undefined && <span className="chat-row-badge">{count}</span>}
       </button>
     );
   };
@@ -130,23 +134,29 @@ export function Sidebar({ onClose }: SidebarProps) {
           </span>
           {agents.map((agent) => {
             const isCurrent = activeView === 'agent-detail' && selectedAgentId === agent.id;
+            const statusText = agent.detection.installed ? agent.detection.version || 'installed' : 'not installed';
             return (
               <Tooltip
                 key={agent.id}
-                content={`${agent.name} — ${agent.detection.installed ? agent.detection.version || 'installed' : 'not installed'}`}
+                content={`${agent.name} — ${statusText}`}
               >
               <button
-                className={`nav-item ${isCurrent ? 'active' : ''}`}
+                className={`chat-row ${isCurrent ? 'chat-row--active' : ''}`}
                 onClick={() => openAgent(agent.id)}
                 aria-current={isCurrent ? 'page' : undefined}
               >
-                <AgentIconTile
-                  icon={iconForAgent(agent.id)}
-                  id={agent.id}
-                  size={28}
-                  iconSize={17}
-                />
-                <span className="flex-1 truncate">{agent.name}</span>
+                <div className="chat-row-avatar">
+                  <AgentIconTile
+                    icon={iconForAgent(agent.id)}
+                    id={agent.id}
+                    size={32}
+                    iconSize={17}
+                  />
+                </div>
+                <div className="chat-row-content">
+                  <div className="chat-row-label">{agent.name}</div>
+                  <div className="chat-row-preview text-xs">{statusText}</div>
+                </div>
                 {agent.detection.installed ? (
                   <span className="status-dot status-dot--on" aria-label="installed" />
                 ) : (
@@ -161,12 +171,16 @@ export function Sidebar({ onClose }: SidebarProps) {
         <div className="nav-section">
           <span className="nav-section-title">System</span>
           <button
-            className={`nav-item ${activeView === 'settings' ? 'active' : ''}`}
+            className={`chat-row ${activeView === 'settings' ? 'chat-row--active' : ''}`}
             onClick={() => setActiveView('settings')}
             aria-current={activeView === 'settings' ? 'page' : undefined}
           >
-            <Settings className="nav-item-icon" />
-            <span className="flex-1 truncate">Settings</span>
+            <div className="chat-row-avatar">
+              <Settings className="chat-row-icon" />
+            </div>
+            <div className="chat-row-content">
+              <div className="chat-row-label">Settings</div>
+            </div>
           </button>
         </div>
       </nav>

@@ -1109,7 +1109,11 @@ export class AgentConfigManager {
     agentId: string,
     staleProviderIds: ReadonlySet<string> = new Set(),
     staleServerNames: ReadonlySet<string> = new Set()
-  ): Promise<{ modelProviders: ModelProvider[]; models: ModelConfig[]; mcpServers: MCPServerConfig[] }> {
+  ): Promise<{
+    modelProviders: ModelProvider[];
+    models: ModelConfig[];
+    mcpServers: MCPServerConfig[];
+  }> {
     const adapter = this.adapters.get(agentId);
     if (!adapter) return { modelProviders: [], models: [], mcpServers: [] };
     const targetedProviders = registry.providers.filter((p) => p.agentIds.includes(agentId));
@@ -1270,7 +1274,11 @@ export class AgentConfigManager {
       // what the registry itself defines; extra on-disk keys are
       // adapter-managed, not out-of-band edits.
       const providerMatches = (disk: ModelProvider, target: ModelProvider): boolean => {
-        if (disk.name !== target.name || disk.type !== target.type) return false;
+        // Identity is already established by id (the maps are keyed by id), so a
+        // display-name difference is not a meaningful drift — several adapters
+        // (e.g. Qwen) don't persist the provider `name` at all and decode it as
+        // the id. Compare only the wire fields the registry actually manages.
+        if (disk.type !== target.type) return false;
         if (disk.enabled !== target.enabled) return false;
         // Project through the adapter's wire-format lens first: registry
         // entries are shared across agents and may carry fields this agent's
@@ -2085,13 +2093,7 @@ export class AgentConfigManager {
 
           const contradiction: PermissionContradiction = {
             pattern: entry.pattern,
-            type: entry.type as
-              | 'tool'
-              | 'directory'
-              | 'url'
-              | 'command'
-              | 'mcp'
-              | 'custom',
+            type: entry.type as 'tool' | 'directory' | 'url' | 'command' | 'mcp' | 'custom',
             allowingAgents,
             denyingAgents,
             riskLevel,
@@ -2156,10 +2158,7 @@ export class AgentConfigManager {
       };
 
       // Map to deduplicate providers when they appear in multiple agents
-      const providerMap = new Map<
-        string,
-        { entry: RegistryProvider; agentIds: Set<string> }
-      >();
+      const providerMap = new Map<string, { entry: RegistryProvider; agentIds: Set<string> }>();
 
       // Step 1: Collect registry providers
       for (const entry of registry.providers) {

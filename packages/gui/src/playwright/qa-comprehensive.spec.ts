@@ -146,33 +146,6 @@ test('command palette (Cmd-K) works', async ({ page }) => {
   await page.keyboard.press('Escape');
 });
 
-test('theme toggle works', async ({ page }) => {
-  const before = await page.evaluate(() =>
-    document.documentElement.getAttribute('data-theme')
-  );
-
-  // Press 't' to toggle
-  await page.keyboard.press('t');
-  await page.waitForTimeout(400);
-
-  const after = await page.evaluate(() =>
-    document.documentElement.getAttribute('data-theme')
-  );
-
-  if (before === after) {
-    findings.push({
-      severity: 'Medium',
-      view: 'Settings',
-      title: 'Theme toggle did not work',
-      description: 'Pressing "t" did not toggle the theme',
-      steps: ['Record theme before', 'Press t', 'Record theme after'],
-      expected: 'Theme changed (before !== after)',
-      actual: `before=${before}, after=${after}`,
-    });
-  }
-  await shot(page, `theme-after-toggle`);
-});
-
 test('providers page interactions', async ({ page }) => {
   await gotoView(page, 'Model Providers');
   

@@ -15,23 +15,23 @@
   color-scheme: light;
 
   /* Surfaces: canvas (page) → secondary (cards/sidebar) → tertiary (raised) */
-  /* WhatsApp theme: white primary, light gray secondary */
-  --bg-canvas: #ffffff;
+  /* WhatsApp theme: warm off-white canvas, white cards */
+  --bg-canvas: #efeae2;
   --bg-primary: #ffffff;
-  --bg-secondary: #f0f2f5;
+  --bg-secondary: #ffffff;
   --bg-tertiary: #ffffff;
-  --bg-hover: #eff2f5;
-  --bg-active: #e5e7eb;
+  --bg-hover: #f0f2f5;
+  --bg-active: #e9edef;
 
   /* Text */
-  --text-primary: #17151f;
-  --text-secondary: #4c4959;
-  --text-tertiary: #5f5c6e; /* AA on --bg-secondary cards at 11–12px (audit E1) */
-  --text-inverse: #f7f6fb;
+  --text-primary: #111b21;
+  --text-secondary: #54656f;
+  --text-tertiary: #667781; /* AA on --bg-secondary cards at 11–12px (audit E1) */
+  --text-inverse: #ffffff;
 
   /* Borders — WhatsApp light gray */
-  --border-primary: #e5e7eb;
-  --border-secondary: #d1d5db;
+  --border-primary: #e9edef;
+  --border-secondary: #d0cfd3;
   --border-focus: #00a884;
 
   /* Accents — primary (actions, active nav, focus) + secondary (links, info) */
@@ -122,14 +122,9 @@
   --glass-blur: 20px;
 }
 
-/* ── Dark theme ──────────────────────────────────────────────────────────
-   SINGLE canonical block — no mirrored prefers-color-scheme copy. The
-   runtime resolves data-theme before first paint (index.html pre-paint
-   script) and on OS changes (ThemeToggle's matchMedia listener):
-   - stored "dark"        → data-theme="dark"  (this block)
-   - stored "light"       → data-theme="light" (no dark tokens)
-   - nothing stored, OS dark → data-theme="dark" (this block)
-   - nothing stored, OS light → no attribute (light defaults above) */
+/* ── Dark theme (unused) ─────────────────────────────────────────────────
+   Preserved for compatibility; the app now always renders light theme.
+   Dark theme CSS block is no longer applied at runtime. */
 
 html[data-theme="dark"] {
   color-scheme: dark;
@@ -1753,6 +1748,157 @@ select.input {
     opacity: 0.7;
     box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent-success) 0%, transparent);
   }
+}
+
+/* WhatsApp-style chat list rows — used in Sidebar nav and AgentsView.
+   Each row mimics a conversation thread with avatar, name/preview, and status. */
+.chat-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-2);
+  font-size: var(--text-size-sm);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: var(--transition-all);
+  width: 100%;
+  text-align: left;
+  user-select: none;
+}
+
+.chat-row:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+.chat-row:hover {
+  background: var(--bg-hover);
+}
+
+.chat-row.chat-row--active {
+  background: #f0f2f5;
+  border-left: 3px solid var(--accent-primary);
+  padding-left: calc(var(--space-2) - 3px);
+}
+
+html[data-theme="dark"] .chat-row.chat-row--active {
+  background: color-mix(in srgb, var(--accent-primary) 22%, transparent);
+  border-left: 3px solid var(--accent-primary);
+}
+
+.chat-row-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+}
+
+.chat-row-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--text-secondary);
+}
+
+.chat-row-content {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-row-label {
+  font-weight: 500;
+  color: var(--text-primary);
+  font-size: var(--text-size-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-row-preview {
+  font-size: var(--text-size-xs);
+  color: var(--text-tertiary);
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.chat-row-badge {
+  margin-left: auto;
+  padding: 4px 8px;
+  background: var(--accent-primary);
+  color: white;
+  border-radius: var(--radius-full);
+  font-size: var(--text-size-xs);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+/* Chat list cards in AgentsView — conversation-style full-width rows */
+.chat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: var(--space-3);
+}
+
+.chat-row-card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  transition: var(--transition-all);
+  cursor: pointer;
+}
+
+.chat-row-card:hover {
+  background: var(--bg-primary);
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-primary) 14%, transparent),
+              inset 2px 0 0 var(--accent-primary);
+  transform: translateY(-1px);
+}
+
+.chat-row-card .chat-row-avatar {
+  margin-top: 2px;
+}
+
+.chat-row-card .chat-row-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-row-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: 4px;
+}
+
+.chat-row-header .chat-row-label {
+  font-size: var(--text-size-base);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.chat-row-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
 }
 
 /* Shared status component — dot + text, never color-only (accessibility). */

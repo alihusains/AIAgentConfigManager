@@ -2,22 +2,6 @@ import '@testing-library/jest-dom/vitest';
 import { afterEach } from 'vitest';
 import { cleanup } from '@testing-library/react';
 
-// jsdom does not implement window.matchMedia, which ThemeToggle reads at
-// module scope. Provide a minimal stub so component imports do not throw.
-if (typeof window !== 'undefined' && !window.matchMedia) {
-  window.matchMedia = (query: string) =>
-    ({
-      matches: false,
-      media: query,
-      onchange: null,
-      addListener: () => undefined,
-      removeListener: () => undefined,
-      addEventListener: () => undefined,
-      removeEventListener: () => undefined,
-      dispatchEvent: () => false,
-    }) as unknown as MediaQueryList;
-}
-
 // zustand's `persist` middleware accesses localStorage when the store module is
 // first imported. Guarantee a working storage even if the environment does not
 // provide one at import time, so the harness never fails on persist rehydration.
