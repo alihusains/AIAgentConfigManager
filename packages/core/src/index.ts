@@ -43,6 +43,9 @@ export * from './detect/version';
 // CLI/environment tool detection (node, npm, pnpm, bun, git, …)
 export * from './detect/tools';
 
+// Live GitHub star rankings for agents
+export * from './live-stars';
+
 // Main class for managing multiple agents
 import type {
   AgentAdapter,

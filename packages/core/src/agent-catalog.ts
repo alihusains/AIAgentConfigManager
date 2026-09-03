@@ -101,6 +101,25 @@ export interface AgentCatalogEntry {
    * skills.ts for assign/remove. Paths may contain `~`.
    */
   skillsPaths?: Partial<Record<Platform, string>>;
+  /**
+   * GitHub repository URL (e.g., "https://github.com/owner/repo").
+   * Used to fetch and display star counts and GitHub metadata.
+   */
+  github?: string;
+  /**
+   * GitHub star count metadata (cached from last catalog update).
+   * Used for ranking and sorting agents by popularity.
+   */
+  stars?: {
+    /** Current star count at time of catalog update. */
+    count: number;
+    /** ISO date when stars were last fetched. */
+    fetchedAt: string;
+    /** Growth in last 30 days (for trending indicator). */
+    growth30d?: number;
+    /** Maintenance status: active, stale, archived. */
+    maintenance?: 'active' | 'stale' | 'archived';
+  };
 }
 
 /** Platform-filtered view of a catalog entry's lifecycle commands. */
