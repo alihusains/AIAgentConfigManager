@@ -15,12 +15,13 @@
   color-scheme: light;
 
   /* Surfaces: canvas (page) → secondary (cards/sidebar) → tertiary (raised) */
-  --bg-canvas: #f7f6fb;
+  /* WhatsApp theme: white primary, light gray secondary */
+  --bg-canvas: #ffffff;
   --bg-primary: #ffffff;
-  --bg-secondary: #f0eef7;
+  --bg-secondary: #f0f2f5;
   --bg-tertiary: #ffffff;
-  --bg-hover: #f0eef7;
-  --bg-active: #e3e0ec;
+  --bg-hover: #eff2f5;
+  --bg-active: #e5e7eb;
 
   /* Text */
   --text-primary: #17151f;
@@ -28,28 +29,28 @@
   --text-tertiary: #5f5c6e; /* AA on --bg-secondary cards at 11–12px (audit E1) */
   --text-inverse: #f7f6fb;
 
-  /* Borders */
-  --border-primary: #e3e0ec;
-  --border-secondary: #cfccdc;
-  --border-focus: #6a3ff0;
+  /* Borders — WhatsApp light gray */
+  --border-primary: #e5e7eb;
+  --border-secondary: #d1d5db;
+  --border-focus: #00a884;
 
   /* Accents — primary (actions, active nav, focus) + secondary (links, info) */
-  /* Brand: Teal/Turquoise for modern, professional look */
-  --accent-primary: #1a7f7e; /* brand teal (fills, borders, dots, focus rings) */
-  --accent-primary-hover: #158a89;
-  --accent-secondary: #2d9b99;
-  --accent-primary-text: #0f5e5d; /* text-safe variant of brand teal */
+  /* Brand: WhatsApp Teal for modern, professional look */
+  --accent-primary: #00a884; /* WhatsApp brand teal (fills, borders, dots, focus rings) */
+  --accent-primary-hover: #00a880;
+  --accent-secondary: #25d366;
+  --accent-primary-text: #00a884; /* text-safe variant of brand teal */
 
   /* Status / semantic — brand hexes below are for fills/borders/dots only;
      the -text variants are the WCAG AA-safe colors for readable text. */
-  --accent-success: #0f9d70; /* brand-only; use --accent-success-text for readable text */
-  --accent-warning: #b3690a; /* brand-only; use --accent-warning-text for readable text */
-  --accent-error: #d1364c; /* brand-only; use --accent-error-text for readable text */
-  --accent-info: #2f68c9; /* brand-only; use --accent-info-text for readable text */
-  --accent-success-text: #0b7a57; /* text-safe variant of --accent-success; brand hex fails AA at small sizes */
-  --accent-warning-text: #8f5407; /* text-safe variant of --accent-warning; brand hex fails AA at small sizes */
-  --accent-error-text: #ad2038; /* text-safe variant of --accent-error; brand hex fails AA at small sizes */
-  --accent-info-text: #2454a3; /* text-safe variant of --accent-info; brand hex fails AA at small sizes */
+  --accent-success: #25d366; /* WhatsApp green — brand-only; use --accent-success-text for readable text */
+  --accent-warning: #d4a574; /* amber for warnings; use --accent-warning-text for readable text */
+  --accent-error: #ff5757; /* red for errors; use --accent-error-text for readable text */
+  --accent-info: #3b82f6; /* blue for info; use --accent-info-text for readable text */
+  --accent-success-text: #16a34a; /* text-safe variant of --accent-success; WCAG AA */
+  --accent-warning-text: #b45309; /* text-safe variant of --accent-warning; WCAG AA */
+  --accent-error-text: #dc2626; /* text-safe variant of --accent-error; WCAG AA */
+  --accent-info-text: #2563eb; /* text-safe variant of --accent-info; WCAG AA */
 
   /* Categorical — API type + agent identity tints */
   --anthropic-accent: #b3542e;
@@ -132,35 +133,35 @@
 
 html[data-theme="dark"] {
   color-scheme: dark;
-  --bg-canvas: #0e0e13;
-  --bg-primary: #16161d;
-  --bg-secondary: #1c1c25;
-  --bg-tertiary: #22222d;
-  --bg-hover: #22222d;
-  --bg-active: #2b2b37;
+  --bg-canvas: #111827;
+  --bg-primary: #1f2937;
+  --bg-secondary: #2d3748;
+  --bg-tertiary: #374151;
+  --bg-hover: #2d3748;
+  --bg-active: #3f4655;
 
-  --text-primary: #f3f2f8;
-  --text-secondary: #b7b4c4;
-  --text-tertiary: #8b899b;
-  --text-inverse: #0e0e13;
+  --text-primary: #f3f4f6;
+  --text-secondary: #d1d5db;
+  --text-tertiary: #9ca3af;
+  --text-inverse: #111827;
 
-  --border-primary: #2b2b37;
-  --border-secondary: #3a3a4a;
-  --border-focus: #b6a3ff;
+  --border-primary: #374151;
+  --border-secondary: #4b5563;
+  --border-focus: #00a884;
 
-  --accent-primary: #8d70ff; /* brand-only (fills, borders, dots, focus rings); use --accent-primary-text for readable text */
-  --accent-primary-hover: #9a8cff;
-  --accent-secondary: #8ab8ff;
-  --accent-primary-text: #b6a3ff; /* text-safe variant of --accent-primary; brand hex fails AA at small sizes */
+  --accent-primary: #06b6d4; /* WhatsApp-inspired cyan for dark mode */
+  --accent-primary-hover: #22d3ee;
+  --accent-secondary: #06b6d4;
+  --accent-primary-text: #22d3ee; /* text-safe variant for dark mode */
 
-  --accent-success: #22e6a0; /* brand-only; use --accent-success-text for readable text */
-  --accent-warning: #ffb020; /* brand-only; use --accent-warning-text for readable text */
-  --accent-error: #ff5c72; /* brand-only; use --accent-error-text for readable text */
-  --accent-info: #5b9dff; /* brand-only; use --accent-info-text for readable text */
-  --accent-success-text: #5eeab8; /* text-safe variant of --accent-success; brand hex fails AA at small sizes */
-  --accent-warning-text: #ffb020; /* text-safe variant of --accent-warning (passes AA on dark) */
-  --accent-error-text: #ff8a9a; /* text-safe variant of --accent-error; brand hex fails AA at small sizes */
-  --accent-info-text: #8ab8ff; /* text-safe variant of --accent-info; brand hex fails AA at small sizes */
+  --accent-success: #10b981; /* green for dark mode */
+  --accent-warning: #f59e0b; /* amber for dark mode */
+  --accent-error: #ef4444; /* red for dark mode */
+  --accent-info: #3b82f6; /* blue for dark mode */
+  --accent-success-text: #34d399; /* text-safe variant of success; WCAG AA */
+  --accent-warning-text: #fbbf24; /* text-safe variant of warning; WCAG AA */
+  --accent-error-text: #f87171; /* text-safe variant of error; WCAG AA */
+  --accent-info-text: #60a5fa; /* text-safe variant of info; WCAG AA */
 
   --anthropic-accent: #e8927c;
   --cat-olive: #b3bd8a;
@@ -846,18 +847,16 @@ textarea {
   border-radius: var(--radius-md);
 }
 
-/* Buttons — v2 (M035): pill geometry for large CTAs, soft-rounded for dense
-   inline actions, designed hover/focus/active states. The global
-   :focus-visible outline (tokens only) is preserved for keyboard nav. */
+/* Buttons — WhatsApp theme: teal primary, light gray secondary, 8px radius for inputs/buttons */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  padding: 8px 18px;
+  padding: 10px 20px;
   font-size: var(--text-size-sm);
   font-weight: 500;
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-sm);
   border: 1px solid transparent;
   cursor: pointer;
   transition: background-color var(--transition-fast), border-color var(--transition-fast),
@@ -880,14 +879,13 @@ textarea {
 
 .btn-primary {
   background: var(--accent-primary);
-  color: var(--text-inverse);
+  color: #ffffff;
   box-shadow: var(--elevation-1);
 }
 
 .btn-primary:hover:not(:disabled) {
   background: var(--accent-primary-hover);
-  box-shadow: var(--elevation-2), 0 0 0 4px
-    color-mix(in srgb, var(--accent-primary) 18%, transparent);
+  box-shadow: var(--elevation-2);
   transform: translateY(-1px);
 }
 
@@ -916,13 +914,13 @@ textarea {
 
 .btn-ghost {
   background: transparent;
-  color: var(--text-secondary);
+  color: var(--accent-primary);
   transition: var(--transition-hover);
 }
 
 .btn-ghost:hover:not(:disabled) {
   background: color-mix(in srgb, var(--accent-primary) 8%, transparent);
-  color: var(--text-primary);
+  color: var(--accent-primary);
   transform: translateY(-1px);
 }
 
@@ -933,13 +931,13 @@ textarea {
 
 .btn-danger {
   background: var(--accent-error);
-  color: var(--text-inverse);
+  color: #ffffff;
   box-shadow: var(--elevation-1);
 }
 
 .btn-danger:hover:not(:disabled) {
   background: color-mix(in srgb, var(--accent-error) 86%, #000);
-  box-shadow: var(--elevation-2), 0 0 0 4px color-mix(in srgb, var(--accent-error) 18%, transparent);
+  box-shadow: var(--elevation-2);
   transform: translateY(-1px);
 }
 
@@ -948,9 +946,9 @@ textarea {
 }
 
 .btn-sm {
-  padding: 6px 12px;
+  padding: 8px 16px;
   font-size: var(--text-size-xs);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
 }
 
 .btn-icon {
@@ -1018,19 +1016,24 @@ select.input {
   padding-right: 36px;
 }
 
-/* Cards */
+/* Cards — WhatsApp theme: white background, subtle light gray border, 12px radius */
 .card {
-  background: var(--bg-secondary);
+  background: var(--bg-primary);
   border: 1px solid var(--border-primary);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   padding: 16px;
   transition: box-shadow var(--transition-normal), border-color var(--transition-normal),
-    background-color var(--transition-normal);
+    background-color var(--transition-normal), border-left var(--transition-normal),
+    padding-left var(--transition-normal);
+  position: relative;
 }
 
 .card:hover {
-  border-color: color-mix(in srgb, var(--accent-primary) 30%, var(--border-primary));
+  border-color: var(--border-primary);
+  border-left: 3px solid var(--accent-primary);
+  padding-left: 13px;
   box-shadow: var(--elevation-2);
+  transform: translateY(-1px);
 }
 
 .card-header {
@@ -1071,10 +1074,17 @@ select.input {
   align-items: center;
   gap: 12px;
   padding: 14px 16px;
-  background: var(--bg-secondary);
+  background: var(--bg-primary);
   border: 1px solid var(--border-primary);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
+  border-left: 3px solid var(--accent-primary);
   color: var(--text-secondary);
+  transition: box-shadow var(--transition-fast), border-left var(--transition-fast);
+}
+
+.adr-stat:hover {
+  box-shadow: var(--elevation-2);
+  border-left-color: var(--accent-primary-hover);
 }
 
 .adr-stat svg {
@@ -1180,12 +1190,12 @@ select.input {
   }
 }
 
-/* Badges */
+/* Badges — WhatsApp theme: tinted backgrounds, 11px/500, fully rounded pills */
 .badge {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 8px;
+  padding: 4px 12px;
   font-size: 11px;
   font-weight: 500;
   border-radius: var(--radius-full);
@@ -1195,23 +1205,23 @@ select.input {
    below the large-text threshold, so the brand hexes fail 4.5:1 on the
    tinted backgrounds. Backgrounds keep the brand tokens (fills). */
 .badge-primary {
-  background: color-mix(in srgb, var(--accent-primary) 15%, transparent);
+  background: color-mix(in srgb, var(--accent-primary) 18%, transparent);
   color: var(--accent-primary-text);
 }
 .badge-success {
-  background: color-mix(in srgb, var(--accent-success) 15%, transparent);
+  background: color-mix(in srgb, var(--accent-success) 18%, transparent);
   color: var(--accent-success-text);
 }
 .badge-warning {
-  background: color-mix(in srgb, var(--accent-warning) 15%, transparent);
+  background: color-mix(in srgb, var(--accent-warning) 18%, transparent);
   color: var(--accent-warning-text);
 }
 .badge-error {
-  background: color-mix(in srgb, var(--accent-error) 15%, transparent);
+  background: color-mix(in srgb, var(--accent-error) 18%, transparent);
   color: var(--accent-error-text);
 }
 .badge-neutral {
-  background: var(--bg-tertiary);
+  background: var(--bg-secondary);
   color: var(--text-secondary);
 }
 
@@ -1488,7 +1498,7 @@ select.input {
   position: relative;
   margin-left: -8px;
   border-radius: var(--radius-full);
-  box-shadow: 0 0 0 2px var(--bg-secondary);
+  box-shadow: 0 0 0 2px var(--bg-primary);
   transition: transform var(--transition-fast);
 }
 
@@ -1538,8 +1548,9 @@ select.input {
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-full);
-  background: var(--icon-bg-container);
-  box-shadow: 0 0 0 2px var(--bg-secondary);
+  background: var(--bg-hover);
+  border: 2px solid var(--bg-primary);
+  box-shadow: 0 0 0 0px transparent;
   font-size: 10px;
   font-weight: 600;
   color: var(--text-secondary);
@@ -1753,7 +1764,37 @@ select.input {
   color: var(--text-secondary);
 }
 .status-label {
-  color: inherit;
+  color: #54656f;
+  font-weight: 500;
+}
+/* Colored status dots: green (success), amber (warning), red (error), blue (info), gray (neutral) */
+.status-dot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  background: currentColor;
+}
+.status-dot--success {
+  background: var(--accent-success);
+  color: var(--accent-success);
+}
+.status-dot--warning {
+  background: var(--accent-warning);
+  color: var(--accent-warning);
+}
+.status-dot--error {
+  background: var(--accent-error);
+  color: var(--accent-error);
+}
+.status-dot--info {
+  background: var(--accent-info);
+  color: var(--accent-info);
+}
+.status-dot--neutral {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--text-tertiary);
+  color: var(--text-tertiary);
 }
 
 /* Skeleton loading placeholder — v2 (M035): content-shaped shimmer sweep over
@@ -1898,11 +1939,11 @@ select.input {
   flex-shrink: 0;
 }
 
-/* Modal */
+/* Modal — WhatsApp theme: white background, light gray border, 12px radius, strong elevation */
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1916,8 +1957,8 @@ select.input {
 .modal {
   background: var(--bg-primary);
   border: 1px solid var(--border-primary);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg), 0 0 0 1px color-mix(in srgb, var(--accent-primary) 10%, transparent);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
   /* Wide enough for the verifier probe cards + forms side by side */
   max-width: 780px;
   width: 100%;
@@ -1980,6 +2021,20 @@ select.input {
      with no scrollbar (the bug where the verify cards were unreachable). */
   min-height: 0;
   overscroll-behavior: contain;
+}
+
+/* Some modals (Add/Edit Provider) wrap their body + footer in a <form> that
+   sits between .modal and .modal-body. That <form> is the flex child of
+   .modal, but as a plain block it grows to its full content height — so
+   .modal's overflow:hidden clips it and .modal-body's flex:1/min-height:0
+   never engage (no scrollbar, bottom of the form unreachable). Make the form
+   a height-constrained flex column so the body can scroll. */
+.modal > form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .modal-footer {
@@ -2893,19 +2948,16 @@ textarea {
   border-bottom: none;
 }
 
-/* Hover elevation: --bg-secondary (surface-2) plus a soft accent glow on the
-   leading edge. Subtle on purpose — it must read as "interactive", not as a
-   row state change. */
+/* Hover elevation: WhatsApp theme — light gray background plus a soft accent
+   glow on the leading edge. Subtle on purpose — it must read as "interactive",
+   not as a row state change. */
 .providers-table .table tbody tr {
   transition: background var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .providers-table .table tbody tr:hover td {
-  background: var(--bg-secondary);
-}
-
-.providers-table .table tbody tr:hover td:first-child {
-  box-shadow: inset 2px 0 0 var(--accent-primary);
+  background: var(--bg-hover);
+  box-shadow: inset 3px 0 0 var(--accent-primary);
 }
 
 /* Primary identity: provider name dominates the row. */
@@ -2949,16 +3001,16 @@ textarea {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: var(--bg-tertiary);
-  border: 1.5px solid var(--bg-primary);
-  color: var(--text-secondary);
+  background: var(--bg-primary);
+  border: 2px solid var(--bg-primary);
+  color: var(--text-primary);
   font-size: 10px;
   font-weight: 600;
   overflow: hidden;
   flex-shrink: 0;
   user-select: none;
-  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .avatar:hover {
@@ -3298,25 +3350,23 @@ header button {
   gap: 12px;
   padding: 18px 20px;
   border: 1px solid var(--border-primary);
-  border-radius: var(--radius-lg);
-  background: radial-gradient(
-      130% 130% at 100% 0%,
-      color-mix(in srgb, var(--bento-tint) 15%, transparent) 0%,
-      color-mix(in srgb, var(--bento-tint) 4%, transparent) 42%,
-      transparent 72%
-    ), var(--bg-secondary);
+  border-radius: var(--radius-md);
+  border-left: 3px solid transparent;
+  background: var(--bg-primary);
   text-align: left;
   font: inherit;
   color: inherit;
   appearance: none;
   cursor: pointer;
-  transition: border-color var(--transition-fast), box-shadow var(--transition-normal), transform
-    var(--transition-fast);
+  transition: border-color var(--transition-fast), border-left var(--transition-fast),
+    box-shadow var(--transition-normal), transform var(--transition-fast), padding-left var(--transition-normal);
 }
 
 .bento-card:hover {
-  border-color: color-mix(in srgb, var(--bento-tint) 45%, var(--border-primary));
-  box-shadow: var(--shadow-md);
+  border-color: var(--border-primary);
+  border-left-color: var(--accent-primary);
+  padding-left: 17px;
+  box-shadow: var(--elevation-2);
   transform: translateY(-2px);
 }
 
