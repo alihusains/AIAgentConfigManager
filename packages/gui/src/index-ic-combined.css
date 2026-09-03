@@ -1,0 +1,1182 @@
+/**
+ * IC Signature Theme Stylesheet
+ *
+ * Professional, minimalist, corporate design system for dashboards and
+ * config management tools. Mobile-first responsive, dark mode aware,
+ * WCAG AA accessible.
+ *
+ * Design principles:
+ * - Function over decoration (utilitarian aesthetic)
+ * - High contrast & readability (4.5:1 minimum)
+ * - Responsive dual-pane layout (stacked mobile, side-by-side desktop)
+ * - Brand color enforcement (navy + gold + status colors)
+ * - Minimal motion (accessibility-first)
+ */
+
+/* ============================================================================
+   Color Palette (Corporate Professional)
+   ============================================================================ */
+
+:root {
+  /* IC Theme Color Tokens (can override existing CSS variables) */
+  --ic-primary-dark: #1a1f36; /* Navy */
+  --ic-primary-light: #f8fafc; /* Off-white */
+  --ic-accent-gold: #d4af37; /* Premium */
+  --ic-accent-green: #10b981; /* Success */
+  --ic-text-primary: #111b21; /* High contrast */
+  --ic-text-secondary: #54656f; /* Muted */
+  --ic-border: #e5e7eb; /* Subtle */
+}
+
+/* ============================================================================
+   DualPaneLayout — Master layout container
+   ============================================================================ */
+
+.ic-dual-pane-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+  min-height: 100vh;
+  background: var(--bg-canvas, white);
+  color: var(--text-primary, #111b21);
+}
+
+/* Header section (if provided) */
+.ic-dual-pane-header {
+  padding: 24px 16px;
+  border-bottom: 1px solid var(--border-primary, #e5e7eb);
+}
+
+@media (min-width: 640px) {
+  .ic-dual-pane-header {
+    padding: 32px 24px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .ic-dual-pane-header {
+    padding: 40px 32px;
+  }
+}
+
+/* Main pane container: side-by-side on desktop, stacked on mobile */
+.ic-dual-pane-container {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+  flex: 1;
+  padding: 0 16px;
+}
+
+/* Mobile (< 640px): stacked */
+@media (min-width: 640px) {
+  .ic-dual-pane-container {
+    padding: 0 24px;
+  }
+}
+
+/* Tablet (640px - 1024px): stacked */
+/* Desktop (1024px+): side-by-side */
+@media (min-width: 1024px) {
+  .ic-dual-pane-container {
+    grid-template-columns: 1fr 1.2fr;
+    gap: 32px;
+    padding: 0 32px;
+  }
+}
+
+/* Individual panes */
+.ic-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-height: auto;
+}
+
+/* Control pane (left/top): clean form styling */
+.ic-pane-control {
+  background: var(--bg-primary, #ffffff);
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: 8px;
+  padding: 20px;
+}
+
+@media (min-width: 640px) {
+  .ic-pane-control {
+    padding: 24px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .ic-pane-control {
+    max-height: fit-content;
+    position: sticky;
+    top: 20px;
+    border-radius: 12px;
+    padding: 28px;
+  }
+}
+
+/* Preview pane (right/bottom): bright, readable */
+.ic-pane-preview {
+  background: var(--bg-primary, #ffffff);
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: 8px;
+  padding: 20px;
+}
+
+@media (min-width: 640px) {
+  .ic-pane-preview {
+    padding: 24px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .ic-pane-preview {
+    border-radius: 12px;
+    padding: 28px;
+  }
+}
+
+/* Footer section (if provided) */
+.ic-dual-pane-footer {
+  padding: 20px 16px;
+  border-top: 1px solid var(--border-primary, #e5e7eb);
+  color: var(--text-secondary, #54656f);
+  font-size: 13px;
+}
+
+@media (min-width: 640px) {
+  .ic-dual-pane-footer {
+    padding: 24px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .ic-dual-pane-footer {
+    padding: 32px;
+  }
+}
+
+/* ============================================================================
+   ControlPanel — Left pane organization
+   ============================================================================ */
+
+.ic-control-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.ic-control-panel-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary, #111b21);
+  margin: 0;
+}
+
+/* FormSection: logical grouping of inputs */
+.ic-form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.ic-form-section:not(:first-child) {
+  padding-top: 16px;
+  border-top: 1px solid var(--border-primary, #e5e7eb);
+}
+
+.ic-form-section-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary, #111b21);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0;
+}
+
+.ic-form-section-hint {
+  display: block;
+  font-size: 12px;
+  color: var(--text-tertiary, #9ca3af);
+  margin-top: 4px;
+}
+
+.ic-form-section-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ============================================================================
+   PreviewPane — Right pane metrics display
+   ============================================================================ */
+
+.ic-preview-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.ic-preview-pane-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-primary, #e5e7eb);
+}
+
+.ic-preview-pane-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary, #111b21);
+  margin: 0;
+}
+
+.ic-preview-pane-subtitle {
+  font-size: 12px;
+  color: var(--text-secondary, #54656f);
+  margin: 0;
+}
+
+.ic-preview-pane-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ============================================================================
+   StatusIndicator — Feedback + metadata
+   ============================================================================ */
+
+.ic-status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.ic-status-indicator-idle {
+  color: var(--text-secondary, #54656f);
+  background: var(--bg-tertiary, #f3f4f6);
+}
+
+.ic-status-indicator-syncing {
+  color: var(--accent-info, #3b82f6);
+  background: color-mix(in srgb, var(--accent-info, #3b82f6) 10%, transparent);
+}
+
+.ic-status-indicator-success {
+  color: var(--accent-success, #10b981);
+  background: color-mix(in srgb, var(--accent-success, #10b981) 10%, transparent);
+}
+
+.ic-status-indicator-error {
+  color: var(--accent-error, #ef4444);
+  background: color-mix(in srgb, var(--accent-error, #ef4444) 10%, transparent);
+}
+
+.ic-status-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.ic-status-dot-pulse {
+  animation: ic-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes ic-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.ic-status-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.ic-status-label {
+  margin: 0;
+}
+
+/* ============================================================================
+   ActionButtons — Button group (primary + secondary)
+   ============================================================================ */
+
+.ic-action-buttons {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 16px 0;
+  border-top: 1px solid var(--border-primary, #e5e7eb);
+  margin-top: 12px;
+}
+
+.ic-action-buttons-leading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary, #54656f);
+  flex: 1;
+}
+
+.ic-action-buttons-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+@media (max-width: 640px) {
+  .ic-action-buttons {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .ic-action-buttons-leading {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .ic-action-buttons-content {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .ic-action-buttons-content > button {
+    flex: 1;
+    min-width: 100px;
+  }
+}
+
+/* ============================================================================
+   InstructionCard — Guidance and context
+   ============================================================================ */
+
+.ic-instruction-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: 8px;
+  border-left: 4px solid var(--accent-info, #3b82f6);
+}
+
+.ic-instruction-card-info {
+  background: color-mix(in srgb, var(--accent-info, #3b82f6) 5%, transparent);
+  border-left-color: var(--accent-info, #3b82f6);
+  color: var(--text-primary, #111b21);
+}
+
+.ic-instruction-card-tip {
+  background: color-mix(in srgb, var(--accent-success, #10b981) 5%, transparent);
+  border-left-color: var(--accent-success, #10b981);
+  color: var(--text-primary, #111b21);
+}
+
+.ic-instruction-card-warning {
+  background: color-mix(in srgb, var(--accent-warning, #f59e0b) 5%, transparent);
+  border-left-color: var(--accent-warning, #f59e0b);
+  color: var(--text-primary, #111b21);
+}
+
+.ic-instruction-card-error {
+  background: color-mix(in srgb, var(--accent-error, #ef4444) 5%, transparent);
+  border-left-color: var(--accent-error, #ef4444);
+  color: var(--text-primary, #111b21);
+}
+
+.ic-instruction-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.ic-instruction-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.ic-instruction-card-content ol,
+.ic-instruction-card-content ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.ic-instruction-card-content li {
+  margin-bottom: 6px;
+}
+
+/* ============================================================================
+   Dark Mode Adjustments
+   ============================================================================ */
+
+@media (prefers-color-scheme: dark) {
+  .ic-dual-pane-layout {
+    background: var(--bg-canvas, #0f172a);
+    color: var(--text-primary, #f8fafc);
+  }
+
+  .ic-pane-control,
+  .ic-pane-preview {
+    background: var(--bg-primary, #1a1f3a);
+    border-color: var(--border-primary, #3f47527a);
+  }
+
+  .ic-control-panel-title,
+  .ic-form-section-label,
+  .ic-preview-pane-title {
+    color: var(--text-primary, #f8fafc);
+  }
+
+  .ic-form-section-hint {
+    color: var(--text-tertiary, #94a3b8);
+  }
+
+  .ic-instruction-card-info {
+    background: color-mix(in srgb, var(--accent-info, #3b82f6) 15%, transparent);
+  }
+
+  .ic-instruction-card-tip {
+    background: color-mix(in srgb, var(--accent-success, #10b981) 15%, transparent);
+  }
+
+  .ic-instruction-card-warning {
+    background: color-mix(in srgb, var(--accent-warning, #f59e0b) 15%, transparent);
+  }
+
+  .ic-instruction-card-error {
+    background: color-mix(in srgb, var(--accent-error, #ef4444) 15%, transparent);
+  }
+}
+
+/* ============================================================================
+   Accessibility & Focus Indicators
+   ============================================================================ */
+
+.ic-form-section-content > input,
+.ic-form-section-content > select,
+.ic-form-section-content > textarea,
+.ic-action-buttons-content > button {
+  transition: border-color 150ms, box-shadow 150ms;
+}
+
+.ic-form-section-content > input:focus-visible,
+.ic-form-section-content > select:focus-visible,
+.ic-form-section-content > textarea:focus-visible,
+.ic-action-buttons-content > button:focus-visible {
+  outline: 2px solid var(--border-focus, #2563eb);
+  outline-offset: 2px;
+}
+
+/* ============================================================================
+   Responsive Mobile Adjustments
+   ============================================================================ */
+
+@media (max-width: 640px) {
+  .ic-dual-pane-layout {
+    gap: 16px;
+  }
+
+  .ic-dual-pane-header {
+    padding: 16px;
+  }
+
+  .ic-dual-pane-container {
+    gap: 16px;
+  }
+
+  .ic-pane-control,
+  .ic-pane-preview {
+    padding: 16px;
+    border-radius: 6px;
+  }
+
+  .ic-instruction-card {
+    padding: 12px;
+    border-left-width: 3px;
+  }
+}
+
+/* ============================================================================
+   Print Styles
+   ============================================================================ */
+
+@media print {
+  .ic-dual-pane-layout {
+    display: block;
+  }
+
+  .ic-dual-pane-container {
+    display: block;
+  }
+
+  .ic-pane {
+    page-break-inside: avoid;
+    margin-bottom: 20px;
+  }
+
+  .ic-action-buttons {
+    display: none;
+  }
+}
+/**
+ * IC Signature Theme — Dashboard-specific styling
+ *
+ * Extends the core IC theme with dashboard-specific components:
+ * - Stat tiles (professional KPI cards with count-up animation)
+ * - Protocol coverage breakdown (length-encoded bars)
+ * - Detected agents list (stable rows)
+ * - Registry metadata (footer info)
+ * - Responsive grid layout (1→2→4 columns)
+ */
+
+/* ============================================================================
+   Dashboard Header
+   ============================================================================ */
+
+.ic-dashboard-header {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+@media (min-width: 640px) {
+  .ic-dashboard-header {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+  }
+}
+
+.ic-dashboard-title {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-primary, #111b21);
+  margin: 0;
+}
+
+@media (prefers-color-scheme: dark) {
+  .ic-dashboard-title {
+    color: var(--text-primary, #f8fafc);
+  }
+}
+
+.ic-dashboard-subtitle {
+  font-size: 14px;
+  color: var(--text-secondary, #54656f);
+  margin: 8px 0 0 0;
+}
+
+.ic-dashboard-header-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ============================================================================
+   IC Stat Tiles — Professional KPI cards
+   ============================================================================ */
+
+.ic-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (min-width: 640px) {
+  .ic-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .ic-stats-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+  }
+}
+
+.ic-stat-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: 8px;
+  background: var(--bg-primary, #ffffff);
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  appearance: none;
+  cursor: pointer;
+  transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  min-height: 100%;
+}
+
+.ic-stat-tile:hover {
+  border-color: var(--border-secondary, #d1d5db);
+  box-shadow: 0 4px 12px color-mix(in srgb, #000 5%, transparent);
+  transform: translateY(-2px);
+}
+
+.ic-stat-tile:focus-visible {
+  outline: 2px solid var(--border-focus, #2563eb);
+  outline-offset: 2px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .ic-stat-tile {
+    border-color: var(--border-primary, #475569);
+  }
+
+  .ic-stat-tile:hover {
+    border-color: var(--border-secondary, #64748b);
+    box-shadow: 0 4px 12px color-mix(in srgb, #fff 8%, transparent);
+  }
+}
+
+.ic-stat-tile-header {
+  display: flex;
+  align-items: center;
+}
+
+.ic-stat-tile-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary, #54656f);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0;
+}
+
+.ic-stat-tile-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--text-tertiary, #9ca3af);
+}
+
+.ic-stat-tile-body {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.ic-stat-tile-value {
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.05;
+  color: var(--text-primary, #111b21);
+  letter-spacing: -0.01em;
+}
+
+@media (prefers-color-scheme: dark) {
+  .ic-stat-tile-value {
+    color: var(--text-primary, #f8fafc);
+  }
+}
+
+.ic-stat-tile-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ic-stat-tile-context {
+  font-size: 12px;
+  color: var(--text-tertiary, #9ca3af);
+  line-height: 1.5;
+}
+
+/* Compact linear ratio bar — installed / known agents */
+.ic-stat-tile-bar {
+  display: block;
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--bg-hover, #f3f4f6);
+  overflow: hidden;
+}
+
+.ic-stat-tile-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent-primary, #2563eb);
+  transition: width 600ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  .ic-stat-tile-bar {
+    background: var(--bg-hover, #374151);
+  }
+
+  .ic-stat-tile-bar-fill {
+    background: var(--accent-primary, #3b82f6);
+  }
+}
+
+/* ============================================================================
+   Protocol Coverage Section
+   ============================================================================ */
+
+.ic-protocol-coverage {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-primary, #e5e7eb);
+}
+
+.ic-protocol-coverage-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #111b21);
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ic-protocol-coverage-subtitle {
+  font-size: 12px;
+  color: var(--text-secondary, #54656f);
+  margin: 0;
+}
+
+.ic-protocol-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ic-protocol-row {
+  display: grid;
+  grid-template-columns: minmax(120px, max-content) 1fr auto;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.ic-protocol-row-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary, #111b21);
+}
+
+.ic-protocol-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.ic-protocol-dot.is-chat {
+  background: #3b82f6;
+}
+
+.ic-protocol-dot.is-responses {
+  background: #8b5cf6;
+}
+
+.ic-protocol-dot.is-anthropic {
+  background: #ec4899;
+}
+
+.ic-protocol-bar {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg-hover, #f3f4f6);
+  overflow: hidden;
+  min-width: 0;
+}
+
+.ic-protocol-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  transition: width 400ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ic-protocol-bar-fill.is-chat {
+  background: #3b82f6;
+}
+
+.ic-protocol-bar-fill.is-responses {
+  background: #8b5cf6;
+}
+
+.ic-protocol-bar-fill.is-anthropic {
+  background: #ec4899;
+}
+
+@media (prefers-color-scheme: dark) {
+  .ic-protocol-bar {
+    background: var(--bg-hover, #374151);
+  }
+
+  .ic-protocol-dot.is-chat,
+  .ic-protocol-bar-fill.is-chat {
+    background: #60a5fa;
+  }
+
+  .ic-protocol-dot.is-responses,
+  .ic-protocol-bar-fill.is-responses {
+    background: #a78bfa;
+  }
+
+  .ic-protocol-dot.is-anthropic,
+  .ic-protocol-bar-fill.is-anthropic {
+    background: #f472b6;
+  }
+}
+
+.ic-protocol-row-count {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: max-content;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary, #111b21);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.ic-protocol-row-value {
+  font-size: 14px;
+}
+
+.ic-protocol-row-pct {
+  font-size: 12px;
+  color: var(--text-secondary, #54656f);
+}
+
+.ic-protocol-coverage-hint {
+  font-size: 12px;
+  color: var(--text-tertiary, #9ca3af);
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* ============================================================================
+   Detected Agents List
+   ============================================================================ */
+
+.ic-detected-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ic-detected-list-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  text-align: center;
+  background: var(--bg-secondary, #f9fafb);
+  border-radius: 8px;
+}
+
+.ic-detected-list-empty h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #111b21);
+  margin: 0;
+}
+
+.ic-detected-list-empty p {
+  font-size: 13px;
+  color: var(--text-secondary, #54656f);
+  margin: 0;
+}
+
+.ic-detected-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-primary, #e5e7eb);
+}
+
+.ic-detected-list-header h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #111b21);
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ic-detected-list-count {
+  font-size: 12px;
+  color: var(--text-secondary, #54656f);
+  font-weight: 500;
+}
+
+.ic-detected-list-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ic-detected-list-rows li {
+  display: flex;
+}
+
+.ic-detected-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 0;
+  border: none;
+  border-bottom: 1px solid var(--border-primary, #e5e7eb);
+  background: transparent;
+  color: var(--text-primary, #111b21);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 150ms;
+  appearance: none;
+}
+
+.ic-detected-list-rows li:last-child .ic-detected-row {
+  border-bottom: none;
+}
+
+.ic-detected-row:hover {
+  background: var(--bg-hover, #f9fafb);
+}
+
+.ic-detected-row:focus-visible {
+  outline: 2px solid var(--border-focus, #2563eb);
+  outline-offset: -2px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .ic-detected-row {
+    border-bottom-color: var(--border-primary, #475569);
+  }
+
+  .ic-detected-row:hover {
+    background: var(--bg-hover, #1f2937);
+  }
+}
+
+.ic-detected-row-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ic-detected-row-badges {
+  flex-shrink: 0;
+}
+
+.ic-detected-row-arrow {
+  color: var(--text-tertiary, #9ca3af);
+  flex-shrink: 0;
+}
+
+/* ============================================================================
+   Detail Panels (Protocol + Detected)
+   ============================================================================ */
+
+.ic-detail-panels {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+  margin-top: 16px;
+}
+
+/* Stacked at every width: the protocol panel is short (3 bars) and the
+   detected list is long (12+ rows). A 50/50 side-by-side split starves the
+   protocol bars of width (flex:1 collapses to 1-42px); stacking gives each
+   panel the full pane width so bars read clearly. */
+
+/* ============================================================================
+   Registry Metadata
+   ============================================================================ */
+
+.ic-registry-metadata {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 12px;
+  font-size: 12px;
+  color: var(--text-secondary, #54656f);
+  border-top: 1px solid var(--border-primary, #e5e7eb);
+}
+
+.ic-metadata-item {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.ic-metadata-label {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ic-metadata-value {
+  font-family: "Cascadia Code", "Monaco", "Courier New", monospace;
+  font-size: 11px;
+  color: var(--text-tertiary, #9ca3af);
+  word-break: break-all;
+}
+
+/* ============================================================================
+   Form Controls in Control Panel
+   ============================================================================ */
+
+.ic-form-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-primary, #111b21);
+  cursor: pointer;
+  user-select: none;
+}
+
+.ic-form-check input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.ic-form-check:hover input[type="checkbox"] {
+  border-color: var(--accent-primary, #2563eb);
+}
+
+.ic-form-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ============================================================================
+   Responsive Mobile Adjustments
+   ============================================================================ */
+
+/* Phone (max-width: 640px): 1 column, tightened padding */
+@media (max-width: 640px) {
+  .ic-stats-grid {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .ic-stat-tile {
+    padding: 12px;
+    gap: 8px;
+  }
+
+  .ic-stat-tile-value {
+    font-size: 20px;
+  }
+
+  .ic-detail-panels {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .ic-detected-row {
+    padding: 10px 0;
+  }
+}
+
+/* Tablet (640px - 1024px): 2 columns */
+@media (min-width: 640px) and (max-width: 1023px) {
+  .ic-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+}
+
+/* ============================================================================
+   Dark Mode Enhancements
+   ============================================================================ */
+
+@media (prefers-color-scheme: dark) {
+  .ic-dashboard-title {
+    color: var(--text-primary, #f8fafc);
+  }
+
+  .ic-stat-tile-label {
+    color: var(--text-secondary, #94a3b8);
+  }
+
+  .ic-protocol-row-label {
+    color: var(--text-primary, #f8fafc);
+  }
+
+  .ic-detected-list-empty {
+    background: var(--bg-secondary, #1f2937);
+  }
+
+  .ic-detected-list-empty h4 {
+    color: var(--text-primary, #f8fafc);
+  }
+
+  .ic-metadata-label {
+    color: var(--text-secondary, #94a3b8);
+  }
+}
