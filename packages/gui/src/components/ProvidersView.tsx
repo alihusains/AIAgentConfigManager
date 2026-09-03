@@ -34,8 +34,9 @@ import {
  * single key that drives icon, label and color.
  */
 const PROVIDER_TYPES = [
-  { id: 'anthropic', name: 'Anthropic', icon: Zap },
   { id: 'openai-compatible', name: 'OpenAI Compatible', icon: Globe },
+  { id: 'anthropic-compatible', name: 'Anthropic Compatible', icon: Zap },
+  { id: 'native', name: 'Native / Specialized', icon: Zap },
   { id: 'bedrock', name: 'AWS Bedrock', icon: Cloud },
   { id: 'vertex', name: 'Google Vertex AI', icon: Cloud },
 ] as const;
@@ -520,7 +521,7 @@ export function AddProviderModal({ onClose, agents, existingIds }: AddProviderMo
     if (!form.id.trim()) e.id = 'Provider ID is required';
     else if (existingIds.includes(form.id)) e.id = 'This ID already exists in the registry';
     if (!form.name.trim()) e.name = 'Display name is required';
-    if (form.type === 'anthropic' && !form.apiKey.trim()) e.apiKey = 'API key is required';
+    if (form.type === 'anthropic-compatible' && !form.apiKey.trim()) e.apiKey = 'API key is required';
     if (form.keychainStorage && !form.apiKey.trim())
       e.apiKey = 'API key is required to store it in the OS keychain';
     if (form.type === 'bedrock' && !form.region.trim()) e.region = 'Region is required';
