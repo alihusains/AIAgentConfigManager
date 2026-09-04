@@ -529,6 +529,9 @@ describe('getAllKnownSkills (temp dirs)', () => {
       libraryDir,
       platform: 'darwin',
       agentSkillsDirs: dirs,
+      // Isolate the cross-client scans too (P1) — empty temp dirs.
+      crossClientUserDir: path.join(libraryDir, 'fake-cc-user'),
+      projectRoot: libraryDir,
     });
     expect(all).toEqual([]);
   });

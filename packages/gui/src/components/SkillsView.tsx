@@ -19,6 +19,7 @@ import {
   FileText,
   Folder,
   Upload,
+  Users,
 } from 'lucide-react';
 import type {
   AggregatedSkill,
@@ -65,7 +66,15 @@ type BusyKey = string;
 const busyKey = (
   skillId: string,
   agentId: string,
-  action: 'assign' | 'unassign' | 'copy' | 'delete' | 'view' | 'edit' | 'adopt'
+  action:
+    | 'assign'
+    | 'unassign'
+    | 'copy'
+    | 'delete'
+    | 'view'
+    | 'edit'
+    | 'adopt'
+    | 'attach-all'
 ) => `${skillId}->${agentId}:${action}`;
 
 /** Identifies a busy marketplace install button. */
@@ -88,6 +97,7 @@ interface SkillRowProps {
   onCopy: (skillId: string, sourceAgentId: string, targetAgentId: string) => void;
   onDeleteFromLibrary: (skillId: string) => void;
   onAdopt: (skillId: string, source: string) => void;
+  onAttachAll: (skillId: string) => void;
   onRename: (skillId: string) => void;
   onDuplicate: (skillId: string) => void;
   onView: (skillId: string, location: string) => void;
@@ -104,6 +114,7 @@ const SkillRow = memo(function SkillRow({
   onCopy,
   onDeleteFromLibrary,
   onAdopt,
+  onAttachAll,
   onRename,
   onDuplicate,
   onView,
@@ -188,6 +199,32 @@ const SkillRow = memo(function SkillRow({
             );
           })()}
           <span className="skill-row-meta flex-shrink-0">{skill.fileCount} files</span>
+          {(() => {
+            // P4: where this skill lives — group chips for the multi-source world.
+            const chips: { label: string; title: string }[] = [];
+            if (skill.foundOn.includes('library')) {
+              chips.push({ label: 'Library', title: 'Present in the shared library' });
+            }
+            if (skill.foundOn.includes('agents-dir')) {
+              chips.push({ label: '~/.agents', title: 'User cross-client dir (~/.agents/skills)' });
+            }
+            if (skill.foundOn.includes('project-agents-dir')) {
+              chips.push({ label: 'Project', title: 'Project cross-client dir (./.agents/skills)' });
+            }
+            const agentCount = skill.foundOn.filter(
+              (loc) => loc !== 'library' && loc !== 'agents-dir' && loc !== 'project-agents-dir'
+            ).length;
+            if (agentCount > 0) {
+              chips.push({ label: `${agentCount} agent${agentCount === 1 ? '' : 's'}`, title: 'Installed copies on agents' });
+            }
+            return chips.map((chip) => (
+              <Tooltip key={chip.label} content={chip.title}>
+                <Badge variant="neutral" className="flex-shrink-0 cursor-help">
+                  {chip.label}
+                </Badge>
+              </Tooltip>
+            ));
+          })()}
           {/* M073: View + Edit actions — available for EVERY skill regardless of library status. */}
           <span className="skill-row-actions flex-shrink-0">
             <Tooltip content={`View ${skill.name} (SKILL.md)`}>
@@ -235,6 +272,19 @@ const SkillRow = memo(function SkillRow({
           >
             <Download size={12} />
             Adopt into library
+          </button>
+        )}
+        {inLibrary && (
+          <button
+            type="button"
+            className="badge badge-chip"
+            disabled={busy != null || onAgents.length >= agents.length}
+            title={`Attach to every skill-capable agent (${agents.length - onAgents.length} missing)`}
+            onClick={() => onAttachAll(skill.id)}
+          >
+            <Users size={12} />
+            Attach to all
+            {agents.length - onAgents.length > 0 && ` (${agents.length - onAgents.length})`}
           </button>
         )}
         {inLibrary && (
@@ -629,6 +679,36 @@ export function SkillsView() {
       }
     },
     [addToast, load]
+  );
+
+  // P4: attach one library skill to every skill-capable agent (sequential).
+  const handleAttachAll = useCallback(
+    async (skillId: string) => {
+      const targets = (snapshot?.agents ?? [])
+        .filter((a) => !(snapshot?.assignments[skillId] ?? []).includes(a.agentId))
+        .map((a) => a.agentId);
+      if (targets.length === 0) return;
+      setBusy(busyKey(skillId, '*', 'attach-all'));
+      try {
+        const results = await api.assignAllSkill(skillId, targets);
+        const failed = results.filter((r) => !r.ok);
+        addToast(
+          failed.length === 0
+            ? { type: 'success', title: 'Attached everywhere', message: `${skillId} → ${targets.length} agents` }
+            : {
+                type: 'error',
+                title: 'Partially attached',
+                message: `${targets.length - failed.length}/${targets.length} ok — ${failed
+                  .map((f) => f.agentId)
+                  .join(', ')}`,
+              }
+        );
+        await load();
+      } finally {
+        setBusy(null);
+      }
+    },
+    [snapshot, addToast, load]
   );
 
   const handleAdopt = useCallback(
@@ -1118,6 +1198,7 @@ export function SkillsView() {
                       onUnassign={handleUnassign}
                       onCopy={handleCopy}
                       onAdopt={handleAdopt}
+              onAttachAll={handleAttachAll}
               onRename={handleRename}
               onDuplicate={handleDuplicate}
               onDeleteFromLibrary={handleDeleteFromLibrary}
