@@ -677,7 +677,11 @@ export async function startGuiServer(
         // Served from a short TTL cache (M060): refreshes/polls within the
         // window are free; every mutation below invalidates the cache.
         if (method === 'GET' && parts.length === 2) {
-          return handle(async () => ({ data: await getSkillsSnapshot() }));
+          return handle(async () => ({
+            data: await getSkillsSnapshot({
+              force: url.searchParams.get('force') === '1',
+            }),
+          }));
         }
         // GET /api/skills/all — aggregated cross-agent view: every skill id
         // known anywhere (shared library + every skill-capable agent's own
@@ -733,6 +737,18 @@ export async function startGuiServer(
                 name: String(body.name ?? ''),
                 description: typeof body.description === 'string' ? body.description : undefined,
                 body: typeof body.body === 'string' ? body.body : undefined,
+                license: typeof body.license === 'string' ? body.license : undefined,
+                compatibility:
+                  typeof body.compatibility === 'string' ? body.compatibility : undefined,
+                allowedTools: Array.isArray(body.allowedTools)
+                  ? body.allowedTools.map(String)
+                  : undefined,
+                metadata:
+                  body.metadata && typeof body.metadata === 'object'
+                    ? Object.fromEntries(
+                        Object.entries(body.metadata).map(([k, v]) => [k, String(v)])
+                      )
+                    : undefined,
               });
               clearSkillsCache();
               return { data: { skill } };

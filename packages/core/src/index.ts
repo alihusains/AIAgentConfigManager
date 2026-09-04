@@ -36,6 +36,9 @@ export * from './cli-commands';
 // Explore catalog — trending AI coding agents (OpenRouter ranking order)
 export * from './explore-agents';
 
+// Agent Skills spec (agentskills.io) — frontmatter model + validator
+export * from './skill-spec';
+
 // Environment variables (read, categorize, redact, edit user-level env vars)
 export * from './env-vars';
 

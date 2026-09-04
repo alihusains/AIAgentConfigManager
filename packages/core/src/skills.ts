@@ -23,6 +23,12 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { Platform } from './types';
 import { getAgentCatalog, getAgentCatalogEntry } from './agent-catalog';
+import {
+  parseSkillFrontmatterSpec,
+  validateSkillSpec,
+  type SkillDiagnostic,
+  type SkillFrontmatter,
+} from './skill-spec';
 import { resolveRegistryPath } from './registry';
 import { expandPath, fileExists, getCurrentPlatform, readFileSafe } from './utils';
 
@@ -34,6 +40,16 @@ export interface SkillDef {
   name: string;
   description?: string;
   version?: string;
+  /** Spec: license name or bundled-license pointer. */
+  license?: string;
+  /** Spec: free-text environment requirements (≤500 chars). */
+  compatibility?: string;
+  /** Spec: metadata map (version/author/…). */
+  metadata?: Record<string, string>;
+  /** Spec: space-separated pre-approved tools (experimental). */
+  allowedTools?: string[];
+  /** agentskills.io validation result (see skill-spec.ts). */
+  validation: { ok: boolean; loadable: boolean; diagnostics: SkillDiagnostic[] };
   /** Absolute path to the skill folder. */
   path: string;
   /**
@@ -91,6 +107,14 @@ export interface CreateSkillInput {
   description?: string;
   /** Markdown body after the frontmatter. A starter template is used when omitted. */
   body?: string;
+  /** Spec: license name or pointer to a bundled license file. */
+  license?: string;
+  /** Spec: free-text environment requirements (≤500 chars). */
+  compatibility?: string;
+  /** Spec: metadata map (version, author, …). */
+  metadata?: Record<string, string>;
+  /** Spec: space-separated pre-approved tools (experimental). */
+  allowedTools?: string[];
 }
 
 export interface SkillsDirOptions {
@@ -220,12 +244,18 @@ export async function readSkillDef(dir: string, id: string): Promise<SkillDef | 
   const skillDir = path.join(dir, id);
   const content = await readFileSafe(path.join(skillDir, 'SKILL.md'));
   if (content == null) return null;
-  const meta = parseSkillFrontmatter(content);
+  const meta: SkillFrontmatter = parseSkillFrontmatterSpec(content);
+  const validation = validateSkillSpec(meta, id);
   return {
     id,
     name: meta.name ?? id,
     description: meta.description,
-    version: meta.version,
+    version: (meta.extras?.version ?? meta.metadata?.version) as string | undefined,
+    license: meta.license,
+    compatibility: meta.compatibility,
+    metadata: meta.metadata,
+    allowedTools: meta.allowedTools,
+    validation,
     path: skillDir,
     fileCount: await countFilesShallow(skillDir),
   };
@@ -581,6 +611,20 @@ export async function createSkill(
       : `# ${name}\n\nDescribe when and how to use this skill.\n\n## Instructions\n\n1. Step one\n2. Step two\n`;
   const lines = ['---', `name: ${yamlScalar(name)}`];
   if (description) lines.push(`description: ${yamlScalar(description)}`);
+  if (input.license?.trim()) lines.push(`license: ${yamlScalar(input.license.trim())}`);
+  if (input.compatibility?.trim()) {
+    lines.push(`compatibility: ${yamlScalar(input.compatibility.trim())}`);
+  }
+  const metadata = { ...input.metadata };
+  if (Object.keys(metadata).length > 0) {
+    lines.push('metadata:');
+    for (const [k, v] of Object.entries(metadata)) {
+      lines.push(`  ${k}: ${yamlScalar(String(v))}`);
+    }
+  }
+  if (input.allowedTools && input.allowedTools.length > 0) {
+    lines.push(`allowed-tools: ${input.allowedTools.join(' ')}`);
+  }
   lines.push('---', '', `${body.trim()}`, '');
   await fs.mkdir(skillDir, { recursive: true });
   await fs.writeFile(path.join(skillDir, 'SKILL.md'), lines.join('\n'), 'utf8');

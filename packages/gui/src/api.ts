@@ -262,8 +262,15 @@ export const api = {
   /** Library + skill-capable agents + current assignments in one round-trip. */
   getSkills: () => request<SkillsSnapshot>('GET', '/api/skills'),
   /** Create a new skill in the shared library. */
-  createSkill: (input: { name: string; description?: string; body?: string }) =>
-    request<{ skill: SkillDef }>('POST', '/api/skills', input),
+  createSkill: (input: {
+    name: string;
+    description?: string;
+    body?: string;
+    license?: string;
+    compatibility?: string;
+    allowedTools?: string[];
+    metadata?: Record<string, string>;
+  }) => request<{ skill: SkillDef }>('POST', '/api/skills', input),
   /** Copy a library skill into an agent's skills directory. */
   assignSkill: (skillId: string, agentId: string) =>
     request<{ targetPath: string }>('POST', `/api/skills/${encodeURIComponent(skillId)}/assign`, {

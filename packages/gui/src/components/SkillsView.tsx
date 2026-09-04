@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import type {
   AggregatedSkill,
+  SkillDiagnostic,
   SkillDef,
   SkillCapableAgent,
   SkillsSnapshot,
@@ -119,6 +120,25 @@ const SkillRow = memo(function SkillRow({
               v{skill.version}
             </Badge>
           )}
+          {(() => {
+            const diags = (skill as AggregatedSkill & {
+              validation?: { ok: boolean; loadable: boolean; diagnostics: SkillDiagnostic[] };
+            }).validation?.diagnostics ?? [];
+            const err = diags.find((d) => d.level === 'error');
+            const warn = diags[0];
+            const diag = err ?? warn;
+            if (!diag) return null;
+            return (
+              <Tooltip content={`${diag.level === 'error' ? 'Invalid' : 'Spec warning'}: ${diag.message}`}>
+                <Badge
+                  variant={err ? 'error' : 'warning'}
+                  className="flex-shrink-0 cursor-help"
+                >
+                  {err ? 'invalid' : 'spec warning'}
+                </Badge>
+              </Tooltip>
+            );
+          })()}
           <span className="skill-row-meta flex-shrink-0">{skill.fileCount} files</span>
           {/* M073: View + Edit actions — available for EVERY skill regardless of library status. */}
           <span className="skill-row-actions flex-shrink-0">
@@ -382,6 +402,9 @@ export function SkillsView() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [body, setBody] = useState('');
+  const [license, setLicense] = useState('');
+  const [compatibility, setCompatibility] = useState('');
+  const [allowedTools, setAllowedTools] = useState('');
 
   // M073: View/Edit modal state for SKILL.md content.
   const [viewEditSkill, setViewEditSkill] = useState<{ id: string; name: string; location: string } | null>(null);
@@ -650,6 +673,11 @@ export function SkillsView() {
         name: name.trim(),
         description: description.trim() || undefined,
         body: body.trim() || undefined,
+        license: license.trim() || undefined,
+        compatibility: compatibility.trim() || undefined,
+        allowedTools: allowedTools.trim()
+          ? allowedTools.trim().split(/\s+/).filter(Boolean)
+          : undefined,
       });
       if (!res.ok || !res.data) throw new Error(res.error ?? 'Create failed');
       addToast({ type: 'success', title: 'Skill created', message: res.data.skill.name });
@@ -657,6 +685,9 @@ export function SkillsView() {
       setName('');
       setDescription('');
       setBody('');
+      setLicense('');
+      setCompatibility('');
+      setAllowedTools('');
       await load();
     } catch (e) {
       addToast({
@@ -667,7 +698,7 @@ export function SkillsView() {
     } finally {
       setCreating(false);
     }
-  }, [name, description, body, addToast, load]);
+  }, [name, description, body, license, compatibility, allowedTools, addToast, load]);
 
   const totalAssignments = useMemo(() => {
     if (!snapshot) return 0;
@@ -1050,6 +1081,47 @@ export function SkillsView() {
             value={body}
             placeholder={'# Deploy Helper\n\n## Instructions\n\n1. ...'}
             onChange={(e) => setBody(e.target.value)}
+          />
+        </Field>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Field
+            label="License (optional)"
+            htmlFor="skill-license"
+            help="agentskills.io spec field — e.g. Apache-2.0."
+          >
+            <input
+              id="skill-license"
+              className="input"
+              value={license}
+              placeholder="Apache-2.0"
+              onChange={(e) => setLicense(e.target.value)}
+            />
+          </Field>
+          <Field
+            label="Compatibility (optional)"
+            htmlFor="skill-compat"
+            help="Spec field — environment requirements, max 500 chars."
+          >
+            <input
+              id="skill-compat"
+              className="input"
+              value={compatibility}
+              placeholder="Requires git, docker, jq"
+              onChange={(e) => setCompatibility(e.target.value)}
+            />
+          </Field>
+        </div>
+        <Field
+          label="Allowed tools (optional)"
+          htmlFor="skill-tools"
+          help="Spec (experimental): space-separated pre-approved tools."
+        >
+          <input
+            id="skill-tools"
+            className="input font-mono"
+            value={allowedTools}
+            placeholder="Bash(git:*) Read"
+            onChange={(e) => setAllowedTools(e.target.value)}
           />
         </Field>
       </Modal>
