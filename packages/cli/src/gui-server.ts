@@ -30,7 +30,9 @@ import {
   checkToolUpdates,
   getToolUpdateCommand,
   getSkillsSnapshot,
+  adoptSkillToLibrary,
   clearSkillsCache,
+  detectShadowedSkills,
   assignSkillToAgent,
   removeSkillFromAgent,
   removeSkillFromLibrary,
@@ -785,6 +787,27 @@ export async function startGuiServer(
             await removeSkillFromAgent(decodeURIComponent(parts[2]), String(body.agentId ?? ''));
             clearSkillsCache();
             return { data: { ok: true } };
+          });
+        }
+        // POST /api/skills/:id/adopt { source } — adopt a skill discovered at
+        // any location (agent id, 'agents-dir', 'project-agents-dir') into the
+        // shared library so it becomes assignable to every agent.
+        if (method === 'POST' && parts.length === 4 && parts[3] === 'adopt') {
+          const body = await readBody();
+          return handle(async () => {
+            const source = typeof body.source === 'string' ? body.source : '';
+            if (!source) return { error: 'Missing source location', status: 400 };
+            try {
+              const result = await adoptSkillToLibrary(parts[2], source, {
+                overwrite: body.overwrite === true,
+              });
+              clearSkillsCache();
+              return { data: result };
+            } catch (error) {
+              const message = String(error).replace(/^Error: /, '');
+              const status = message.includes('already exists') ? 409 : 400;
+              return { error: message, status };
+            }
           });
         }
         // DELETE /api/skills/:id — delete the skill's folder from the shared

@@ -20,6 +20,7 @@
  * philosophy as provider configs). Removing deletes only the copied folder.
  */
 import { promises as fs } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import type { Platform } from './types';
 import { getAgentCatalog, getAgentCatalogEntry } from './agent-catalog';
@@ -80,6 +81,10 @@ export interface SkillsSnapshot {
   libraryDir: string;
   skills: SkillDef[];
   agents: SkillCapableAgent[];
+  /** Cross-client (agentskills.io) skills dirs scanned for discovery. */
+  crossClientDirs: { user: string; project: string; userExists: boolean; projectExists: boolean };
+  /** Spec shadowing warnings (same id in project + user cross-client dirs). */
+  warnings: { skillId: string; message: string }[];
   /** skillId -> agentIds that currently have that skill installed. */
   assignments: Record<string, string[]>;
   /**
@@ -120,6 +125,10 @@ export interface CreateSkillInput {
 export interface SkillsDirOptions {
   /** Override the skills library directory (tests). */
   libraryDir?: string;
+  /** Project root for the cross-client `.agents/skills` dir (tests; default cwd). */
+  projectRoot?: string;
+  /** Override the cross-client USER skills dir (tests; default ~/.agents/skills). */
+  crossClientUserDir?: string;
   /** Override the current platform (tests). */
   platform?: Platform;
   /** Override the target agent skills directory (tests). */
@@ -374,17 +383,62 @@ async function buildSkillsSnapshot(opts: SkillsDirOptions = {}): Promise<SkillsS
   }
 
   const allSkills = await getAllKnownSkills(opts, skills);
+  const dirs = getCrossClientSkillsDirs(opts.projectRoot, opts.crossClientUserDir);
+  const crossClientDirs = {
+    user: dirs.user,
+    project: dirs.project,
+    userExists: await fileExists(dirs.user),
+    projectExists: await fileExists(dirs.project),
+  };
+  const warnings = await detectShadowedSkills(opts);
 
-  return { libraryDir, skills, agents, assignments, allSkills };
+  return { libraryDir, skills, agents, assignments, allSkills, crossClientDirs, warnings };
 }
 
 /**
- * Discover every skill known on this machine: the shared library plus the real
- * per-agent skills directories of every skill-capable agent. Merged by skill
- * id (folder name); each entry's `foundOn` lists every location it exists in
- * (agent ids, plus 'library'). Metadata prefers the library copy, otherwise the
- * first agent copy read. Known limitation: same id with different content on
- * two agents is merged as one entry (no content diffing).
+ * The cross-client skills directories from the agentskills.io convention —
+ * scanned by ~45 agents regardless of vendor: `~/.agents/skills/` (user scope)
+ * and `<project>/.agents/skills/` (project scope, resolved from the process
+ * cwd). Locations 'agents-dir' and 'project-agents-dir' refer to these.
+ */
+export function getCrossClientSkillsDirs(
+  projectRoot?: string,
+  userDirOverride?: string
+): { user: string; project: string } {
+  const user = userDirOverride ?? path.join(os.homedir(), '.agents', 'skills');
+  const root = projectRoot ?? process.cwd();
+  const project = path.join(root, '.agents', 'skills');
+  return { user, project };
+}
+
+/**
+ * Resolve a skill location to its directory:
+ *   'library'            → the shared library
+ *   'agents-dir'         → ~/.agents/skills (user cross-client convention)
+ *   'project-agents-dir' → <cwd>/.agents/skills (project cross-client convention)
+ *   any other string     → that agent id's catalogued skills dir
+ */
+export function resolveSkillDir(
+  location: string,
+  opts: SkillsDirOptions = {}
+): string | null {
+  if (location === 'library') return opts.libraryDir ?? getSkillsLibraryDir();
+  if (location === 'agents-dir' || location === 'project-agents-dir') {
+    const dirs = getCrossClientSkillsDirs(opts.projectRoot, opts.crossClientUserDir);
+    return location === 'agents-dir' ? dirs.user : dirs.project;
+  }
+  return opts.agentSkillsDirs?.[location] ?? getAgentSkillsDir(location, opts.platform);
+}
+
+/**
+ * Discover every skill known on this machine: the shared library, every
+ * skill-capable agent's skills dir, AND the cross-client `.agents/skills`
+ * directories (user + project scope) from the agentskills.io convention.
+ * Merged by skill id (folder name); each entry's `foundOn` lists every
+ * location it exists in ('library', agent ids, 'agents-dir',
+ * 'project-agents-dir'). Metadata prefers the library copy, otherwise the
+ * first copy read. Known limitation: same id with different content on two
+ * locations is merged as one entry (no content diffing).
  */
 export async function getAllKnownSkills(
   opts: SkillsDirOptions = {},
@@ -411,8 +465,34 @@ export async function getAllKnownSkills(
     if (!dir) continue;
     for (const def of await listSkillsInDir(dir)) add(def, agentId);
   }
+  // Cross-client convention dirs (agentskills.io) — project scope last so the
+  // user-scope copy is what non-precedence-aware callers see first.
+  for (const location of ['agents-dir', 'project-agents-dir'] as const) {
+    const dir = resolveSkillDir(location, opts);
+    if (!dir) continue;
+    for (const def of await listSkillsInDir(dir)) add(def, location);
+  }
 
   return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * Detect shadowing per the spec convention ("project-level skills override
+ * user-level skills"): the same skill id present in BOTH cross-client scopes.
+ * Returns one warning per shadowed skill id.
+ */
+export async function detectShadowedSkills(opts: SkillsDirOptions = {}): Promise<
+  { skillId: string; message: string }[]
+> {
+  const dirs = getCrossClientSkillsDirs(opts.projectRoot, opts.crossClientUserDir);
+  const [user, project] = await Promise.all([listSkillsInDir(dirs.user), listSkillsInDir(dirs.project)]);
+  const userIds = new Set(user.map((s) => s.id));
+  return project
+    .filter((s) => userIds.has(s.id))
+    .map((s) => ({
+      skillId: s.id,
+      message: `"${s.id}" exists in both the project and user cross-client dirs — project-level overrides user-level.`,
+    }));
 }
 
 /**
@@ -439,6 +519,49 @@ export async function assignSkillToAgent(
   await fs.mkdir(targetDir, { recursive: true });
   await fs.rm(targetPath, { recursive: true, force: true });
   await fs.cp(source, targetPath, { recursive: true });
+  clearSkillsCache();
+  return { targetPath };
+}
+
+/**
+ * Adopt a skill discovered at any location (an agent's dir, the cross-client
+ * `.agents/skills` dirs, …) into the shared library — the inverse of assign.
+ * The source copy is left untouched; the library becomes the assignable hub
+ * copy. Pass `overwrite: true` to replace an existing library skill.
+ */
+export async function adoptSkillToLibrary(
+  skillId: string,
+  location: string,
+  opts: SkillsDirOptions & { overwrite?: boolean } = {}
+): Promise<{ targetPath: string }> {
+  const { overwrite = false, ...dirOpts } = opts;
+  assertSafeId(skillId, 'skill id');
+  const sourceDir = resolveSkillDir(location, dirOpts);
+  if (!sourceDir) throw new Error(`Unknown skill location: ${location}`);
+  const sourcePath = path.join(sourceDir, skillId);
+  if (!(await fileExists(path.join(sourcePath, 'SKILL.md')))) {
+    throw new Error(`Skill not found at that location: ${skillId} -> ${location}`);
+  }
+  const libraryDir = dirOpts.libraryDir ?? getSkillsLibraryDir();
+  const targetPath = path.join(libraryDir, skillId);
+  if ((await fileExists(path.join(targetPath, 'SKILL.md'))) && !overwrite) {
+    throw new Error(`Skill already exists in the library: ${skillId} (pass overwrite: true to replace)`);
+  }
+  await fs.mkdir(libraryDir, { recursive: true });
+  await fs.rm(targetPath, { recursive: true, force: true });
+  await fs.cp(sourcePath, targetPath, { recursive: true });
+  // Re-validate the adopted copy and surface loadable-but-warned skills.
+  const def = await readSkillDef(libraryDir, skillId);
+  if (def && !def.validation.loadable) {
+    // Spec guidance: keep the files but tell the user the skill is invalid.
+    clearSkillsCache();
+    throw new Error(
+      `Adopted, but the skill is invalid per the agentskills spec: ${def.validation.diagnostics
+        .filter((d) => d.level === 'error')
+        .map((d) => d.message)
+        .join(' ')}`
+    );
+  }
   clearSkillsCache();
   return { targetPath };
 }

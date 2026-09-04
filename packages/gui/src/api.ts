@@ -276,6 +276,13 @@ export const api = {
     request<{ targetPath: string }>('POST', `/api/skills/${encodeURIComponent(skillId)}/assign`, {
       agentId,
     }),
+  /** Adopt a skill discovered at any location into the shared library. */
+  adoptSkill: (skillId: string, source: string, overwrite = false) =>
+    request<{ targetPath: string }>(
+      'POST',
+      `/api/skills/${encodeURIComponent(skillId)}/adopt`,
+      { source, overwrite }
+    ),
   /** Remove a previously assigned skill copy from an agent. */
   unassignSkill: (skillId: string, agentId: string) =>
     request<{ ok: boolean }>('POST', `/api/skills/${encodeURIComponent(skillId)}/unassign`, {

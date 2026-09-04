@@ -13,6 +13,7 @@ import {
   ExternalLink,
   Eye,
   Pencil,
+  Download,
 } from 'lucide-react';
 import type {
   AggregatedSkill,
@@ -59,7 +60,7 @@ type BusyKey = string;
 const busyKey = (
   skillId: string,
   agentId: string,
-  action: 'assign' | 'unassign' | 'copy' | 'delete' | 'view' | 'edit'
+  action: 'assign' | 'unassign' | 'copy' | 'delete' | 'view' | 'edit' | 'adopt'
 ) => `${skillId}->${agentId}:${action}`;
 
 /** Identifies a busy marketplace install button. */
@@ -81,6 +82,7 @@ interface SkillRowProps {
   onUnassign: (skillId: string, agentId: string) => void;
   onCopy: (skillId: string, sourceAgentId: string, targetAgentId: string) => void;
   onDeleteFromLibrary: (skillId: string) => void;
+  onAdopt: (skillId: string, source: string) => void;
   onView: (skillId: string, location: string) => void;
   onEdit: (skillId: string, location: string) => void;
 }
@@ -94,6 +96,7 @@ const SkillRow = memo(function SkillRow({
   onUnassign,
   onCopy,
   onDeleteFromLibrary,
+  onAdopt,
   onView,
   onEdit,
 }: SkillRowProps) {
@@ -168,6 +171,27 @@ const SkillRow = memo(function SkillRow({
       </div>
 
       <div className="skill-row-locs flex-wrap gap-2">
+        {!inLibrary && (
+          <button
+            type="button"
+            className="badge badge-chip"
+            disabled={busy != null}
+            title="Copy into the shared library so it can be attached to every agent"
+            onClick={() =>
+              onAdopt(
+                skill.id,
+                skill.foundOn.includes('agents-dir')
+                  ? 'agents-dir'
+                  : skill.foundOn.includes('project-agents-dir')
+                    ? 'project-agents-dir'
+                    : onAgents[0]?.agentId ?? 'agents-dir'
+              )
+            }
+          >
+            <Download size={12} />
+            Adopt into library
+          </button>
+        )}
         {inLibrary && (
           <span className="badge badge-chip">
             <span className="badge-chip-remove-wrap">
@@ -547,6 +571,25 @@ export function SkillsView() {
     [addToast, load]
   );
 
+  const handleAdopt = useCallback(
+    async (skillId: string, source: string) => {
+      const exists = (snapshot?.skills ?? []).some((s) => s.id === skillId);
+      if (exists && !confirm(`"${skillId}" is already in the library. Replace it with the discovered copy?`)) return;
+      setBusy(busyKey(skillId, source, 'adopt'));
+      try {
+        const res = await api.adoptSkill(skillId, source, exists);
+        if (!res.ok) throw new Error(res.error ?? 'Adopt failed');
+        addToast({ type: 'success', title: 'Skill adopted', message: `${skillId} is now in the library` });
+        await load();
+      } catch (e) {
+        addToast({ type: 'error', title: 'Adopt failed', message: e instanceof Error ? e.message : String(e) });
+      } finally {
+        setBusy(null);
+      }
+    },
+    [snapshot, addToast, load]
+  );
+
   // M073: Open the view/edit modal for a skill's SKILL.md. `mode` is part
   // of the call-site signature but the modal infers mode from content
   // writability, so it is intentionally unused here.
@@ -870,7 +913,8 @@ export function SkillsView() {
                       onAssign={handleAssign}
                       onUnassign={handleUnassign}
                       onCopy={handleCopy}
-                      onDeleteFromLibrary={handleDeleteFromLibrary}
+                      onAdopt={handleAdopt}
+              onDeleteFromLibrary={handleDeleteFromLibrary}
                       onView={handleView}
                       onEdit={handleEdit}
                     />
