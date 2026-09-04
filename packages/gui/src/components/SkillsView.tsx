@@ -14,6 +14,11 @@ import {
   Eye,
   Pencil,
   Download,
+  Copy,
+  Edit3,
+  FileText,
+  Folder,
+  Upload,
 } from 'lucide-react';
 import type {
   AggregatedSkill,
@@ -83,6 +88,8 @@ interface SkillRowProps {
   onCopy: (skillId: string, sourceAgentId: string, targetAgentId: string) => void;
   onDeleteFromLibrary: (skillId: string) => void;
   onAdopt: (skillId: string, source: string) => void;
+  onRename: (skillId: string) => void;
+  onDuplicate: (skillId: string) => void;
   onView: (skillId: string, location: string) => void;
   onEdit: (skillId: string, location: string) => void;
 }
@@ -97,6 +104,8 @@ const SkillRow = memo(function SkillRow({
   onCopy,
   onDeleteFromLibrary,
   onAdopt,
+  onRename,
+  onDuplicate,
   onView,
   onEdit,
 }: SkillRowProps) {
@@ -122,6 +131,42 @@ const SkillRow = memo(function SkillRow({
             <Badge variant="neutral" className="flex-shrink-0">
               v{skill.version}
             </Badge>
+          )}
+          {isLibrarySkill && (
+            <Tooltip content={`Rename ${skill.name} (folder + frontmatter name)`}>
+            <button
+              type="button"
+              className="skill-row-action-btn"
+              aria-label={`Rename ${skill.name}`}
+              onClick={() => onRename(skill.id)}
+            >
+              <Edit3 size={14} />
+            </button>
+            </Tooltip>
+          )}
+          {isLibrarySkill && (
+            <Tooltip content={`Duplicate ${skill.name} into ${skill.id}-copy`}>
+            <button
+              type="button"
+              className="skill-row-action-btn"
+              aria-label={`Duplicate ${skill.name}`}
+              onClick={() => onDuplicate(skill.id)}
+            >
+              <Copy size={14} />
+            </button>
+            </Tooltip>
+          )}
+          {isLibrarySkill && (
+            <Tooltip content={`Download ${skill.name} as .zip`}>
+            <a
+              className="skill-row-action-btn"
+              aria-label={`Export ${skill.name}`}
+              href={api.exportSkillUrl(skill.id)}
+              download={`${skill.id}.zip`}
+            >
+              <Download size={14} />
+            </a>
+          </Tooltip>
           )}
           {(() => {
             const diags = (skill as AggregatedSkill & {
@@ -432,6 +477,9 @@ export function SkillsView() {
 
   // M073: View/Edit modal state for SKILL.md content.
   const [viewEditSkill, setViewEditSkill] = useState<{ id: string; name: string; location: string } | null>(null);
+  // P2: which file is open in the viewer + the folder listing.
+  const [viewEditFile, setViewEditFile] = useState<string>('SKILL.md');
+  const [skillFiles, setSkillFiles] = useState<{ relPath: string; size: number; isDir: boolean }[] | null>(null);
   const [viewEditContent, setViewEditContent] = useState<string>('');
   const [viewEditLoading, setViewEditLoading] = useState(false);
   const [viewEditSaving, setViewEditSaving] = useState(false);
@@ -600,6 +648,7 @@ export function SkillsView() {
       setViewEditSkill({ id: skillId, name: skill.name, location });
       setViewEditContent('');
       setViewEditError(null);
+      setViewEditFile('SKILL.md');
       setViewEditLoading(true);
       try {
         const res = await api.getSkillContent(skillId, location);
@@ -628,17 +677,27 @@ export function SkillsView() {
     [openViewEdit]
   );
 
+  // P2: save the OPEN file — SKILL.md keeps the legacy endpoint; anything else
+  // goes through the per-file API.
   const handleSaveSkillContent = useCallback(async () => {
     if (!viewEditSkill) return;
     setViewEditSaving(true);
     setViewEditError(null);
     try {
-      const res = await api.saveSkillContent(viewEditSkill.id, viewEditSkill.location, viewEditContent);
+      const res =
+        viewEditFile === 'SKILL.md'
+          ? await api.saveSkillContent(viewEditSkill.id, viewEditSkill.location, viewEditContent)
+          : await api.saveSkillFile(
+              viewEditSkill.id,
+              viewEditSkill.location,
+              viewEditFile,
+              viewEditContent
+            );
       if (!res.ok) throw new Error(res.error ?? 'Save failed');
       addToast({
         type: 'success',
-        title: 'Skill saved',
-        message: `${viewEditSkill.name} updated`,
+        title: 'File saved',
+        message: `${viewEditSkill.name}/${viewEditFile}`,
       });
       setViewEditSkill(null);
       await load();
@@ -647,7 +706,119 @@ export function SkillsView() {
     } finally {
       setViewEditSaving(false);
     }
-  }, [viewEditSkill, viewEditContent, addToast, load]);
+  }, [viewEditSkill, viewEditFile, viewEditContent, addToast, load]);
+
+  // P2: file switcher inside the open modal — fetch the clicked file's content.
+  const handleOpenFile = useCallback(
+    async (relPath: string) => {
+      if (!viewEditSkill) return;
+      setViewEditFile(relPath);
+      setViewEditError(null);
+      setViewEditLoading(true);
+      try {
+        if (relPath === 'SKILL.md') {
+          const res = await api.getSkillContent(viewEditSkill.id, viewEditSkill.location);
+          if (!res.ok || res.data == null) throw new Error(res.error ?? 'Not found');
+          setViewEditContent(res.data.content);
+        } else {
+          const res = await api.readSkillFile(viewEditSkill.id, viewEditSkill.location, relPath);
+          if (!res.ok || res.data == null) throw new Error(res.error ?? 'Not found');
+          setViewEditContent(res.data.content);
+        }
+      } catch (e) {
+        setViewEditError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setViewEditLoading(false);
+      }
+    },
+    [viewEditSkill]
+  );
+
+  // P2: delete a non-SKILL.md file from the open skill.
+  const handleDeleteFile = useCallback(
+    async (relPath: string) => {
+      if (!viewEditSkill) return;
+      if (!confirm(`Delete ${relPath} from ${viewEditSkill.name}?`)) return;
+      const res = await api.deleteSkillFile(viewEditSkill.id, viewEditSkill.location, relPath);
+      if (!res.ok) {
+        addToast({ type: 'error', title: 'Delete failed', message: res.error ?? 'Unknown error' });
+        return;
+      }
+      addToast({ type: 'success', title: 'File deleted', message: relPath });
+      await handleOpenFile('SKILL.md');
+    },
+    [viewEditSkill, handleOpenFile, addToast]
+  );
+
+  // P2: load the folder listing when the modal opens; reset the open file.
+  useEffect(() => {
+    if (!viewEditSkill) {
+      setSkillFiles(null);
+      setViewEditFile('SKILL.md');
+      return;
+    }
+    let alive = true;
+    api
+      .listSkillFiles(viewEditSkill.id, viewEditSkill.location)
+      .then((res) => {
+        if (alive && res.ok && res.data) setSkillFiles(res.data);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [viewEditSkill]);
+
+  // P2: rename a library skill.
+  const handleRename = useCallback(
+    async (skillId: string) => {
+      const newName = prompt(`Rename "${skillId}" to:`, skillId);
+      if (!newName || newName.trim() === skillId) return;
+      const res = await api.renameSkill(skillId, newName.trim());
+      if (!res.ok || !res.data) {
+        addToast({ type: 'error', title: 'Rename failed', message: res.error ?? 'Unknown error' });
+        return;
+      }
+      addToast({ type: 'success', title: 'Skill renamed', message: `${skillId} → ${res.data.newId}` });
+      await load();
+    },
+    [addToast, load]
+  );
+
+  // P2: duplicate a library skill.
+  const handleDuplicate = useCallback(
+    async (skillId: string) => {
+      const res = await api.duplicateSkill(skillId);
+      if (!res.ok || !res.data) {
+        addToast({ type: 'error', title: 'Duplicate failed', message: res.error ?? 'Unknown error' });
+        return;
+      }
+      addToast({ type: 'success', title: 'Skill duplicated', message: res.data.newId });
+      await load();
+    },
+    [addToast, load]
+  );
+
+  // P2: import a .zip skill export into the library.
+  const handleImportZip = useCallback(
+    async (file: File) => {
+      const res = await api.importSkillZip(file);
+      if (!res.ok || !res.data) {
+        // Offer overwrite on conflict; otherwise surface the error.
+        if ((res.error ?? '').includes('already exists')) {
+          const retry = await api.importSkillZip(file, true);
+          if (retry.ok && retry.data) {
+            addToast({ type: 'success', title: 'Skill imported (replaced)', message: retry.data.newId });
+            await load();
+          }
+        }
+        return;
+      }
+      addToast({ type: 'success', title: 'Skill imported', message: res.data.newId });
+      await load();
+    },
+    [addToast, load]
+  );
 
   const loadMarketplace = useCallback(async (force: boolean) => {
     setMarketLoading(true);
@@ -914,6 +1085,8 @@ export function SkillsView() {
                       onUnassign={handleUnassign}
                       onCopy={handleCopy}
                       onAdopt={handleAdopt}
+              onRename={handleRename}
+              onDuplicate={handleDuplicate}
               onDeleteFromLibrary={handleDeleteFromLibrary}
                       onView={handleView}
                       onEdit={handleEdit}
@@ -1050,6 +1223,20 @@ export function SkillsView() {
               </a>{' '}
               repo. Nothing is fetched until you browse.
             </p>
+            <label className="btn-secondary btn-sm inline-flex items-center gap-1.5 cursor-pointer">
+              <Upload size={14} />
+              Import zip
+              <input
+                type="file"
+                accept=".zip"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) void handleImportZip(file);
+                  e.target.value = '';
+                }}
+              />
+            </label>
             <Button
               variant="primary"
               size="sm"
@@ -1174,7 +1361,7 @@ export function SkillsView() {
       <Modal
         open={viewEditSkill != null}
         onClose={() => setViewEditSkill(null)}
-        title={viewEditSkill ? `${viewEditSkill.name} — SKILL.md` : 'Skill'}
+        title={viewEditSkill ? `${viewEditSkill.name}${viewEditFile ? ` — ${viewEditFile}` : ''}` : 'Skill'}
         footer={
           <>
             <Button variant="secondary" onClick={() => setViewEditSkill(null)}>
@@ -1203,11 +1390,63 @@ export function SkillsView() {
             <Skeleton className="block" width="100%" height={200} />
           </div>
         ) : (
-          <CodeEditor
-            value={viewEditContent}
-            onChange={setViewEditContent}
-            placeholder="SKILL.md content will appear here…"
-          />
+          <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-3">
+            {/* P2: file browser sidebar */}
+            <div className="border border-border-primary rounded-md overflow-y-auto max-h-[420px] text-sm">
+              <div className="px-2 py-1.5 text-xs font-medium text-text-secondary border-b border-border-primary">
+                Files
+              </div>
+              {(skillFiles ?? [{ relPath: 'SKILL.md', size: 0, isDir: false }]).map((f) =>
+                f.isDir ? (
+                  <div
+                    key={f.relPath}
+                    className="px-2 py-1 text-text-tertiary flex items-center gap-1.5"
+                    title="Folder"
+                  >
+                    <Folder size={12} /> {f.relPath}
+                  </div>
+                ) : (
+                  <div
+                    key={f.relPath}
+                    className={`flex items-center justify-between px-2 py-1 group ${
+                      viewEditFile === f.relPath ? 'bg-bg-tertiary font-medium' : 'hover:bg-bg-hover'
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      className="flex-1 text-left flex items-center gap-1.5 min-w-0"
+                      onClick={() => void handleOpenFile(f.relPath)}
+                    >
+                      <FileText size={12} className="flex-shrink-0" />
+                      <span className="truncate">{f.relPath}</span>
+                      {f.size > 0 && (
+                        <span className="text-[10px] text-text-tertiary flex-shrink-0">
+                          {f.size > 1024 ? `${Math.round(f.size / 1024)}K` : `${f.size}B`}
+                        </span>
+                      )}
+                    </button>
+                    {f.relPath !== 'SKILL.md' && (
+                      <button
+                        type="button"
+                        aria-label={`Delete ${f.relPath}`}
+                        className="opacity-0 group-hover:opacity-100 text-text-tertiary hover:text-error p-0.5"
+                        onClick={() => void handleDeleteFile(f.relPath)}
+                      >
+                        <Trash2 size={11} />
+                      </button>
+                    )}
+                  </div>
+                )
+              )}
+            </div>
+            <div>
+              <CodeEditor
+                value={viewEditContent}
+                onChange={setViewEditContent}
+                placeholder="File content will appear here…"
+              />
+            </div>
+          </div>
         )}
       </Modal>
     </div>

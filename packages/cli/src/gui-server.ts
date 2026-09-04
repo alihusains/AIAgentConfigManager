@@ -7,6 +7,7 @@
  */
 
 import * as http from 'node:http';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import * as fsp from 'node:fs/promises';
@@ -33,6 +34,14 @@ import {
   adoptSkillToLibrary,
   clearSkillsCache,
   detectShadowedSkills,
+  listSkillFiles,
+  readSkillFile,
+  saveSkillFile,
+  deleteSkillFile,
+  renameSkill,
+  duplicateSkill,
+  exportSkillZip,
+  importSkillZip,
   assignSkillToAgent,
   removeSkillFromAgent,
   removeSkillFromLibrary,
@@ -787,6 +796,133 @@ export async function startGuiServer(
             await removeSkillFromAgent(decodeURIComponent(parts[2]), String(body.agentId ?? ''));
             clearSkillsCache();
             return { data: { ok: true } };
+          });
+        }
+        // ---- P2: per-file CRUD inside a skill folder ----
+        // GET /api/skills/:id/files?location=... — list every file in the folder.
+        if (method === 'GET' && parts.length === 4 && parts[3] === 'files') {
+          return handle(async () => ({
+            data: await listSkillFiles(parts[2], url.searchParams.get('location') ?? 'library'),
+          }));
+        }
+        // GET /api/skills/:id/file?location=...&path=scripts/x.sh — read one file.
+        if (method === 'GET' && parts.length === 4 && parts[3] === 'file') {
+          return handle(async () => {
+            const rel = url.searchParams.get('path') ?? '';
+            if (!rel) return { error: 'Missing path parameter', status: 400 };
+            const content = await readSkillFile(
+              parts[2],
+              url.searchParams.get('location') ?? 'library',
+              rel
+            );
+            return { data: { relPath: rel, content } };
+          });
+        }
+        // PUT /api/skills/:id/file?location=... { path, content } — write one file.
+        if (method === 'PUT' && parts.length === 4 && parts[3] === 'file') {
+          const body = await readBody();
+          return handle(async () => {
+            if (typeof body.path !== 'string' || !body.path) {
+              return { error: 'Missing path', status: 400 };
+            }
+            await saveSkillFile(
+              parts[2],
+              url.searchParams.get('location') ?? 'library',
+              String(body.path),
+              typeof body.content === 'string' ? body.content : ''
+            );
+            return { data: { ok: true } };
+          });
+        }
+        // DELETE /api/skills/:id/file?location=...&path=... — delete one file.
+        if (method === 'DELETE' && parts.length === 4 && parts[3] === 'file') {
+          return handle(async () => {
+            const rel = url.searchParams.get('path') ?? '';
+            if (!rel) return { error: 'Missing path parameter', status: 400 };
+            await deleteSkillFile(parts[2], url.searchParams.get('location') ?? 'library', rel);
+            return { data: { ok: true } };
+          });
+        }
+        // POST /api/skills/:id/rename { name } — rename a library skill.
+        if (method === 'POST' && parts.length === 4 && parts[3] === 'rename') {
+          const body = await readBody();
+          return handle(async () => {
+            if (typeof body.name !== 'string' || !body.name.trim()) {
+              return { error: 'Missing name', status: 400 };
+            }
+            try {
+              const result = await renameSkill(parts[2], body.name.trim());
+              clearSkillsCache();
+              return { data: result };
+            } catch (error) {
+              const message = String(error).replace(/^Error: /, '');
+              const status = message.includes('already exists') ? 409 : 400;
+              return { error: message, status };
+            }
+          });
+        }
+        // POST /api/skills/:id/duplicate — duplicate a library skill.
+        if (method === 'POST' && parts.length === 4 && parts[3] === 'duplicate') {
+          return handle(async () => {
+            try {
+              const result = await duplicateSkill(parts[2]);
+              clearSkillsCache();
+              return { data: result };
+            } catch (error) {
+              return { error: String(error).replace(/^Error: /, ''), status: 400 };
+            }
+          });
+        }
+        // GET /api/skills/:id/export — download the skill as a .zip (binary).
+        if (method === 'GET' && parts.length === 4 && parts[3] === 'export') {
+          try {
+            const zip = await exportSkillZip(parts[2]);
+            res.writeHead(200, {
+              'Content-Type': 'application/zip',
+              'Content-Disposition': `attachment; filename="${parts[2]}.zip"`,
+            });
+            res.end(zip);
+          } catch (error) {
+            send(404, { ok: false, error: String(error).replace(/^Error: /, '') });
+          }
+          return true;
+        }
+        // POST /api/skills/import — multipart zip upload (raw body, single file).
+        if (method === 'POST' && parts.length === 3 && parts[2] === 'import') {
+          const chunks: Buffer[] = [];
+          for await (const chunk of req) chunks.push(chunk as Buffer);
+          return handle(async () => {
+            const raw = Buffer.concat(chunks);
+            // Support both raw zip bodies and multipart/form-data (browser FormData).
+            const ct = String(req.headers['content-type'] ?? '');
+            let zipBuf = raw;
+            let filename = 'imported.zip';
+            if (ct.includes('multipart/form-data')) {
+              const boundary = /boundary=(?:"([^"]+)"|([^;]+))/.exec(ct)?.[1] ?? '';
+              const start = raw.indexOf(`--${boundary}`);
+              if (start === -1) return { error: 'Malformed multipart body', status: 400 };
+              const headerEnd = raw.indexOf('\r\n\r\n', start);
+              const nameMatch = /filename="([^"]*)"/.exec(raw.slice(start, headerEnd).toString('utf8'));
+              if (nameMatch?.[1]) filename = nameMatch[1];
+              const next = raw.indexOf(`--${boundary}`, headerEnd);
+              zipBuf = raw.subarray(headerEnd + 4, next === -1 ? raw.length : next - 2);
+            }
+            if (zipBuf.subarray(0, 2).toString() !== 'PK') {
+              return { error: 'Not a zip file', status: 400 };
+            }
+            const tmp = path.join(os.tmpdir(), `acm-import-${Date.now()}-${filename}`);
+            await fsp.writeFile(tmp, zipBuf);
+            try {
+              const result = await importSkillZip(tmp, { overwrite: url.searchParams.get('overwrite') === '1' });
+              clearSkillsCache();
+              return { data: result };
+            } catch (error) {
+              const message = String(error).replace(/^Error: /, '');
+              const status = message.includes('already exists') ? 409 : 400;
+              return { error: message, status };
+            } finally {
+              await fsp.rm(tmp, { force: true });
+            }
           });
         }
         // POST /api/skills/:id/adopt { source } — adopt a skill discovered at

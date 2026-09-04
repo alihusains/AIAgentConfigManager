@@ -756,3 +756,291 @@ export async function createSkill(
   clearSkillsCache();
   return def;
 }
+
+// ---------------------------------------------------------------------------
+// P2 — Full CRUD on skill folders: file browser, per-file read/write/delete,
+// rename, duplicate, zip export/import. All paths are resolved through
+// resolveSkillDir and guarded against traversal (no .., no absolute, must
+// stay inside the skill folder).
+// ---------------------------------------------------------------------------
+
+/** One file in a skill folder (relative to the skill folder). */
+export interface SkillFileEntry {
+  /** Path relative to the skill folder, e.g. 'SKILL.md' or 'scripts/run.sh'. */
+  relPath: string;
+  size: number;
+  isDir: boolean;
+}
+
+/** Max entries returned by listSkillFiles (UI safety cap). */
+export const SKILL_FILES_MAX = 500;
+
+/**
+ * List every file (recursively, capped) in a skill folder at a location.
+ * Directories are included as entries so the UI can render a tree.
+ */
+export async function listSkillFiles(
+  skillId: string,
+  location: string,
+  opts: SkillsDirOptions = {}
+): Promise<SkillFileEntry[]> {
+  assertSafeId(skillId, 'skill id');
+  const dir = resolveSkillDir(location, opts);
+  if (!dir) throw new Error(`Unknown skill location: ${location}`);
+  const skillDir = path.join(dir, skillId);
+  if (!(await fileExists(path.join(skillDir, 'SKILL.md')))) {
+    throw new Error(`Skill not found at that location: ${skillId} -> ${location}`);
+  }
+  const out: SkillFileEntry[] = [];
+  const walk = async (rel: string): Promise<void> => {
+    if (out.length >= SKILL_FILES_MAX) return;
+    const abs = path.join(skillDir, rel);
+    const entries = await fs.readdir(abs, { withFileTypes: true });
+    for (const entry of entries) {
+      if (out.length >= SKILL_FILES_MAX) return;
+      const childRel = rel ? `${rel}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        out.push({ relPath: childRel, size: 0, isDir: true });
+        await walk(childRel);
+      } else if (entry.isFile()) {
+        const stat = await fs.stat(path.join(skillDir, childRel));
+        out.push({ relPath: childRel, size: stat.size, isDir: false });
+      }
+    }
+  };
+  await walk('');
+  out.sort((a, b) => a.relPath.localeCompare(b.relPath));
+  return out;
+}
+
+/**
+ * Guard a client-supplied relative path: no traversal, no absolute paths,
+ * no empty segments. Returns the cleaned posix-style relPath.
+ */
+export function assertSafeRelPath(relPath: string): string {
+  const cleaned = relPath.replace(/\\/g, '/');
+  if (cleaned.startsWith('/') || /^[A-Za-z]:/.test(cleaned)) {
+    throw new Error(`Absolute paths are not allowed: ${relPath}`);
+  }
+  const parts = cleaned.split('/');
+  for (const part of parts) {
+    if (part === '..' || part === '' || part === '.') {
+      throw new Error(`Unsafe path segment in: ${relPath}`);
+    }
+    if (part.includes('\\0')) throw new Error('Invalid path');
+  }
+  if (parts.length === 0) throw new Error('Empty path');
+  return parts.join('/');
+}
+
+/**
+ * Read one file from a skill folder. Text files come back decoded (utf8);
+ * anything else raises (binary editing is out of scope for the browser UI).
+ */
+export async function readSkillFile(
+  skillId: string,
+  location: string,
+  relPath: string,
+  opts: SkillsDirOptions = {}
+): Promise<string> {
+  assertSafeId(skillId, 'skill id');
+  const safe = assertSafeRelPath(relPath);
+  const dir = resolveSkillDir(location, opts);
+  if (!dir) throw new Error(`Unknown skill location: ${location}`);
+  const abs = path.join(dir, skillId, safe);
+  const stat = await fs.stat(abs).catch(() => null);
+  if (!stat || !stat.isFile()) throw new Error(`File not found: ${relPath}`);
+  if (stat.size > 512 * 1024) {
+    throw new Error('File is larger than 512 KiB — edit it on disk instead');
+  }
+  const buf = await fs.readFile(abs);
+  if (buf.includes(0)) throw new Error('Binary files cannot be edited here');
+  return buf.toString('utf8');
+}
+
+/** Write one file inside a skill folder (creates parent dirs). */
+export async function saveSkillFile(
+  skillId: string,
+  location: string,
+  relPath: string,
+  content: string,
+  opts: SkillsDirOptions = {}
+): Promise<void> {
+  assertSafeId(skillId, 'skill id');
+  const safe = assertSafeRelPath(relPath);
+  const dir = resolveSkillDir(location, opts);
+  if (!dir) throw new Error(`Unknown skill location: ${location}`);
+  const abs = path.join(dir, skillId, safe);
+  if (!abs.startsWith(path.join(dir, skillId) + path.sep)) {
+    throw new Error(`Unsafe path: ${relPath}`);
+  }
+  await fs.mkdir(path.dirname(abs), { recursive: true });
+  await fs.writeFile(abs, content, 'utf8');
+  clearSkillsCache();
+}
+
+/** Delete one file from a skill folder (SKILL.md cannot be deleted). */
+export async function deleteSkillFile(
+  skillId: string,
+  location: string,
+  relPath: string,
+  opts: SkillsDirOptions = {}
+): Promise<void> {
+  assertSafeId(skillId, 'skill id');
+  const safe = assertSafeRelPath(relPath);
+  if (safe === 'SKILL.md') throw new Error('SKILL.md cannot be deleted');
+  const dir = resolveSkillDir(location, opts);
+  if (!dir) throw new Error(`Unknown skill location: ${location}`);
+  await fs.rm(path.join(dir, skillId, safe), { recursive: true, force: true });
+  clearSkillsCache();
+}
+
+/**
+ * Rename a library skill: moves the folder and rewrites the frontmatter name.
+ * Agents that already have the old copy keep it (assignment is a copy);
+ * re-assign after renaming to update them.
+ */
+export async function renameSkill(
+  skillId: string,
+  newName: string,
+  opts: SkillsDirOptions = {}
+): Promise<{ newId: string }> {
+  assertSafeId(skillId, 'skill id');
+  assertSafeId(newName, 'skill name');
+  const newId = skillSlug(newName);
+  assertSafeId(newId, 'skill name');
+  const libraryDir = opts.libraryDir ?? getSkillsLibraryDir();
+  const from = path.join(libraryDir, skillId);
+  const to = path.join(libraryDir, newId);
+  if (!(await fileExists(path.join(from, 'SKILL.md')))) {
+    throw new Error(`Skill not found in library: ${skillId}`);
+  }
+  if (await fileExists(path.join(to, 'SKILL.md'))) {
+    throw new Error(`A skill named ${newId} already exists`);
+  }
+  await fs.rename(from, to);
+  // Rewrite the frontmatter name so agents see the new display name.
+  const mdPath = path.join(to, 'SKILL.md');
+  const md = (await fs.readFile(mdPath, 'utf8')).replace(
+    /^(name:\s*).*$/m,
+    `name: ${JSON.stringify(newName)}`
+  );
+  await fs.writeFile(mdPath, md, 'utf8');
+  clearSkillsCache();
+  return { newId };
+}
+
+/**
+ * Duplicate a library skill into `${id}-copy` (numbered when taken).
+ * The frontmatter name gets " Copy"/" Copy 2" suffixes.
+ */
+export async function duplicateSkill(
+  skillId: string,
+  opts: SkillsDirOptions = {}
+): Promise<{ newId: string }> {
+  assertSafeId(skillId, 'skill id');
+  const libraryDir = opts.libraryDir ?? getSkillsLibraryDir();
+  const from = path.join(libraryDir, skillId);
+  if (!(await fileExists(path.join(from, 'SKILL.md')))) {
+    throw new Error(`Skill not found in library: ${skillId}`);
+  }
+  let newId = `${skillId}-copy`;
+  let n = 2;
+  while (await fileExists(path.join(libraryDir, newId, 'SKILL.md'))) {
+    newId = `${skillId}-copy-${n}`;
+    n++;
+  }
+  await fs.cp(from, path.join(libraryDir, newId), { recursive: true });
+  const mdPath = path.join(libraryDir, newId, 'SKILL.md');
+  const md = (await fs.readFile(mdPath, 'utf8')).replace(
+    /^(name:\s*)(.*)$/m,
+    (_m, prefix: string, value: string) => {
+      const base = value.replace(/^"|"$/g, '');
+      return `${prefix}${JSON.stringify(n === 2 ? `${base} Copy` : `${base} Copy ${n - 1}`)}`;
+    }
+  );
+  await fs.writeFile(mdPath, md, 'utf8');
+  clearSkillsCache();
+  return { newId };
+}
+
+/**
+ * Export a library skill as a .zip buffer (skill folder zipped at its root —
+ * unzip into <skillsDir>/<id>/ produces the skill).
+ */
+export async function exportSkillZip(
+  skillId: string,
+  opts: SkillsDirOptions = {}
+): Promise<Buffer> {
+  assertSafeId(skillId, 'skill id');
+  const libraryDir = opts.libraryDir ?? getSkillsLibraryDir();
+  const skillDir = path.join(libraryDir, skillId);
+  if (!(await fileExists(path.join(skillDir, 'SKILL.md')))) {
+    throw new Error(`Skill not found in library: ${skillId}`);
+  }
+  const AdmZip = (await import('adm-zip')).default;
+  const zip = new AdmZip();
+  zip.addLocalFolder(skillDir);
+  return zip.toBuffer();
+}
+
+/**
+ * Import a skill from a .zip buffer into the library. The zip must contain
+ * the skill folder (SKILL.md at root or one level down). An existing library
+ * skill with the same id is only replaced when overwrite is set.
+ */
+export async function importSkillZip(
+  zipPath: string,
+  opts: SkillsDirOptions & { overwrite?: boolean } = {}
+): Promise<{ newId: string }> {
+  const { overwrite = false, ...dirOpts } = opts;
+  const libraryDir = dirOpts.libraryDir ?? getSkillsLibraryDir();
+  const tmpExtract = path.join(
+    os.tmpdir(),
+    `acm-skill-import-${Date.now()}-${path.basename(zipPath, '.zip')}`
+  );
+  await fs.mkdir(tmpExtract, { recursive: true });
+  try {
+    const AdmZip = (await import('adm-zip')).default;
+    new AdmZip(zipPath).extractAllTo(tmpExtract, true);
+    // Locate SKILL.md (root or nested one level).
+    let skillDir: string | null = null;
+    const candidates = [tmpExtract, ...(await fs.readdir(tmpExtract, { withFileTypes: true }))
+      .filter((e) => e.isDirectory())
+      .map((e) => path.join(tmpExtract, e.name))];
+    for (const candidate of candidates) {
+      if (await fileExists(path.join(candidate, 'SKILL.md'))) {
+        skillDir = candidate;
+        break;
+      }
+    }
+    if (!skillDir) throw new Error('The zip does not contain a SKILL.md at its root or one level down');
+    // When SKILL.md sits at the zip ROOT (our export layout), the folder name is
+    // the temp filename — fall back to the exporting skill's id.
+    const skillId = path.basename(skillDir) === path.basename(tmpExtract)
+      ? path.basename(zipPath).replace(/\.zip$/i, '')
+      : path.basename(skillDir);
+    assertSafeId(skillId, 'skill id');
+    const target = path.join(libraryDir, skillId);
+    if ((await fileExists(path.join(target, 'SKILL.md'))) && !overwrite) {
+      throw new Error(`Skill already exists in the library: ${skillId} (pass overwrite: true to replace)`);
+    }
+    await fs.mkdir(libraryDir, { recursive: true });
+    await fs.rm(target, { recursive: true, force: true });
+    await fs.cp(skillDir, target, { recursive: true });
+    const def = await readSkillDef(libraryDir, skillId);
+    if (def && !def.validation.loadable) {
+      clearSkillsCache();
+      throw new Error(
+        `Imported, but the skill is invalid per the agentskills spec: ${def.validation.diagnostics
+          .filter((d) => d.level === 'error')
+          .map((d) => d.message)
+          .join(' ')}`
+      );
+    }
+    clearSkillsCache();
+    return { newId: skillId };
+  } finally {
+    await fs.rm(tmpExtract, { recursive: true, force: true });
+  }
+}

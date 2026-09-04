@@ -109,13 +109,14 @@ async function request<T = unknown>(
   body?: unknown
 ): Promise<ApiEnvelope<T>> {
   let res: Response;
+  const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
   try {
     res = await fetch(path, {
       method,
       headers: {
-        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        ...(body !== undefined && !isFormData ? { 'Content-Type': 'application/json' } : {}),
       },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      body: body !== undefined ? (isFormData ? body : JSON.stringify(body)) : undefined,
     });
   } catch {
     return {
@@ -276,6 +277,56 @@ export const api = {
     request<{ targetPath: string }>('POST', `/api/skills/${encodeURIComponent(skillId)}/assign`, {
       agentId,
     }),
+  /** List every file in a skill folder. */
+  listSkillFiles: (skillId: string, location: string) =>
+    request<{ relPath: string; size: number; isDir: boolean }[]>(
+      'GET',
+      `/api/skills/${encodeURIComponent(skillId)}/files?location=${encodeURIComponent(location)}`
+    ),
+  /** Read one file from a skill folder. */
+  readSkillFile: (skillId: string, location: string, relPath: string) =>
+    request<{ relPath: string; content: string }>(
+      'GET',
+      `/api/skills/${encodeURIComponent(skillId)}/file?location=${encodeURIComponent(
+        location
+      )}&path=${encodeURIComponent(relPath)}`
+    ),
+  /** Write one file inside a skill folder. */
+  saveSkillFile: (skillId: string, location: string, relPath: string, content: string) =>
+    request<{ ok: boolean }>(
+      'PUT',
+      `/api/skills/${encodeURIComponent(skillId)}/file?location=${encodeURIComponent(location)}`,
+      { path: relPath, content }
+    ),
+  /** Delete one file from a skill folder. */
+  deleteSkillFile: (skillId: string, location: string, relPath: string) =>
+    request<{ ok: boolean }>(
+      'DELETE',
+      `/api/skills/${encodeURIComponent(skillId)}/file?location=${encodeURIComponent(
+        location
+      )}&path=${encodeURIComponent(relPath)}`
+    ),
+  /** Rename a library skill (folder + frontmatter name). */
+  renameSkill: (skillId: string, newName: string) =>
+    request<{ newId: string }>('POST', `/api/skills/${encodeURIComponent(skillId)}/rename`, {
+      name: newName,
+    }),
+  /** Duplicate a library skill into <id>-copy. */
+  duplicateSkill: (skillId: string) =>
+    request<{ newId: string }>('POST', `/api/skills/${encodeURIComponent(skillId)}/duplicate`),
+  /** Download a library skill as a .zip. */
+  exportSkillUrl: (skillId: string) =>
+    `/api/skills/${encodeURIComponent(skillId)}/export`,
+  /** Import a .zip file into the library. */
+  importSkillZip: (file: File, overwrite = false) => {
+    const form = new FormData();
+    form.append('file', file);
+    return request<{ newId: string }>(
+      'POST',
+      `/api/skills/import${overwrite ? '?overwrite=1' : ''}`,
+      form
+    );
+  },
   /** Adopt a skill discovered at any location into the shared library. */
   adoptSkill: (skillId: string, source: string, overwrite = false) =>
     request<{ targetPath: string }>(
