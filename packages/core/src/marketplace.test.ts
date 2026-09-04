@@ -226,7 +226,12 @@ describe('installMarketplaceSkill', () => {
     });
     expect(targetPath).toBe(path.join(tmpDir, 'engineering-code-review'));
     const written = await fs.readFile(path.join(targetPath, 'SKILL.md'), 'utf8');
-    expect(written).toBe(SKILL_MD);
+    // The original content is preserved, plus the provenance stamp.
+    for (const line of SKILL_MD.trim().split('\n')) {
+      if (!line.startsWith('---')) expect(written).toContain(line);
+    }
+    expect(written).toContain('source-repo: "alihusains/enterprise-skills"');
+    expect(written).toContain('source-version:');
     const example = await fs.readFile(path.join(targetPath, 'example.md'), 'utf8');
     expect(example).toContain('Companion file contents.');
   });
@@ -267,7 +272,9 @@ describe('installMarketplaceSkill', () => {
       overwrite: true,
     });
     const written = await fs.readFile(path.join(targetPath, 'SKILL.md'), 'utf8');
-    expect(written).toBe(SKILL_MD);
+    for (const line of SKILL_MD.trim().split('\n')) {
+      if (!line.startsWith('---')) expect(written).toContain(line);
+    }
   });
 
   it('rejects unknown ids with a clear error', async () => {

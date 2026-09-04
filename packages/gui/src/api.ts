@@ -306,6 +306,19 @@ export const api = {
         location
       )}&path=${encodeURIComponent(relPath)}`
     ),
+  /** Assign a library skill to every skill-capable agent (sequential). */
+  assignAllSkill: async (skillId: string, agentIds: string[]) => {
+    const results: { agentId: string; ok: boolean; error?: string }[] = [];
+    for (const agentId of agentIds) {
+      const res = await request<{ targetPath: string }>(
+        'POST',
+        `/api/skills/${encodeURIComponent(skillId)}/assign`,
+        { agentId }
+      );
+      results.push({ agentId, ok: res.ok, error: res.error });
+    }
+    return results;
+  },
   /** Rename a library skill (folder + frontmatter name). */
   renameSkill: (skillId: string, newName: string) =>
     request<{ newId: string }>('POST', `/api/skills/${encodeURIComponent(skillId)}/rename`, {
@@ -327,6 +340,36 @@ export const api = {
       form
     );
   },
+  /** List configured marketplace sources. */
+  getMarketplaceSources: () =>
+    request<{ sources: { repo: string; subdir?: string; label?: string; addedAt: string }[]; error?: string }>(
+      'GET',
+      '/api/skills/marketplace/sources'
+    ),
+  /** Add a marketplace source repo ('owner/repo'). */
+  addMarketplaceSource: (repo: string, subdir?: string, label?: string) =>
+    request<{ sources: { repo: string }[] }>('POST', '/api/skills/marketplace/sources', {
+      repo,
+      subdir,
+      label,
+    }),
+  /** Remove a marketplace source repo. */
+  removeMarketplaceSource: (repo: string) =>
+    request<{ sources: { repo: string }[] }>(
+      'DELETE',
+      `/api/skills/marketplace/sources/${encodeURIComponent(repo)}`
+    ),
+  /** List one source's skills (repo omitted = built-in source). */
+  listMarketplaceBySource: (repo?: string) =>
+    request<{ id: string; name: string; description?: string; sourceRepo: string; version?: string }[]>(
+      'GET',
+      `/api/skills/marketplace/list${repo ? `?repo=${encodeURIComponent(repo)}` : ''}`
+    ),
+  /** Check installed skills for marketplace updates. */
+  checkMarketplaceUpdates: () =>
+    request<
+      { skillId: string; sourceRepo: string; installedVersion?: string; latestVersion?: string; hasUpdate: boolean }[]
+    >('GET', '/api/skills/marketplace/updates'),
   /** Adopt a skill discovered at any location into the shared library. */
   adoptSkill: (skillId: string, source: string, overwrite = false) =>
     request<{ targetPath: string }>(
@@ -364,10 +407,10 @@ export const api = {
 
   // --- Skill marketplace (M066 backend; every call is user-triggered) ---
   /** List marketplace skills. `force` bypasses the server's 10-min cache. */
-  listMarketplaceSkills: (force = false) =>
+  listMarketplaceSkills: (force = false, source?: string) =>
     request<{ skills: MarketplaceSkillSummary[] }>(
       'GET',
-      `/api/marketplace/skills${force ? '?force=1' : ''}`
+      `/api/skills/marketplace/list?${force ? 'force=1&' : ''}${source ? `repo=${encodeURIComponent(source)}` : ''}`
     ),
   /** Install a marketplace skill into the shared library (never overwrites silently). */
   installMarketplaceSkill: (skillId: string, overwrite = false) =>

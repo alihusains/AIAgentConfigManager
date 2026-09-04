@@ -402,6 +402,7 @@ const SkillRow = memo(function SkillRow({
 
 interface MarketplaceRowProps {
   skill: MarketplaceSkillSummary;
+  updates?: Record<string, string>;
   busy: boolean;
   /** True when a local skill with this id already exists in the library. */
   inLibrary: boolean;
@@ -413,6 +414,7 @@ const MarketplaceRow = memo(function MarketplaceRow({
   busy,
   inLibrary,
   onInstall,
+  updates,
 }: MarketplaceRowProps) {
   return (
     <div className="marketplace-row">
@@ -437,6 +439,11 @@ const MarketplaceRow = memo(function MarketplaceRow({
           <span className="marketplace-row-warning text-xs">
             Already in your library — installing replaces it.
           </span>
+        )}
+        {updates?.[skill.id] && (
+          <Tooltip content={`New version available: ${updates[skill.id]}`}>
+            <Badge variant="warning">update</Badge>
+          </Tooltip>
         )}
         <Button
           variant="secondary"
@@ -489,6 +496,11 @@ export function SkillsView() {
   // "Browse marketplace" click is what fires the network request.
   const [marketOpen, setMarketOpen] = useState(false);
   const [marketSkills, setMarketSkills] = useState<MarketplaceSkillSummary[] | null>(null);
+  // P3: configured sources, the active source, and pending update flags.
+  const [marketSources, setMarketSources] = useState<{ repo: string; subdir?: string; label?: string; addedAt: string }[]>([]);
+  const [marketSourceRepo, setMarketSourceRepo] = useState<string>('');
+  const [marketUpdates, setMarketUpdates] = useState<Record<string, string> | null>(null); // skillId → latest
+  const [sourceInput, setSourceInput] = useState('');
   const [marketLoading, setMarketLoading] = useState(false);
   const [marketError, setMarketError] = useState<string | null>(null);
   const [marketBusyId, setMarketBusyId] = useState<string | null>(null);
@@ -820,28 +832,49 @@ export function SkillsView() {
     [addToast, load]
   );
 
-  const loadMarketplace = useCallback(async (force: boolean) => {
-    setMarketLoading(true);
-    setMarketError(null);
-    try {
-      const res = await api.listMarketplaceSkills(force);
-      if (res.ok && res.data) {
-        setMarketSkills(res.data.skills);
-      } else {
-        // Show the server's honest error verbatim (rate limits, network).
-        setMarketError(res.error ?? 'Failed to load the marketplace');
+  const loadMarketplace = useCallback(
+    async (force: boolean, repo?: string) => {
+      setMarketLoading(true);
+      setMarketError(null);
+      try {
+        const src = repo ?? marketSourceRepo;
+        const res = await api.listMarketplaceSkills(force, src || undefined);
+        if (res.ok && res.data) {
+          setMarketSkills(res.data as unknown as MarketplaceSkillSummary[]);
+        } else {
+          // Show the server's honest error verbatim (rate limits, network).
+          setMarketError(res.error ?? 'Failed to load the marketplace');
+        }
+      } catch (e) {
+        setMarketError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setMarketLoading(false);
       }
-    } catch (e) {
-      setMarketError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setMarketLoading(false);
+    },
+    [marketSourceRepo]
+  );
+
+  // P3: refresh the configured sources + pending update flags.
+  const loadMarketMeta = useCallback(async () => {
+    const [sourcesRes, updatesRes] = await Promise.all([
+      api.getMarketplaceSources(),
+      api.checkMarketplaceUpdates(),
+    ]);
+    if (sourcesRes.ok && sourcesRes.data) setMarketSources(sourcesRes.data.sources);
+    if (updatesRes.ok && updatesRes.data) {
+      setMarketUpdates(
+        Object.fromEntries(
+          updatesRes.data.filter((u) => u.hasUpdate).map((u) => [u.skillId, u.latestVersion ?? '?'])
+        )
+      );
     }
   }, []);
 
   const handleMarketBrowse = useCallback(() => {
     setMarketOpen(true);
+    void loadMarketMeta();
     if (marketSkills == null) void loadMarketplace(false);
-  }, [marketSkills, loadMarketplace]);
+  }, [marketSkills, loadMarketplace, loadMarketMeta]);
 
   const handleMarketInstall = useCallback(
     async (skillId: string, overwrite: boolean) => {
@@ -1159,6 +1192,72 @@ export function SkillsView() {
         {marketOpen ? (
           <div>
             <div className="marketplace-toolbar">
+              {/* P3: source selector + add/remove */}
+              <select
+                className="input max-w-[240px]"
+                value={marketSourceRepo}
+                onChange={(e) => {
+                  setMarketSourceRepo(e.target.value);
+                  void loadMarketplace(false, e.target.value);
+                }}
+              >
+                {marketSources.map((src) => (
+                  <option key={src.repo} value={src.repo}>
+                    {src.label ?? src.repo}
+                  </option>
+                ))}
+              </select>
+              {marketSourceRepo && marketSourceRepo !== 'alihusains/enterprise-skills' && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon={<Trash2 size={13} />}
+                  onClick={async () => {
+                    if (!confirm(`Remove source ${marketSourceRepo}?`)) return;
+                    const res = await api.removeMarketplaceSource(marketSourceRepo);
+                    if (res.ok) {
+                      setMarketSourceRepo('');
+                      setMarketSkills(null);
+                      void loadMarketMeta();
+                    }
+                  }}
+                >
+                  Remove source
+                </Button>
+              )}
+              <div className="flex items-center gap-1.5">
+                <input
+                  className="input w-[220px]"
+                  placeholder="owner/repo (has .skills-manifest.json)"
+                  value={sourceInput}
+                  onChange={(e) => setSourceInput(e.target.value)}
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon={<Plus size={13} />}
+                  disabled={!sourceInput.trim()}
+                  onClick={async () => {
+                    const res = await api.addMarketplaceSource(sourceInput.trim());
+                    if (!res.ok) {
+                      addToast({ type: 'error', title: 'Add source failed', message: res.error ?? '' });
+                      return;
+                    }
+                    setSourceInput('');
+                    await loadMarketMeta();
+                    setMarketSourceRepo(sourceInput.trim());
+                    void loadMarketplace(true, sourceInput.trim());
+                  }}
+                >
+                  Add
+                </Button>
+              </div>
+              {marketUpdates && Object.keys(marketUpdates).length > 0 && (
+                <span className="badge badge-warning">
+                  {Object.keys(marketUpdates).length} update
+                  {Object.keys(marketUpdates).length === 1 ? '' : 's'} available
+                </span>
+              )}
               <Button
                 variant="ghost"
                 size="sm"
@@ -1197,7 +1296,7 @@ export function SkillsView() {
               ) : (
                 <div className="marketplace-list">
                   {marketSkills.map((skill) => (
-                    <MarketplaceRow
+                    <MarketplaceRow updates={marketUpdates ?? undefined}
                       key={skill.id}
                       skill={skill}
                       busy={marketBusyId === skill.id}

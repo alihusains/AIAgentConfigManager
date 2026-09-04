@@ -42,6 +42,10 @@ import {
   duplicateSkill,
   exportSkillZip,
   importSkillZip,
+  listMarketplaceSources,
+  addMarketplaceSource,
+  removeMarketplaceSource,
+  checkMarketplaceUpdates,
   assignSkillToAgent,
   removeSkillFromAgent,
   removeSkillFromLibrary,
@@ -684,6 +688,62 @@ export async function startGuiServer(
 
       // ---- Skills ----
       if (parts[1] === 'skills') {
+        // ---- P3: multi-source marketplace ----
+        // GET /api/skills/marketplace/sources
+        if (method === 'GET' && parts.length === 4 && parts[2] === 'marketplace' && parts[3] === 'sources') {
+          return handle(async () => ({ data: await listMarketplaceSources() }));
+        }
+        // POST /api/skills/marketplace/sources { repo, subdir?, label? }
+        if (method === 'POST' && parts.length === 4 && parts[2] === 'marketplace' && parts[3] === 'sources') {
+          const body = await readBody();
+          return handle(async () => {
+            try {
+              const result = await addMarketplaceSource(String(body.repo ?? ''), {
+                subdir: typeof body.subdir === 'string' ? body.subdir : undefined,
+                label: typeof body.label === 'string' ? body.label : undefined,
+              });
+              return { data: result };
+            } catch (error) {
+              const message = String(error).replace(/^Error: /, '');
+              const status = message.includes('already configured') ? 409 : 400;
+              return { error: message, status };
+            }
+          });
+        }
+        // DELETE /api/skills/marketplace/sources/:repo
+        if (method === 'DELETE' && parts.length === 5 && parts[2] === 'marketplace' && parts[3] === 'sources') {
+          return handle(async () => {
+            try {
+              const result = await removeMarketplaceSource(decodeURIComponent(parts[4]));
+              return { data: result };
+            } catch (error) {
+              return { error: String(error).replace(/^Error: /, ''), status: 400 };
+            }
+          });
+        }
+        // GET /api/skills/marketplace/list?repo=owner/name — one source's skills.
+        if (method === 'GET' && parts.length === 4 && parts[2] === 'marketplace' && parts[3] === 'list') {
+          return handle(async () => {
+            try {
+              const repo = url.searchParams.get('repo') ?? undefined;
+              const data = await listMarketplaceSkills({ force: url.searchParams.get('force') === '1', source: repo });
+              return { data };
+            } catch (error) {
+              return { error: String(error).replace(/^Error: /, ''), status: 502 };
+            }
+          });
+        }
+        // GET /api/skills/marketplace/updates — installed vs latest.
+        if (method === 'GET' && parts.length === 4 && parts[2] === 'marketplace' && parts[3] === 'updates') {
+          return handle(async () => {
+            try {
+              return { data: await checkMarketplaceUpdates() };
+            } catch (error) {
+              return { error: String(error).replace(/^Error: /, ''), status: 502 };
+            }
+          });
+        }
+        // Install from a specific source: extend the legacy install route below.
         // GET /api/skills — library + skill-capable agents + assignments in one shot.
         // Served from a short TTL cache (M060): refreshes/polls within the
         // window are free; every mutation below invalidates the cache.
@@ -1037,6 +1097,7 @@ export async function startGuiServer(
             try {
               const result = await installMarketplaceSkill(decodeURIComponent(parts[3]), {
                 overwrite: body.overwrite === true,
+                source: typeof body.source === 'string' && body.source ? body.source : undefined,
               });
               clearSkillsCache();
               return { data: result };
