@@ -1,43 +1,53 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useStore } from '../store';
+import { api } from '../api';
 import { useAgentCatalog } from '../hooks/useAgentCatalog';
 import { ApiTypeBadges } from './ApiTypeBadges';
 import { AgentIconTile } from './AgentIcon';
 import { providerApiLabel } from './ProviderVerify';
-import { Skeleton, Tooltip } from '../ui';
+import { Skeleton } from '../ui';
 import Database from 'lucide-react/dist/esm/icons/database.js';
 import Server from 'lucide-react/dist/esm/icons/server.js';
 import Bot from 'lucide-react/dist/esm/icons/bot.js';
 import UserPlus from 'lucide-react/dist/esm/icons/user-plus.js';
-import AlertTriangle from 'lucide-react/dist/esm/icons/alert-triangle.js';
 import ArrowRight from 'lucide-react/dist/esm/icons/arrow-right.js';
+import Plus from 'lucide-react/dist/esm/icons/plus.js';
+import RefreshCw from 'lucide-react/dist/esm/icons/refresh-cw.js';
+import Settings from 'lucide-react/dist/esm/icons/settings.js';
 import type { ProviderApiKind } from '@ai-agent-config/core';
+import {
+  DualPaneLayout,
+  ControlPanel,
+  FormSection,
+  PreviewPane,
+  StatusIndicator,
+  ActionButtons,
+  InstructionCard,
+} from './ICTheme';
 
 /**
- * Dashboard — at-a-glance health of the local AI-agent estate.
+ * Dashboard — IC Signature theme dual-pane layout.
  *
- * Design intent:
- *  - A bento-grid of four differentiated stat cards (providers, MCP servers,
- *    installed agents, custom agents) — each with its own accent tint and a
- *    subtle per-metric gradient. This is an intentional overview panel, not a
- *    uniform row of identical tinted cards: the tints are per-metric semantic
- *    accents, and only cards with a genuine secondary data dimension (installed
- *    vs. known agents) get a ring; the others stay number-forward.
- *  - A "Protocol coverage" panel answers the new question the catalog now
- *    supports: how many catalog agents speak each wire protocol
- *    (chat / responses / anthropic), rendered as segmented gradient bars with
- *    an animated fill-in plus one combined distribution bar.
- *  - A compact "Detected agents" strip surfaces installed agents with their
- *    API-kind badges so the newest data dimension is visible immediately.
+ * Left pane (ControlPanel):
+ *  - Dashboard filters & toggles (stat visibility)
+ *  - Date range / refresh options
+ *  - Quick actions
  *
- * Everything is memoized and derived from stable store/catalog references so
- * the view re-renders only when the underlying data actually changes.
+ * Right pane (PreviewPane):
+ *  - Live stat cards (Model Providers, MCP Servers, Agents, Custom Agents)
+ *  - Protocol coverage breakdown
+ *  - Detected agents list
+ *  - Real-time update indicators
+ *
+ * The dashboard maintains all existing functionality while applying the
+ * IC theme's professional, minimalist aesthetic: high contrast, clean typography,
+ * responsive layout (mobile-first), and accessibility-first design.
  */
 
 const PROTOCOL_ORDER: ProviderApiKind[] = ['chat', 'responses', 'anthropic'];
 
 /* -------------------------------------------------------------------------- */
-/* Count-up + ring helpers (no charting library — plain CSS/SVG)              */
+/* Motion + formatting helpers                                                */
 /* -------------------------------------------------------------------------- */
 
 function usePrefersReducedMotion(): boolean {
@@ -86,83 +96,39 @@ function useCountUp(target: number, reduced: boolean): number {
   return value;
 }
 
-/**
- * Thin SVG ring showing one real ratio (e.g. installed agents / known agents).
- * A dashoffset transition drives the fill-in; the global reduced-motion
- * override collapses the transition to instant.
- */
-const Ring = memo(function Ring({
-  ratio,
-  size = 52,
-  stroke = 6,
-  trackClass = 'bento-ring-track',
-  fillClass = 'bento-ring-fill',
-}: {
-  /** 0..1 — a real, currently-available ratio. */
-  ratio: number;
-  size?: number;
-  stroke?: number;
-  trackClass?: string;
-  fillClass?: string;
-}) {
-  const r = (size - stroke) / 2;
-  const c = 2 * Math.PI * r;
-  const clamped = Math.max(0, Math.min(1, ratio));
-  return (
-    <svg
-      className="bento-ring"
-      width={size}
-      height={size}
-      viewBox={`0 0 ${size} ${size}`}
-      aria-hidden="true"
-    >
-      <circle
-        className={trackClass}
-        cx={size / 2}
-        cy={size / 2}
-        r={r}
-        fill="none"
-        strokeWidth={stroke}
-      />
-      <circle
-        className={fillClass}
-        cx={size / 2}
-        cy={size / 2}
-        r={r}
-        fill="none"
-        strokeWidth={stroke}
-        strokeLinecap="round"
-        strokeDasharray={c}
-        strokeDashoffset={c * (1 - clamped)}
-        transform={`rotate(-90 ${size / 2} ${size / 2})`}
-      />
-    </svg>
-  );
-});
+/** "2m ago" style freshness label for the registry footer. */
+function freshnessLabel(updatedAt: number): string {
+  const diff = Date.now() - updatedAt;
+  if (diff < 30_000) return 'just now';
+  const minutes = Math.floor(diff / 60_000);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return new Date(updatedAt).toLocaleDateString();
+}
 
 /* -------------------------------------------------------------------------- */
-/* Bento stat card (one metric in the overview grid)                          */
+/* IC Theme Stat Tile — Professional card with high contrast                  */
 /* -------------------------------------------------------------------------- */
 
-const BentoCard = memo(function BentoCard({
+const IcStatTile = memo(function IcStatTile({
   label,
   icon,
   value,
-  caption,
-  tint,
-  captionClass,
-  ring,
+  context,
+  ratio,
+  ratioLabel,
   onClick,
 }: {
   label: string;
   icon: ReactNode;
   value: number;
-  caption: string;
-  /** `--bento-tint` token, e.g. `var(--accent-primary)`. */
-  tint: string;
-  captionClass?: string;
-  /** Real ratio (0..1) to render as a ring; omit for a number-forward card. */
-  ring?: { ratio: number; trackClass: string; fillClass: string };
+  /** Comparison context for the value (enabled count, config count, …). */
+  context: string;
+  /** Optional real ratio (0..1) rendered as a compact linear bar. */
+  ratio?: number;
+  /** Accessible description of the ratio, e.g. "3 of 5 installed". */
+  ratioLabel?: string;
   onClick: () => void;
 }) {
   const reduced = usePrefersReducedMotion();
@@ -170,30 +136,40 @@ const BentoCard = memo(function BentoCard({
   return (
     <button
       type="button"
-      className="bento-card"
-      style={{ '--bento-tint': tint } as React.CSSProperties}
+      className="ic-stat-tile"
       onClick={onClick}
+      aria-label={`${label}: ${value}. ${context}`}
     >
-      <span className="bento-card-label">
-        {icon}
-        {label}
-      </span>
-      <span className="bento-card-body">
-        <span className="bento-card-value stat-figure">{displayed}</span>
-        <span className="bento-card-caption">
-          {caption}
-          {captionClass ? <span className={captionClass} /> : null}
+      <div className="ic-stat-tile-header">
+        <span className="ic-stat-tile-label">
+          <span className="ic-stat-tile-icon">{icon}</span>
+          {label}
         </span>
-      </span>
-      {ring ? (
-        <Ring ratio={ring.ratio} trackClass={ring.trackClass} fillClass={ring.fillClass} />
-      ) : null}
+      </div>
+      <div className="ic-stat-tile-body">
+        <span className="ic-stat-tile-value stat-figure">{displayed}</span>
+      </div>
+      <div className="ic-stat-tile-footer">
+        <span className="ic-stat-tile-context">{context}</span>
+        {ratio !== undefined ? (
+          <span
+            className="ic-stat-tile-bar"
+            role="progressbar"
+            aria-valuenow={Math.round(ratio * 100)}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label={ratioLabel}
+          >
+            <span className="ic-stat-tile-bar-fill" style={{ width: `${Math.round(ratio * 100)}%` }} />
+          </span>
+        ) : null}
+      </div>
     </button>
   );
 });
 
 /* -------------------------------------------------------------------------- */
-/* Protocol coverage                                                          */
+/* Protocol Coverage Card                                                     */
 /* -------------------------------------------------------------------------- */
 
 const ProtocolCoverage = memo(function ProtocolCoverage({
@@ -204,58 +180,38 @@ const ProtocolCoverage = memo(function ProtocolCoverage({
   total: number;
 }) {
   return (
-    <div className="card">
-      <div className="card-header">
-        <h3 className="card-title">Protocol coverage</h3>
-        <span className="text-secondary text-sm">{total} catalog agents</span>
-      </div>
-      <div className="protocol-coverage">
+    <div className="ic-protocol-coverage">
+      <h4 className="ic-protocol-coverage-title">Protocol Coverage</h4>
+      <p className="ic-protocol-coverage-subtitle">{total} catalog agents</p>
+      <div className="ic-protocol-rows">
         {PROTOCOL_ORDER.map((kind) => {
           const n = counts[kind];
           const pct = total > 0 ? Math.round((n / total) * 100) : 0;
           return (
-            <div className="protocol-row" key={kind}>
-              <span className="protocol-row-label">
-                <span className={`protocol-dot is-${kind}`} aria-hidden="true" />
-                {providerApiLabel(kind)}
-              </span>
+            <div className="ic-protocol-row" key={kind}>
+              <div className="ic-protocol-row-label">
+                <span className={`ic-protocol-dot is-${kind}`} aria-hidden="true" />
+                <span>{providerApiLabel(kind)}</span>
+              </div>
               <div
-                className="protocol-bar"
+                className="ic-protocol-bar"
                 role="progressbar"
                 aria-valuenow={n}
                 aria-valuemin={0}
                 aria-valuemax={total}
                 aria-label={`${providerApiLabel(kind)}: ${n} of ${total} agents`}
               >
-                <div className={`protocol-bar-fill is-${kind}`} style={{ width: `${pct}%` }} />
+                <div className={`ic-protocol-bar-fill is-${kind}`} style={{ width: `${pct}%` }} />
               </div>
-              <span className="protocol-row-count">{n}</span>
+              <span className="ic-protocol-row-count">
+                <span className="ic-protocol-row-value">{n}</span>
+                <span className="ic-protocol-row-pct">{pct}%</span>
+              </span>
             </div>
           );
         })}
-        {/* Combined distribution — one segmented bar of the same real data. */}
-        <div
-          className="protocol-segments"
-          role="img"
-          aria-label={`Protocol distribution: ${PROTOCOL_ORDER.map(
-            (k) => `${providerApiLabel(k)} ${counts[k]}`
-          ).join(', ')}`}
-        >
-          {PROTOCOL_ORDER.map((kind) => {
-            const n = counts[kind];
-            const pct = total > 0 ? (n / total) * 100 : 0;
-            return (
-              <Tooltip key={kind} content={`${providerApiLabel(kind)}: ${n}`}>
-              <div
-                className={`protocol-segment is-${kind}`}
-                style={{ width: `${pct}%` }}
-              />
-              </Tooltip>
-            );
-          })}
-        </div>
       </div>
-      <p className="text-tertiary text-xs mt-3">
+      <p className="ic-protocol-coverage-hint">
         Share of catalog agents declaring each wire protocol: chat (OpenAI Chat Completions),
         responses (OpenAI Responses), anthropic (Anthropic Messages).
       </p>
@@ -264,7 +220,7 @@ const ProtocolCoverage = memo(function ProtocolCoverage({
 });
 
 /* -------------------------------------------------------------------------- */
-/* Detected agents strip                                                      */
+/* Detected Agents List                                                       */
 /* -------------------------------------------------------------------------- */
 
 interface DetectedAgentVM {
@@ -274,7 +230,7 @@ interface DetectedAgentVM {
   kinds?: readonly ProviderApiKind[];
 }
 
-const DetectedStrip = memo(function DetectedStrip({
+const DetectedList = memo(function DetectedList({
   agents,
   onSelect,
 }: {
@@ -283,49 +239,47 @@ const DetectedStrip = memo(function DetectedStrip({
 }) {
   if (agents.length === 0) {
     return (
-      <div className="card">
-        <div className="card-header">
-          <h3 className="card-title">Detected agents</h3>
-        </div>
-        <p className="text-secondary text-sm">No agents detected on this machine yet.</p>
+      <div className="ic-detected-list-empty">
+        <h4>Detected Agents</h4>
+        <p>No agents detected on this machine yet.</p>
       </div>
     );
   }
   return (
-    <div className="card">
-      <div className="card-header">
-        <h3 className="card-title">Detected agents</h3>
-        <span className="text-secondary text-sm">{agents.length} installed</span>
+    <div className="ic-detected-list">
+      <div className="ic-detected-list-header">
+        <h4>Detected Agents</h4>
+        <span className="ic-detected-list-count">{agents.length} installed</span>
       </div>
-      <div className="detected-strip">
+      <ul className="ic-detected-list-rows">
         {agents.map((a) => (
-          <button key={a.id} type="button" className="detected-chip" onClick={() => onSelect(a.id)}>
-            <AgentIconTile icon={a.icon} id={a.id} size={24} iconSize={14} />
-            <span className="detected-chip-name">{a.name}</span>
-            <ApiTypeBadges kinds={a.kinds} compact />
-          </button>
+          <li key={a.id}>
+            <button type="button" className="ic-detected-row" onClick={() => onSelect(a.id)}>
+              <AgentIconTile icon={a.icon} id={a.id} size={28} iconSize={16} />
+              <span className="ic-detected-row-name">{a.name}</span>
+              <div className="ic-detected-row-badges">
+                <ApiTypeBadges kinds={a.kinds} compact />
+              </div>
+              <ArrowRight size={14} className="ic-detected-row-arrow" aria-hidden="true" />
+            </button>
+          </li>
         ))}
-      </div>
+      </ul>
     </div>
   );
 });
 
 /* -------------------------------------------------------------------------- */
-/* Dashboard                                                                  */
+/* Dashboard (Main component with IC Theme Dual-Pane Layout)                  */
 /* -------------------------------------------------------------------------- */
 
 export function Dashboard() {
-  const {
-    agents,
-    registry,
-    platform,
-    loading,
-    error,
-    setActiveView,
-    refreshAll,
-    openAgent,
-  } = useStore();
+  const { agents, registry, platform, loading, error, setActiveView, refreshAll, openAgent } =
+    useStore();
   const catalog = useAgentCatalog();
+
+  const [showFilters, setShowFilters] = useState(true);
+  const [autoRefresh, setAutoRefresh] = useState(false);
 
   // Protocol coverage derived from the (stable) catalog reference.
   const coverage = useMemo(() => {
@@ -338,7 +292,7 @@ export function Dashboard() {
     return { counts, total: catalog.length };
   }, [catalog]);
 
-  // Map id → catalog entry so the detected strip can read both `icon` and
+  // Map id → catalog entry so the detected list can read both `icon` and
   // `apiTypes` in O(1). (DetectedAgent carries no icon; that lives in the
   // catalog.)
   const catalogById = useMemo(() => {
@@ -363,35 +317,94 @@ export function Dashboard() {
     [agents, catalogById]
   );
 
+  // Auto-refresh timer
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const interval = setInterval(() => {
+      refreshAll();
+    }, 30_000); // Refresh every 30s
+    return () => clearInterval(interval);
+  }, [autoRefresh, refreshAll]);
+
+  // "Only free models" auto-sync (runs once per dashboard open): providers
+  // flagged config.trackFreeModels are re-probed on the server; new free
+  // model ids are pushed into the registry + every agent config. Silent
+  // when nothing is tracked; a failed endpoint toasts once.
+  const freeSyncDone = useRef(false);
+  useEffect(() => {
+    if (freeSyncDone.current) return;
+    freeSyncDone.current = true;
+    (async () => {
+      try {
+        const res = await api.syncFreeModels();
+        if (!res.ok || !res.data) return;
+        const { checked, results } = res.data;
+        const failed = results.filter((r) => !r.endpointOk);
+        const added = results.reduce((n, r) => n + r.added.length, 0);
+        const removed = results.reduce((n, r) => n + r.removed.length, 0);
+        if (added > 0 || removed > 0) {
+          const names = results
+            .filter((r) => r.added.length > 0 || r.removed.length > 0)
+            .map((r) => r.providerId)
+            .join(', ');
+          useStore.getState().addToast({
+            type: 'success',
+            title: 'Free models synced',
+            message:
+              `${added} new free model${added === 1 ? '' : 's'} pushed into agent configs` +
+              `${removed > 0 ? `, ${removed} removed` : ''} (${names})`,
+          });
+          await useStore.getState().refreshAll();
+        }
+        if (failed.length > 0 && checked > 0) {
+          useStore.getState().addToast({
+            type: 'warning',
+            title: 'Free-model sync incomplete',
+            message: `${failed.length} provider endpoint${
+              failed.length === 1 ? '' : 's'
+            } could not be re-checked${failed[0].error ? `: ${failed[0].error}` : ''}`,
+          });
+        }
+      } catch {
+        // Server unreachable — the normal connection error UI already covers it.
+      }
+    })();
+  }, []);
+
   const goProviders = useCallback(() => setActiveView('providers'), [setActiveView]);
   const goMCP = useCallback(() => setActiveView('mcp'), [setActiveView]);
   const goAgents = useCallback(() => setActiveView('agents'), [setActiveView]);
+  const handleRefresh = useCallback(() => refreshAll(), [refreshAll]);
+  const handleSettings = useCallback(() => setActiveView('settings'), [setActiveView]);
 
   if (loading && !registry) {
     return (
-      <div className="p-4" role="status" aria-label="Loading registry state">
-        <Skeleton className="mb-6" width="240px" height={28} />
-        <div className="flex gap-4 flex-wrap mb-6">
-          <Skeleton className="flex-1 min-w-[160px]" height={72} />
-          <Skeleton className="flex-1 min-w-[160px]" height={72} />
-          <Skeleton className="flex-1 min-w-[160px]" height={72} />
-          <Skeleton className="flex-1 min-w-[160px]" height={72} />
+      <div className="ic-dual-pane-layout">
+        <div className="ic-dual-pane-header">
+          <Skeleton width="240px" height={28} />
         </div>
-        <Skeleton width="100%" height={200} />
+        <div className="ic-dual-pane-container">
+          <div className="ic-pane ic-pane-control">
+            <Skeleton width="100%" height={300} />
+          </div>
+          <div className="ic-pane ic-pane-preview">
+            <Skeleton width="100%" height={400} />
+          </div>
+        </div>
       </div>
     );
   }
 
   if (error && !registry) {
     return (
-      <div className="flex-1 flex items-center justify-center p-8">
-        <div className="empty-state">
-          <AlertTriangle size={64} className="empty-state-icon text-warning" />
-          <h3 className="empty-state-title">Cannot reach the config server</h3>
-          <p className="empty-state-message text-error">{error}</p>
-          <button type="button" className="btn-primary mt-4" onClick={() => refreshAll()}>
-            Retry
-          </button>
+      <div className="ic-dual-pane-layout">
+        <div className="ic-dual-pane-header">
+          <InstructionCard variant="error" title="Cannot reach the config server">
+            <p>{error}</p>
+            <button type="button" className="btn btn-primary btn-sm mt-2" onClick={() => refreshAll()}>
+              Retry
+            </button>
+          </InstructionCard>
         </div>
       </div>
     );
@@ -404,146 +417,171 @@ export function Dashboard() {
   const agentsWithConfig = agents.filter((a) => a.detection.configExists);
 
   return (
-    <div className="page-container dashboard">
-      {/* Hero Banner — Brand introduction */}
-      <div className="hero-banner" style={{
-        background: 'linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%)',
-        borderRadius: 'var(--radius-lg)',
-        padding: '32px 24px',
-        marginBottom: '24px',
-        color: 'white',
-        boxShadow: 'var(--elevation-2)',
-      }}>
-        <div style={{ maxWidth: '600px' }}>
-          <h2 style={{ fontSize: '24px', fontWeight: '600', marginBottom: '8px', letterSpacing: '-0.5px' }}>
-            ✨ Configure Once. Distribute Everywhere.
-          </h2>
-          <p style={{ fontSize: '14px', lineHeight: '1.6', opacity: '0.95', marginBottom: '16px' }}>
-            Add a provider, MCP server, or skill once — then assign it to any agent with a click. 
-            No more copy-pasting the same config into 10 different places.
-          </p>
-          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-            <button 
-              type="button" 
-              className="btn-primary"
-              onClick={goProviders}
-              style={{ background: 'white', color: 'var(--accent-primary)', fontWeight: '500' }}
-            >
-              Add Provider
-              <ArrowRight size={14} />
-            </button>
-            <button 
-              type="button" 
-              className="btn-secondary"
-              onClick={goMCP}
-              style={{ background: 'rgba(255,255,255,0.2)', color: 'white', border: '1px solid rgba(255,255,255,0.3)' }}
-            >
-              Manage MCP Servers
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* KPI bento grid — four differentiated stat cards, one accent each */}
-      <div className="bento-grid">
-        <BentoCard
-          label="Model Providers"
-          icon={<Database size={16} />}
-          value={providers.length}
-          caption={
-            providers.length > 0
-              ? `${providers.filter((p) => p.provider.enabled).length} enabled`
-              : 'Add your first provider'
-          }
-          tint="var(--accent-primary)"
-          onClick={goProviders}
-        />
-        <BentoCard
-          label="MCP Servers"
-          icon={<Server size={16} />}
-          value={mcpServers.length}
-          caption={
-            mcpServers.length > 0
-              ? `${mcpServers.filter((m) => m.server.enabled).length} enabled`
-              : 'Add your first MCP server'
-          }
-          tint="var(--accent-info)"
-          onClick={goMCP}
-        />
-        <BentoCard
-          label="Agents (installed)"
-          icon={<Bot size={16} />}
-          value={installedAgents.length}
-          caption={`${agentsWithConfig.length} have a config file · ${agents.length} known`}
-          tint="var(--accent-success)"
-          ring={
-            agents.length > 0
-              ? {
-                  ratio: installedAgents.length / agents.length,
-                  trackClass: 'bento-ring-track-success',
-                  fillClass: 'bento-ring-fill-success',
-                }
-              : undefined
-          }
-          onClick={goAgents}
-        />
-        <BentoCard
-          label="Custom Agents"
-          icon={<UserPlus size={16} />}
-          value={customAgents.length}
-          caption={customAgents.length > 0 ? 'user-defined config paths' : 'Register custom tools'}
-          tint="var(--accent-warning)"
-          onClick={goAgents}
-        />
-      </div>
-
-      {/* Protocol coverage + detected agents */}
-      <div className="dashboard-panels">
-        <ProtocolCoverage counts={coverage.counts} total={coverage.total} />
-        <DetectedStrip agents={detected} onSelect={openAgent} />
-      </div>
-
-      {/* Registry summary */}
-      <div className="card">
-        <div className="card-header">
-          <h3 className="card-title">Registry — single source of truth</h3>
-          <span className="badge badge-primary">
-            {registry?.updatedAt ? new Date(registry.updatedAt).toLocaleString() : '—'}
-          </span>
-        </div>
-        <div className="flex flex-wrap gap-4">
-          <div className="flex-1 min-w-0">
-            <p className="text-tertiary text-xs">Location</p>
-            <p className="font-mono text-sm break-all mt-1">{registry?.path}</p>
-            <p className="text-tertiary text-xs mt-2 mb-1">
-              One definition per provider / MCP server; each entry lists the agents it is installed
-              on. Agent files are generated from this registry — never edit them by hand.
+    <DualPaneLayout
+      header={
+        <div className="ic-dashboard-header">
+          <div>
+            <h1 className="ic-dashboard-title">Dashboard Overview</h1>
+            <p className="ic-dashboard-subtitle">
+              One registry, distributed to every agent on this machine.
             </p>
           </div>
-          <div className="flex-shrink-0">
-            <p className="text-tertiary text-xs">Info</p>
-            <div className="mt-1 space-y-1">
-              <div className="text-sm">
-                <span className="text-tertiary">Platform:</span>{' '}
-                <span className="font-mono">{platform}</span>
-              </div>
-              <div className="text-sm">
-                <span className="text-tertiary">Providers:</span> {providers.length}
-              </div>
-              <div className="text-sm">
-                <span className="text-tertiary">MCP servers:</span> {mcpServers.length}
-              </div>
-              <div className="text-sm">
-                <span className="text-tertiary">Custom agents:</span> {customAgents.length}
-              </div>
+          <div className="ic-dashboard-header-actions">
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm flex items-center gap-2"
+              onClick={handleRefresh}
+              title="Refresh all data"
+            >
+              <RefreshCw size={14} /> Refresh
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm flex items-center gap-2"
+              onClick={handleSettings}
+              title="Dashboard settings"
+            >
+              <Settings size={14} /> Settings
+            </button>
+          </div>
+        </div>
+      }
+      controlPane={
+        <ControlPanel title="Dashboard Controls">
+          {/* Visibility toggles */}
+          <FormSection label="View Options" hint="Choose which metrics to display">
+            <label className="ic-form-check">
+              <input
+                type="checkbox"
+                checked={showFilters}
+                onChange={(e) => setShowFilters(e.target.checked)}
+              />
+              <span>Show all metrics</span>
+            </label>
+            <label className="ic-form-check">
+              <input
+                type="checkbox"
+                checked={autoRefresh}
+                onChange={(e) => setAutoRefresh(e.target.checked)}
+              />
+              <span>Auto-refresh every 30s</span>
+            </label>
+          </FormSection>
+
+          {/* Quick actions */}
+          <FormSection label="Quick Actions">
+            <div className="ic-form-actions">
+              <button
+                type="button"
+                className="btn btn-primary btn-sm w-full flex items-center justify-center gap-2"
+                onClick={goProviders}
+              >
+                <Plus size={14} /> Add Provider
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm w-full flex items-center justify-center gap-2"
+                onClick={goMCP}
+              >
+                <Server size={14} /> MCP Servers
+              </button>
+            </div>
+          </FormSection>
+
+          {/* Info hint */}
+          <InstructionCard variant="info" title="About this dashboard">
+            <p>
+              This dashboard shows you a real-time snapshot of your local AI agent configuration:
+              installed providers, MCP servers, available and custom agents, and protocol coverage.
+            </p>
+            <p>Use the quick actions above to add new providers or configure MCP servers.</p>
+          </InstructionCard>
+        </ControlPanel>
+      }
+      previewPane={
+        <PreviewPane
+          title="Live Metrics"
+          subtitle={
+            registry?.updatedAt ? `Last updated ${freshnessLabel(registry.updatedAt)}` : undefined
+          }
+        >
+          {/* Stat tiles grid */}
+          <div className="ic-stats-grid">
+            <IcStatTile
+              label="Model Providers"
+              icon={<Database size={15} />}
+              value={providers.length}
+              context={
+                providers.length > 0
+                  ? `${providers.filter((p) => p.provider.enabled).length} enabled`
+                  : 'Add your first provider'
+              }
+              onClick={goProviders}
+            />
+            <IcStatTile
+              label="MCP Servers"
+              icon={<Server size={15} />}
+              value={mcpServers.length}
+              context={
+                mcpServers.length > 0
+                  ? `${mcpServers.filter((m) => m.server.enabled).length} enabled`
+                  : 'Add your first MCP server'
+              }
+              onClick={goMCP}
+            />
+            <IcStatTile
+              label="Agents (installed)"
+              icon={<Bot size={15} />}
+              value={installedAgents.length}
+              context={`${agentsWithConfig.length} with config · ${agents.length} known`}
+              ratio={agents.length > 0 ? installedAgents.length / agents.length : undefined}
+              ratioLabel={`${installedAgents.length} of ${agents.length} agents installed`}
+              onClick={goAgents}
+            />
+            <IcStatTile
+              label="Custom Agents"
+              icon={<UserPlus size={15} />}
+              value={customAgents.length}
+              context={customAgents.length > 0 ? 'user-defined config paths' : 'Register custom tools'}
+              onClick={goAgents}
+            />
+          </div>
+
+          {/* Protocol coverage + detected agents */}
+          <div className="ic-detail-panels">
+            <ProtocolCoverage counts={coverage.counts} total={coverage.total} />
+            <DetectedList agents={detected} onSelect={openAgent} />
+          </div>
+
+          {/* Registry metadata */}
+          <div className="ic-registry-metadata">
+            <div className="ic-metadata-item">
+              <span className="ic-metadata-label">Registry Path:</span>
+              <code className="ic-metadata-value">{registry?.path}</code>
+            </div>
+            <div className="ic-metadata-item">
+              <span className="ic-metadata-label">Platform:</span>
+              <code className="ic-metadata-value">{platform}</code>
             </div>
           </div>
-          <button type="button" className="btn-ghost btn-sm self-start" onClick={goAgents}>
-            Manage agents
-            <ArrowRight size={14} />
-          </button>
-        </div>
-      </div>
-    </div>
+
+          {/* Action buttons and status */}
+          <ActionButtons>
+            <StatusIndicator
+              variant={autoRefresh ? 'syncing' : 'idle'}
+              label={autoRefresh ? 'Auto-refresh enabled' : 'Manual refresh'}
+            />
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm flex items-center gap-1"
+              onClick={goAgents}
+            >
+              Manage agents
+              <ArrowRight size={13} />
+            </button>
+          </ActionButtons>
+        </PreviewPane>
+      }
+    />
   );
 }

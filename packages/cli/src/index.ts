@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * AI Agent Config Manager CLI
+ * AI Config Manager CLI
  * Command-line interface for managing AI agent configurations
  */
 

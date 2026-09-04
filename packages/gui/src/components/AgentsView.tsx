@@ -7,6 +7,7 @@ import type {
   AgentCatalogEntry,
   AgentJob,
   Platform,
+  ProviderApiKind,
 } from '@ai-agent-config/core';
 import {
   UserPlus,
@@ -19,21 +20,20 @@ import {
   RefreshCw,
   AlertTriangle,
   Check,
+  Compass,
+  ExternalLink,
   MoreVertical,
   Save,
   ArrowUpCircle,
   Sparkles,
   Copy,
-  Filter,
-  ArrowDown,
-  ArrowUp,
   Search,
 } from 'lucide-react';
 import { AgentIconTile } from './AgentIcon';
+import { logoUrl } from '../logos';
 import { CodeEditor } from './CodeEditor';
 import { ApiTypeBadges } from './ApiTypeBadges';
 import { StarBadge } from './StarBadge';
-import { useWindowedList } from '../hooks/useWindowedList';
 import { MCP_SERVER_WARNING_THRESHOLD } from './AgentDetailView';
 import { Tooltip } from '../ui';
 
@@ -130,7 +130,6 @@ function RowActionsMenu({ open, onToggle, onClose, items }: RowActionsMenuProps)
 /* handler is a stable reference, so scrolling re-renders only the slice.     */
 /* -------------------------------------------------------------------------- */
 
-const AVAIL_ROW_HEIGHT = 56;
 
 const AvailableRow = memo(function AvailableRow({
   agent,
@@ -160,13 +159,13 @@ const AvailableRow = memo(function AvailableRow({
     : agent.id;
 
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center gap-2 px-4 py-3 hover:bg-bg-secondary transition-colors border-b border-border-primary last:border-b-0">
+    <div className="flex flex-col md:flex-row md:items-center gap-3 px-5 py-4 hover:bg-bg-hover transition-colors duration-150 border-b border-border-primary last:border-b-0">
       {/* Left: Logo + Name + Tags */}
-      <div className="flex items-center gap-2 flex-shrink-0 min-w-max">
+      <div className="flex items-center gap-3 min-w-0 md:min-w-[220px]">
         <AgentIconTile icon={agent.icon} id={agent.id} size={48} />
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="font-semibold text-base">{agent.name}</span>
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-semibold text-[15px] text-slate-900 dark:text-slate-50">{agent.name}</span>
             <span className={`badge badge-xs ${STATUS_BADGE[agent.status] || 'badge-neutral'}`}>
               {agent.status}
             </span>
@@ -175,16 +174,16 @@ const AvailableRow = memo(function AvailableRow({
         </div>
       </div>
 
-      {/* Center: Description + Star badge */}
-      <div className="flex-1 min-w-0 flex flex-col gap-1">
+      {/* Center: Description + Star badge — Refined secondary information */}
+      <div className="flex-1 min-w-0 flex flex-col gap-1.5">
         <Tooltip content={cleanDescription}>
-          <span className="text-sm text-tertiary line-clamp-1">
+          <span className="text-sm text-slate-600 dark:text-slate-400 line-clamp-1">
             {cleanDescription}
           </span>
         </Tooltip>
         {agent.stars && (
           <div className="flex items-center gap-2">
-            <StarBadge 
+            <StarBadge
               github={agent.github}
               stars={agent.stars}
               rank={rank}
@@ -194,19 +193,19 @@ const AvailableRow = memo(function AvailableRow({
         )}
       </div>
 
-      {/* Right: Install Command + Copy Button + Install Button */}
-      <div className="flex items-center gap-1 flex-wrap sm:flex-nowrap justify-between sm:justify-end flex-shrink-0 min-w-0">
+      {/* Right: Install Command + Copy Button + Install Button — Refined action area */}
+      <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-between sm:justify-end flex-shrink-0 min-w-0">
         {installCmd && (
-          <div className="flex items-center gap-0.5 px-2 py-1 bg-bg-tertiary rounded text-xs font-mono text-text-secondary hover:bg-accent-primary/10 transition-colors flex-1 sm:flex-none">
-            <span className="truncate max-w-[180px]">{installCmd}</span>
+          <div className="flex items-center gap-1 px-2.5 py-1.5 bg-bg-tertiary rounded-lg text-xs font-mono border border-border-primary min-w-0">
+            <span className="break-all leading-snug max-w-[260px]">{installCmd}</span>
             <button
               type="button"
               onClick={handleCopyCommand}
-              className="flex-shrink-0 p-0.5 hover:text-accent-primary transition-colors"
+              className="flex-shrink-0 p-0.5 ml-1 hover:text-slate-900 dark:hover:text-slate-100 transition-colors"
               title="Copy command"
             >
               {copied ? (
-                <Check size={12} className="text-accent-primary" />
+                <Check size={12} className="text-emerald-600 dark:text-emerald-400" />
               ) : (
                 <Copy size={12} />
               )}
@@ -239,14 +238,16 @@ function AvailableList({
 }) {
   if (agents.length === 0) {
     return (
-      <div className="p-4 text-center text-tertiary text-sm">
-        Every catalogued agent is installed on this machine 🎉
+      <div className="p-8 text-center">
+        <p className="text-slate-600 dark:text-slate-400 text-sm font-medium">
+          Every catalogued agent is installed on this machine 🎉
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-0 divide-y divide-border-primary">
+    <div className="flex flex-col gap-0 divide-y divide-slate-200/30 dark:divide-slate-700/30 border border-slate-200/30 dark:border-slate-700/30 rounded-xl overflow-hidden">
       {agents.map((a, index) => (
         <AvailableRow
           key={a.id}
@@ -379,9 +380,34 @@ export function AgentsView() {
     searchQuery: '',
   });
 
+  // ---------------- Explore (OpenRouter trending coding agents) ----------------
+  // Ranking data from the server (GET /api/agents/explore); the list order
+  // mirrors openrouter.ai/apps/category/coding exactly. Which sub-tab is
+  // active: 'catalog' (installable, adapter-backed) or 'explore'.
+  const [availTab, setAvailTab] = useState<'catalog' | 'explore'>('catalog');
+  const [exploreAgents, setExploreAgents] = useState<ExploreAgentRow[]>([]);
+  const [exploreError, setExploreError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const res = await api.getExploreAgents();
+      if (cancelled) return;
+      if (res.ok && res.data) setExploreAgents(res.data);
+      else setExploreError(res.error || 'Could not load the explore ranking');
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const customAgents = registry?.customAgents || [];
   const p = (platform as 'darwin' | 'win32' | 'linux') || 'darwin';
 
+  // Reload the catalog from anywhere (refs avoid stale-closure scope bugs —
+  // the original loader was trapped inside this effect while other handlers
+  // called `loadCatalog()` and hit "Cannot find name").
+  const loadCatalogRef = useRef<() => Promise<void>>(async () => {});
   // Load catalog once on mount, with timeout to prevent hanging
   useEffect(() => {
     let mounted = true;
@@ -405,11 +431,14 @@ export function AgentsView() {
         setCatalogError('Failed to load agent catalog — connection timeout');
       }
     };
+    loadCatalogRef.current = loadCatalog;
     void loadCatalog();
     return () => {
       mounted = false;
     };
   }, []); // Empty deps: load once on mount only
+  // Stable alias used by handlers below.
+  const loadCatalog = useCallback(() => loadCatalogRef.current(), []);
 
   const openFileEditor = async (
     agentId: string,
@@ -782,26 +811,28 @@ export function AgentsView() {
     []
   );
 
+  /** Open the shared install modal for an Explore row's catalog id. */
+  const openInstallCatalog = useCallback(
+    (catalogId: string) => {
+      const entry = catalog?.find((c) => c.id === catalogId);
+      if (entry) setJob({ agent: entry, action: 'install' });
+    },
+    [catalog]
+  );
+
   return (
     <div className="page-container">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="page-title">Agents</h1>
-          <p className="text-secondary text-sm mt-1">
-            Installed agent CLIs, agents available to install from the
-            maintained catalog, and custom agents with explicit config paths.
+      {/* Header: Premium typography and refined hierarchy — responsive layout */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8 gap-4 px-4 sm:px-6 md:px-8">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight mb-2 text-slate-900 dark:text-slate-50">
+            Agents
+          </h1>
+          <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 max-w-[65ch]">
+            Installed agent CLIs, available agents from the maintained catalog, and custom agents with explicit config paths.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <a
-            href="#/agent-rankings"
-            className="btn btn-ghost btn-sm"
-            title="View agent rankings by stars"
-          >
-            <ArrowUp size={14} />
-            Rankings
-          </a>
+        <div className="flex items-center gap-2 flex-wrap flex-shrink-0 w-full sm:w-auto justify-end">
           <Tooltip content="Refresh catalog + detection">
           <button
             className="btn-ghost btn-sm"
@@ -827,7 +858,7 @@ export function AgentsView() {
       </div>
 
       {/* ---------------- Installed Agents ---------------- */}
-      <div className="card mb-6">
+      <div className="card mb-6 mx-4 sm:mx-6 md:mx-8">
         <div className="card-header">
           <div className="flex items-center gap-2">
             <h3 className="card-title">Installed Agents</h3>
@@ -1010,18 +1041,50 @@ export function AgentsView() {
       </div>
 
       {/* ---------------- Available to Install ---------------- */}
-      <div className="card mb-6">
-        <div className="card-header">
-          <h3 className="card-title">Available to Install</h3>
-          <span className="badge badge-neutral">
-            {availableAgents.length} agent
-            {availableAgents.length === 1 ? '' : 's'}
-          </span>
+      <div className="card mb-6 mx-4 sm:mx-6 md:mx-8">
+        <div className="card-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div className="flex items-center gap-2" role="tablist" aria-label="Agent discovery">
+            <button
+              role="tab"
+              aria-selected={availTab === 'catalog'}
+              className={`btn btn-sm ${availTab === 'catalog' ? 'btn-accent' : 'btn-ghost'}`}
+              onClick={() => setAvailTab('catalog')}
+            >
+              <Download size={13} /> Installable
+              <span className="text-tertiary font-normal">({availableAgents.length})</span>
+            </button>
+            <button
+              role="tab"
+              aria-selected={availTab === 'explore'}
+              className={`btn btn-sm ${availTab === 'explore' ? 'btn-accent' : 'btn-ghost'}`}
+              onClick={() => setAvailTab('explore')}
+            >
+              <Compass size={13} /> Explore
+              <span className="text-tertiary font-normal">
+                ({exploreAgents.length})
+              </span>
+            </button>
+          </div>
+          {availTab === 'catalog' ? (
+            <span className="badge badge-neutral">
+              {availableAgents.length} agent
+              {availableAgents.length === 1 ? '' : 's'}
+            </span>
+          ) : (
+            <a
+              href="https://openrouter.ai/apps/category/coding"
+              target="_blank"
+              rel="noreferrer noopener"
+              className="text-xs text-tertiary hover:underline"
+            >
+              Ranked by openrouter.ai · coding agents ↗
+            </a>
+          )}
         </div>
 
-        {/* Filter and Sort Controls */}
+        {/* Filter and Sort Controls — responsive flex wrap */}
         {!catalogError && catalog && catalog.filter((a) => !a.installed).length > 0 && (
-          <div className="px-4 py-3 border-b border-border-primary bg-bg-secondary/40 flex flex-wrap items-center gap-2">
+          <div className="px-4 sm:px-6 py-3 border-b border-border-primary bg-bg-secondary/40 flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2">
             {/* Search */}
             <div className="flex items-center gap-1 px-2 py-1 bg-bg-tertiary rounded text-xs flex-1 min-w-[150px]">
               <Search size={12} className="text-tertiary" />
@@ -1109,7 +1172,25 @@ export function AgentsView() {
           </div>
         )}
 
-        {!catalog && !catalogError ? (
+        {availTab === 'explore' ? (
+          exploreError ? (
+            <div className="p-4">
+              <p className="text-error text-sm">{exploreError}</p>
+            </div>
+          ) : exploreAgents.length === 0 ? (
+            <div className="p-6 flex flex-col items-center justify-center gap-3">
+              <div className="spinner" style={{ width: 24, height: 24 }} />
+              <p className="text-secondary text-sm">Loading trending agents…</p>
+            </div>
+          ) : (
+            <ExploreList
+              agents={exploreAgents}
+              platform={p}
+              searchQuery={availableFilters.searchQuery}
+              onInstallCatalog={openInstallCatalog}
+            />
+          )
+        ) : !catalog && !catalogError ? (
           <div className="p-6 flex flex-col items-center justify-center gap-3">
             <div className="spinner" style={{ width: 24, height: 24 }} />
             <p className="text-secondary text-sm">Loading agent catalog…</p>
@@ -1144,11 +1225,11 @@ export function AgentsView() {
       </div>
 
       {/* ---------------- Custom agents ---------------- */}
-      <div className="card">
-        <div className="card-header">
+      <div className="card mx-4 sm:mx-6 md:mx-8">
+        <div className="card-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <h3 className="card-title">Custom Agents</h3>
           <button
-            className="btn-primary btn-sm"
+            className="btn-primary btn-sm w-full sm:w-auto flex items-center justify-center sm:justify-start gap-1"
             onClick={() => setShowAdd(true)}
           >
             <Plus size={14} />
@@ -1586,6 +1667,213 @@ function AgentJobModal({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Explore row — one OpenRouter-ranked coding agent                            */
+/* -------------------------------------------------------------------------- */
+
+export interface ExploreAgentRow {
+  rank: number;
+  name: string;
+  description: string;
+  website: string;
+  kind: 'cli' | 'web' | 'desktop';
+  catalogId?: string;
+  install?: string;
+  logo?: string;
+  hasAdapter?: boolean;
+  catalog: ExploreCatalogRef | null;
+}
+
+interface ExploreCatalogRef {
+  id: string;
+  name: string;
+  apiTypes: string[];
+  status: string;
+  install?: string;
+  installPlatforms?: string[];
+  note?: string;
+  github?: string;
+  stars?: number;
+}
+
+interface ExploreRowProps {
+  agent: ExploreAgentRow;
+  platform: string;
+  onInstallCatalog: (catalogId: string) => void;
+}
+
+const KIND_BADGE: Record<string, { label: string; className: string }> = {
+  cli: { label: 'CLI installable', className: 'badge-success' },
+  web: { label: 'Web app', className: 'badge-neutral' },
+  desktop: { label: 'Desktop app', className: 'badge-neutral' },
+};
+
+const ExploreRow = memo(function ExploreRow({
+  agent,
+  platform,
+  onInstallCatalog,
+}: ExploreRowProps) {
+  const [copied, setCopied] = useState(false);
+  const catalog = agent.catalog;
+  // Effective install command: catalog entry wins (allow-listed + tracked),
+  // otherwise the explore entry's own verified command (copy-only).
+  const installCmd =
+    catalog && catalog.install && (!catalog.installPlatforms || catalog.installPlatforms.includes(platform))
+      ? catalog.install
+      : (agent.install ?? catalog?.install);
+  const wiredInstall = Boolean(catalog && catalog.install && installCmd === catalog.install);
+
+  const handleCopy = useCallback(() => {
+    if (installCmd) {
+      navigator.clipboard.writeText(installCmd);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  }, [installCmd]);
+
+  const logoSrc = agent.logo
+    ? `/logos/${agent.logo}`
+    : catalog
+      ? logoUrl(catalog.id)
+      : undefined;
+
+  const hue = ((agent.rank * 47) % 360);
+  const kind = KIND_BADGE[agent.kind] ?? KIND_BADGE.web;
+
+  return (
+    <div className="flex flex-col md:flex-row md:items-center gap-3 px-5 py-4 hover:bg-bg-hover transition-colors duration-150 border-b border-slate-200/30 dark:border-slate-700/30 last:border-b-0">
+      {/* Rank + logo */}
+      <div className="flex items-center gap-3 min-w-0 md:min-w-[220px]">
+        <span
+          className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0"
+          style={{ background: `hsl(${hue} 60% 92%)`, color: `hsl(${hue} 55% 32%)` }}
+          title={`#${agent.rank} on OpenRouter`}
+        >
+          {agent.rank}
+        </span>
+        <div
+          className="flex-shrink-0 flex items-center justify-center overflow-hidden"
+          style={{
+            width: 48,
+            height: 48,
+            borderRadius: 13,
+            background: logoSrc ? 'color-mix(in srgb, var(--bg-secondary) 80%, transparent)' : `hsl(${hue} 60% 90%)`,
+            color: `hsl(${hue} 55% 32%)`,
+          }}
+        >
+          {logoSrc ? (
+            <img src={logoSrc} alt="" width={30} height={30} style={{ objectFit: 'contain' }} loading="lazy" />
+          ) : (
+            <span className="font-bold text-lg">{agent.name.slice(0, 1)}</span>
+          )}
+        </div>
+        <div className="flex flex-col gap-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-semibold text-[15px] text-slate-900 dark:text-slate-50">
+              {agent.name}
+            </span>
+            {catalog && <span className={`badge badge-xs ${STATUS_BADGE[catalog.status] || 'badge-neutral'}`}>{catalog.status}</span>}
+          </div>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className={`badge badge-xs ${kind.className}`}>{kind.label}</span>
+            {agent.hasAdapter && <span className="badge badge-xs badge-accent">Adapter ✓</span>}
+            {catalog && catalog.apiTypes.length > 0 && (
+              <ApiTypeBadges kinds={catalog.apiTypes as ProviderApiKind[]} compact />
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Description */}
+      <div className="flex-1 min-w-0">
+        <Tooltip content={agent.description}>
+          <span className="text-sm text-slate-600 dark:text-slate-400 line-clamp-1">
+            {agent.description}
+          </span>
+        </Tooltip>
+        {catalog?.note && (
+          <p className="text-xs text-tertiary mt-1 line-clamp-1">{catalog.note}</p>
+        )}
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center gap-2 flex-wrap md:flex-nowrap md:justify-end">
+        {installCmd && (
+          <div className="flex items-center gap-1 px-2.5 py-1.5 bg-bg-tertiary rounded-lg text-xs font-mono border border-border-primary min-w-0">
+            <span className="break-all leading-snug max-w-[260px]">{installCmd}</span>
+            <button
+              type="button"
+              onClick={handleCopy}
+              className="flex-shrink-0 p-0.5 ml-1 hover:text-text-primary transition-colors"
+              title="Copy command"
+            >
+              {copied ? <Check size={12} className="text-success" /> : <Copy size={12} />}
+            </button>
+          </div>
+        )}
+        {wiredInstall ? (
+          <button className="btn-primary btn-sm flex-shrink-0" onClick={() => onInstallCatalog(catalog!.id)}>
+            <Download size={14} />
+            Install
+          </button>
+        ) : (
+          <>
+            {agent.kind === 'cli' && installCmd && !wiredInstall && (
+              <span className="badge badge-xs badge-neutral flex-shrink-0">manual install</span>
+            )}
+            <a
+              className="btn-secondary btn-sm flex-shrink-0"
+              href={agent.website}
+              target="_blank"
+              rel="noreferrer noopener"
+            >
+              <ExternalLink size={14} />
+              Visit
+            </a>
+          </>
+        )}
+      </div>
+    </div>
+  );
+});
+
+/**
+ * ExploreList — the full OpenRouter coding-agents ranking. Agent rows that map
+ * to a catalogued agent get a working tracked Install; everything else shows
+ * its verified install command (copy) or a website link.
+ */
+function ExploreList({
+  agents,
+  platform,
+  searchQuery,
+  onInstallCatalog,
+}: {
+  agents: ExploreAgentRow[];
+  platform: string;
+  searchQuery: string;
+  onInstallCatalog: (catalogId: string) => void;
+}) {
+  const query = searchQuery.trim().toLowerCase();
+  const filtered = query
+    ? agents.filter(
+        (a) =>
+          a.name.toLowerCase().includes(query) ||
+          a.description.toLowerCase().includes(query)
+      )
+    : agents;
+  return (
+    <div className="flex flex-col border border-border-primary rounded-xl overflow-hidden">
+      {filtered.length === 0 ? (
+        <div className="p-6 text-center text-tertiary text-sm">No agents match your search.</div>
+      ) : (
+        filtered.map((a) => (
+          <ExploreRow key={a.rank} agent={a} platform={platform} onInstallCatalog={onInstallCatalog} />
+        ))
+      )}
     </div>
   );
 }

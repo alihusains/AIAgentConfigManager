@@ -4,7 +4,11 @@
  * The GUI is a pure API client: every mutation goes through the REST API
  * served by the `ai-config gui` CLI command. No filesystem or core code is
  * ever imported here — only shared *types* from @ai-agent-config/core.
+ *
+ * Zod schemas are defined locally to validate payloads before sending to the
+ * server, preventing malformed requests from reaching the backend.
  */
+import { z } from 'zod';
 import type {
   DetectedAgent,
   RegistryState,
@@ -29,6 +33,67 @@ import type {
 // ============================================================================
 // Transport
 // ============================================================================
+
+export const ModelProviderSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  type: z.enum(['builtin', 'custom', 'openai-compatible', 'anthropic', 'google', 'azure', 'bedrock', 'vertex']),
+  config: z.record(z.unknown()),
+  enabled: z.boolean(),
+  priority: z.number().int().min(0),
+});
+
+export const ModelConfigSchema = z.object({
+  id: z.string(),
+  providerId: z.string(),
+  name: z.string(),
+  displayName: z.string(),
+  roles: z.array(z.enum(['chat', 'edit', 'apply', 'summarize', 'autocomplete', 'embed', 'rerank'])),
+  contextLength: z.number().int().positive().optional(),
+  maxTokens: z.number().int().positive().optional(),
+  temperature: z.number().min(0).max(2).optional(),
+  topP: z.number().min(0).max(1).optional(),
+  capabilities: z
+    .array(z.enum(['tool_use', 'image_input', 'reasoning', 'vision', 'code_generation']))
+    .optional(),
+  customOptions: z.record(z.unknown()).optional(),
+});
+
+export const MCPServerConfigSchema = z.object({
+  name: z.string(),
+  type: z.enum(['stdio', 'http', 'sse', 'streamable-http']),
+  command: z.string().optional(),
+  args: z.array(z.string()).optional(),
+  env: z.record(z.string()).optional(),
+  url: z.string().url().optional(),
+  headers: z.record(z.string()).optional(),
+  cwd: z.string().optional(),
+  timeout: z.number().int().positive().optional(),
+  enabled: z.boolean(),
+  approvalMode: z.enum(['prompt', 'auto', 'never']).optional(),
+  tools: z.array(z.string()).optional(),
+});
+
+export const PermissionConfigSchema = z.object({
+  id: z.string(),
+  type: z.enum(['tool', 'directory', 'url', 'command', 'mcp', 'custom']),
+  scope: z.enum(['global', 'project']),
+  projectPath: z.string().optional(),
+  allowed: z.boolean(),
+  pattern: z.string(),
+  description: z.string().optional(),
+  metadata: z.record(z.unknown()).optional(),
+});
+
+export const AgentConfigSchema = z.object({
+  version: z.string(),
+  lastModified: z.number(),
+  modelProviders: z.array(ModelProviderSchema),
+  models: z.array(ModelConfigSchema),
+  mcpServers: z.array(MCPServerConfigSchema),
+  permissions: z.array(PermissionConfigSchema),
+  customSettings: z.record(z.unknown()),
+});
 
 export interface ApiEnvelope<T = unknown> {
   ok: boolean;
@@ -130,6 +195,46 @@ export const api = {
       checkedAt: string;
       tools: CliToolStatus[];
     }>('GET', '/api/tools'),
+  /**
+   * Execute a system CLI command (npm, pnpm, git, docker, etc.)
+   * Returns a job ID that can be polled via getAgentJob().
+   */
+  /** Trending coding agents (OpenRouter ranking) joined with catalog entries. */
+  getExploreAgents: () =>
+    request<{
+      rank: number;
+      name: string;
+      description: string;
+      website: string;
+      kind: 'cli' | 'web' | 'desktop';
+      catalogId?: string;
+      install?: string;
+      logo?: string;
+      hasAdapter?: boolean;
+      catalog: {
+        id: string;
+        name: string;
+        apiTypes: string[];
+        status: string;
+        install?: string;
+        installPlatforms?: string[];
+        note?: string;
+        github?: string;
+        stars?: number;
+      } | null;
+    }[]>('GET', '/api/agents/explore'),
+  /** Execute a canned CLI Manager command by id (the server owns the literal). */
+  executeCli: (id: string) =>
+    request<{ jobId: string; commandId: string; command: string }>(
+      'POST',
+      `/api/cli/${encodeURIComponent(id)}/execute`
+    ),
+  /** The canned command catalog (id, label, description, category, preview). */
+  getCliCommands: () =>
+    request<{ commands: { id: string; command: string; label: string; description: string; category: string }[] }>(
+      'GET',
+      '/api/cli/commands'
+    ),
   /**
    * Re-detect tools AND compare installed versions against the npm registry
    * for the package managers (npm/pnpm/yarn/bun). User-triggered only —
@@ -271,14 +376,17 @@ export const api = {
     agentIds: string[],
     apiCapabilities?: ProviderApiCapabilities,
     keychainStorage?: boolean
-  ) =>
-    request('POST', '/api/providers', {
-      provider,
-      models,
+  ) => {
+    const validatedProvider = ModelProviderSchema.parse(provider);
+    const validatedModels = models.map((m) => ModelConfigSchema.parse(m));
+    return request('POST', '/api/providers', {
+      provider: validatedProvider,
+      models: validatedModels,
       agentIds,
       apiCapabilities,
       ...(keychainStorage ? { keychainStorage: true } : {}),
-    }),
+    });
+  },
   updateProvider: (
     id: string,
     patch: {
@@ -286,7 +394,16 @@ export const api = {
       models?: ModelConfig[];
       apiCapabilities?: ProviderApiCapabilities;
     }
-  ) => request('PUT', `/api/providers/${encodeURIComponent(id)}`, patch),
+  ) => {
+    const result: { provider?: ModelProvider; models?: ModelConfig[] } = {};
+    if (patch.provider) {
+      result.provider = ModelProviderSchema.parse(patch.provider);
+    }
+    if (patch.models) {
+      result.models = patch.models.map((m) => ModelConfigSchema.parse(m));
+    }
+    return request('PUT', `/api/providers/${encodeURIComponent(id)}`, result);
+  },
   /** Probe a candidate endpoint without saving (add/edit forms). */
   verifyProvider: (payload: { baseUrl: string; apiKey?: string }) =>
     request<ProviderVerificationResult>('POST', '/api/providers/verify', payload),
@@ -315,10 +432,38 @@ export const api = {
       `/api/providers/${encodeURIComponent(id)}/agents/${encodeURIComponent(agentId)}`
     ),
   deleteProvider: (id: string) => request('DELETE', `/api/providers/${encodeURIComponent(id)}`),
+  /**
+   * Re-probe every provider flagged "Only free models" (config.trackFreeModels),
+   * diff the live /models list and push added/removed free models into every
+   * agent config. Called once per dashboard open.
+   */
+  syncFreeModels: () =>
+    request<{
+      checked: number;
+      changed: number;
+      results: Array<{
+        providerId: string;
+        models: string[];
+        added: string[];
+        removed: string[];
+        agentsWritten: string[];
+        endpointOk: boolean;
+        error?: string;
+      }>;
+    }>('POST', '/api/providers/sync-free-models', {}),
+  /** Set (or clear) the "Only free models" tracking flag for one provider. */
+  setProviderFreeModelTracking: (id: string, enabled: boolean) =>
+    request(
+      'POST',
+      `/api/providers/${encodeURIComponent(id)}/free-model-tracking`,
+      { enabled }
+    ),
 
   // --- MCP servers ---
-  addMCP: (server: MCPServerConfig, agentIds: string[]) =>
-    request('POST', '/api/mcp', { server, agentIds }),
+  addMCP: (server: MCPServerConfig, agentIds: string[]) => {
+    const validatedServer = MCPServerConfigSchema.parse(server);
+    return request('POST', '/api/mcp', { server: validatedServer, agentIds });
+  },
   updateMCP: (name: string, server: Partial<MCPServerConfig>) =>
     request('PUT', `/api/mcp/${encodeURIComponent(name)}`, { server }),
   addMCPAgents: (name: string, agentIds: string[]) =>

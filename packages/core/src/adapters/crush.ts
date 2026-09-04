@@ -26,7 +26,32 @@
  * models, etc.). The MCP key is `mcp`, so it cannot use the generic
  * `mcpServers`-keyed adapter.
  *
- * Source: https://github.com/charmbracelet/crush (internal/config/config.go)
+ * Model providers ARE file-configurable (JSON schema: https://charm.land/crush.json):
+ *
+ *   {
+ *     "$schema": "https://charm.land/crush.json",
+ *     "providers": {
+ *       "my-gateway": {
+ *         "id": "my-gateway",
+ *         "name": "My Gateway",
+ *         "type": "openai-compat",       // openai-compat | openai | anthropic |
+ *                                        // ollama | litellm | google-vertex …
+ *         "base_url": "https://gateway.example.com/v1",
+ *         "api_key": "$MY_GATEWAY_API_KEY",  // literal or $VAR / $(cmd) —
+ *                                            // expanded by crush at load time
+ *         "models": [
+ *           { "id": "my-model", "name": "My Model",
+ *             "context_window": 128000, "default_max_tokens": 8192 }
+ *         ]
+ *       }
+ *     }
+ *   }
+ *
+ * Note: crush.json is still read by current versions but the newer `crushrc`
+ * bash-like format is preferred upstream; this adapter only ever writes the
+ * JSON form (safe for both). A missing "$schema" key is added on write.
+ *
+ * Source: https://github.com/charmbracelet/crush
  */
 
 import type {
@@ -83,7 +108,7 @@ export class CrushAdapter implements AgentAdapter {
       linux: [CRUSH_CONFIG_PATHS.linux],
     },
     supports: {
-      modelProviders: false,
+      modelProviders: true,
       mcpServers: true,
       permissions: false,
       projectConfig: false,
@@ -125,11 +150,14 @@ export class CrushAdapter implements AgentAdapter {
     this.rawCache = null;
 
     let mcpServers: MCPServerConfig[] = [];
+    let modelProviders: ModelProvider[] = [];
+    let models: ModelConfig[] = [];
     if (content) {
       try {
         const raw = parseConfig(content, 'json') as Record<string, unknown> | null;
         this.rawCache = raw && typeof raw === 'object' ? raw : {};
         mcpServers = this.decodeMCPRaw(this.rawCache.mcp);
+        ({ modelProviders, models } = this.decodeProvidersRaw(this.rawCache));
       } catch {
         this.rawCache = {};
       }
@@ -138,8 +166,8 @@ export class CrushAdapter implements AgentAdapter {
     const config: AgentConfig = {
       version: '1.0.0',
       lastModified: Date.now(),
-      modelProviders: [],
-      models: [],
+      modelProviders,
+      models,
       mcpServers,
       permissions: [] as PermissionConfig[],
       customSettings: {},
@@ -158,6 +186,7 @@ export class CrushAdapter implements AgentAdapter {
       ? JSON.parse(JSON.stringify(this.rawCache))
       : {};
     raw.mcp = this.encodeMCP(config.mcpServers);
+    this.encodeProvidersRaw(raw, config.modelProviders, config.models);
     await backupFile(this.configPathFor()).catch(() => undefined);
     await writeFileSafe(this.configPathFor(), stringifyConfig(raw, 'json'));
     this.rawCache = raw;
@@ -166,6 +195,142 @@ export class CrushAdapter implements AgentAdapter {
 
   validateConfig(config: unknown): { valid: boolean; errors: string[] } {
     return validateAgentConfig(config);
+  }
+
+  /**
+   * Drift projection: crush.json providers express base_url/api_key/type.
+   * crushType bookkeeping is not drift.
+   */
+  expressibleProviderConfig = (config: Record<string, unknown>) => {
+    const out: Record<string, unknown> = {};
+    if (config.baseUrl !== undefined) out.baseUrl = config.baseUrl;
+    if (config.apiKey !== undefined) out.apiKey = config.apiKey;
+    if (config.wireApi !== undefined) out.wireApi = config.wireApi;
+    return out;
+  };
+
+  // ============================================================================
+  // Provider shape conversion (unified <-> `providers` keyed map)
+  // ============================================================================
+
+  private isRecordValue(v: unknown): v is Record<string, unknown> {
+    return Boolean(v) && typeof v === 'object' && !Array.isArray(v);
+  }
+
+  private decodeProvidersRaw(raw: Record<string, unknown>): {
+    modelProviders: ModelProvider[];
+    models: ModelConfig[];
+  } {
+    const providersRaw = this.isRecordValue(raw.providers) ? raw.providers : {};
+    const modelProviders: ModelProvider[] = [];
+    const models: ModelConfig[] = [];
+    for (const [key, entry] of Object.entries(providersRaw)) {
+      if (!this.isRecordValue(entry)) continue;
+      const type = typeof entry.type === 'string' ? entry.type : 'openai-compat';
+      const unifiedType = type === 'anthropic' ? 'anthropic' : 'openai-compatible';
+      modelProviders.push({
+        id: key,
+        name: typeof entry.name === 'string' ? entry.name : key,
+        type: unifiedType,
+        enabled: true,
+        priority: 0,
+        config: {
+          ...(typeof entry.base_url === 'string' ? { baseUrl: entry.base_url } : {}),
+          // Raw value: literal, $VAR or $(cmd) — crush expands it at load.
+          ...(typeof entry.api_key === 'string' ? { apiKey: entry.api_key } : {}),
+          ...(type !== 'openai-compat' && type !== 'openai' && type !== 'anthropic'
+            ? { crushType: type }
+            : {}),
+          ...(type === 'openai' ? { wireApi: 'responses' } : {}),
+        },
+      } as ModelProvider);
+      if (Array.isArray(entry.models)) {
+        for (const m of entry.models) {
+          if (!this.isRecordValue(m)) continue;
+          const id = typeof m.id === 'string' ? m.id : '';
+          if (!id) continue;
+          models.push({
+            id,
+            providerId: key,
+            name: typeof m.name === 'string' ? m.name : id,
+            displayName: typeof m.name === 'string' ? m.name : id,
+            roles: ['chat', 'edit', 'apply', 'summarize'],
+            capabilities: ['tool_use'],
+            contextLength: typeof m.context_window === 'number' ? m.context_window : undefined,
+            maxTokens: typeof m.default_max_tokens === 'number' ? m.default_max_tokens : undefined,
+          } as ModelConfig);
+        }
+      }
+    }
+    return { modelProviders, models };
+  }
+
+  private encodeProvidersRaw(
+    raw: Record<string, unknown>,
+    providers: ModelProvider[],
+    models: ModelConfig[]
+  ): void {
+    const priorProviders: Record<string, unknown> = this.isRecordValue(raw.providers)
+      ? (raw.providers as Record<string, unknown>)
+      : {};
+    const providersOut: Record<string, unknown> = {};
+    for (const p of providers) {
+      const prior: Record<string, unknown> = this.isRecordValue(priorProviders[p.id])
+        ? (priorProviders[p.id] as Record<string, unknown>)
+        : {};
+      const priorModels = Array.isArray(prior.models) ? prior.models : [];
+      const cfg = (p.config || {}) as Record<string, unknown>;
+      const type =
+        typeof cfg.crushType === 'string'
+          ? cfg.crushType
+          : p.type === 'anthropic'
+            ? 'anthropic'
+            : cfg.wireApi === 'responses'
+              ? 'openai'
+              : 'openai-compat';
+      const encodedModels: Record<string, unknown>[] = [];
+      const seen = new Set<string>();
+      for (const priorModel of priorModels) {
+        if (!this.isRecordValue(priorModel)) continue;
+        const id = typeof priorModel.id === 'string' ? priorModel.id : '';
+        const unified = models.find((m) => m.providerId === p.id && m.id === id);
+        if (unified) {
+          encodedModels.push({
+            ...priorModel,
+            id,
+            name: unified.displayName || unified.name || id,
+            ...(unified.contextLength ? { context_window: unified.contextLength } : {}),
+            ...(unified.maxTokens ? { default_max_tokens: unified.maxTokens } : {}),
+          });
+          seen.add(id);
+        }
+      }
+      for (const m of models) {
+        if (m.providerId !== p.id || seen.has(m.id)) continue;
+        encodedModels.push({
+          id: m.id,
+          name: m.displayName || m.name || m.id,
+          ...(m.contextLength ? { context_window: m.contextLength } : {}),
+          ...(m.maxTokens ? { default_max_tokens: m.maxTokens } : {}),
+        });
+      }
+      providersOut[p.id] = {
+        ...prior,
+        id: p.id,
+        name: p.name || p.id,
+        type,
+        ...(cfg.baseUrl ? { base_url: cfg.baseUrl } : {}),
+        ...(cfg.apiKey ? { api_key: cfg.apiKey } : {}),
+        ...(encodedModels.length > 0 ? { models: encodedModels } : {}),
+      };
+    }
+    if (Object.keys(providersOut).length > 0) {
+      raw.providers = providersOut;
+      // Newer crush validates against the published JSON schema.
+      if (typeof raw.$schema !== 'string') {
+        raw.$schema = 'https://charm.land/crush.json';
+      }
+    }
   }
 
   // ============================================================================

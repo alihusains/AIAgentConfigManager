@@ -1,0 +1,251 @@
+{
+  "agents": [
+    {
+      "id": "github-copilot-x",
+      "name": "GitHub Copilot X",
+      "icon": "Github",
+      "description": "GitHub Copilot X — chat, slash commands, and PR review in your editor.",
+      "apiTypes": ["anthropic", "chat"],
+      "status": "stable",
+      "source": "https://github.com/features/copilot",
+      "addedAt": "2026-09-03",
+      "settingsPaths": {
+        "darwin": ["~/.config/copilot-x/settings.json"],
+        "linux": ["~/.config/copilot-x/settings.json"],
+        "win32": ["%USERPROFILE%\\.copilot-x\\settings.json"]
+      },
+      "mcpPaths": {
+        "darwin": ["~/.config/copilot-x/mcp.json"],
+        "linux": ["~/.config/copilot-x/mcp.json"],
+        "win32": ["%USERPROFILE%\\.copilot-x\\mcp.json"]
+      },
+      "note": "GitHub account + Copilot subscription required. Detect-only: config read-only via VS Code settings sync."
+    },
+    {
+      "id": "tabnine",
+      "name": "Tabnine",
+      "icon": "Sparkles",
+      "description": "Tabnine — AI code completion and chat assistant with CLI support.",
+      "apiTypes": ["chat"],
+      "status": "stable",
+      "source": "https://www.tabnine.com",
+      "addedAt": "2026-09-03",
+      "binaries": ["tabnine"],
+      "settingsPaths": {
+        "darwin": ["~/.tabnine/config.json"],
+        "linux": ["~/.tabnine/config.json"],
+        "win32": ["%USERPROFILE%\\.tabnine\\config.json"]
+      },
+      "install": "npm install -g tabnine",
+      "uninstall": "npm uninstall -g tabnine",
+      "note": "Free tier available; paid tier unlocks advanced features. Auth via tabnine account."
+    },
+    {
+      "id": "anthropic-mcp-tools",
+      "name": "Anthropic MCP Tools",
+      "icon": "MessageCircle",
+      "description": "Anthropic's official Model Context Protocol tools and servers.",
+      "apiTypes": ["anthropic", "chat"],
+      "status": "beta",
+      "source": "https://github.com/anthropics/anthropic-sdk-python",
+      "addedAt": "2026-09-03",
+      "install": "pip install anthropic-mcp-tools",
+      "uninstall": "pip uninstall anthropic-mcp-tools",
+      "note": "Python tooling for MCP server development. Requires Python >= 3.8 and Anthropic API key."
+    },
+    {
+      "id": "sourcegraph-cody",
+      "name": "Sourcegraph Cody",
+      "icon": "Code",
+      "description": "Cody — Sourcegraph's code intelligence and AI agent.",
+      "apiTypes": ["chat", "anthropic"],
+      "status": "stable",
+      "source": "https://sourcegraph.com/cody",
+      "addedAt": "2026-09-03",
+      "binaries": ["cody"],
+      "settingsPaths": {
+        "darwin": ["~/.config/cody/config.json"],
+        "linux": ["~/.config/cody/config.json"],
+        "win32": ["%APPDATA%\\Cody\\config.json"]
+      },
+      "install": "npm install -g @sourcegraph/cody-cli",
+      "uninstall": "npm uninstall -g @sourcegraph/cody-cli",
+      "note": "Requires Sourcegraph instance (cloud or self-hosted). Auth via Sourcegraph token."
+    },
+    {
+      "id": "claude-ai-tools",
+      "name": "Claude AI Tools",
+      "icon": "MessageCircle",
+      "description": "Claude AI command-line tools for text processing and analysis.",
+      "apiTypes": ["anthropic", "chat"],
+      "status": "beta",
+      "source": "https://github.com/anthropics/claude-tools",
+      "addedAt": "2026-09-03",
+      "binaries": ["claude-tools"],
+      "settingsPaths": {
+        "darwin": ["~/.claude-tools/config.json"],
+        "linux": ["~/.claude-tools/config.json"],
+        "win32": ["%USERPROFILE%\\.claude-tools\\config.json"]
+      },
+      "install": "npm install -g @anthropic-ai/claude-tools",
+      "uninstall": "npm uninstall -g @anthropic-ai/claude-tools",
+      "note": "Official Anthropic toolkit for Claude interactions. Requires Anthropic API key via env var."
+    },
+    {
+      "id": "vscode-github-copilot",
+      "name": "VS Code GitHub Copilot Extension",
+      "icon": "Code",
+      "description": "GitHub Copilot extension for Visual Studio Code (detect-only).",
+      "apiTypes": ["anthropic", "chat"],
+      "status": "stable",
+      "source": "https://marketplace.visualstudio.com/items?itemName=GitHub.copilot",
+      "addedAt": "2026-09-03",
+      "settingsPaths": {
+        "darwin": ["~/.vscode/settings.json"],
+        "linux": ["~/.vscode/settings.json"],
+        "win32": ["%APPDATA%\\Code\\User\\settings.json"]
+      },
+      "note": "IDE extension (detect-only). Installed via VS Code marketplace. GitHub Copilot subscription required."
+    },
+    {
+      "id": "perplexity-sonar",
+      "name": "Perplexity Sonar",
+      "icon": "Bot",
+      "description": "Perplexity Sonar — web search AI agent with reasoning.",
+      "apiTypes": ["chat"],
+      "status": "stable",
+      "source": "https://www.perplexity.ai",
+      "addedAt": "2026-09-03",
+      "binaries": ["perplexity-sonar"],
+      "settingsPaths": {
+        "darwin": ["~/.perplexity/config.json"],
+        "linux": ["~/.perplexity/config.json"],
+        "win32": ["%USERPROFILE%\\.perplexity\\config.json"]
+      },
+      "install": "npm install -g perplexity-sonar-cli",
+      "uninstall": "npm uninstall -g perplexity-sonar-cli",
+      "note": "Requires Perplexity API key. Integrates web search into coding tasks."
+    },
+    {
+      "id": "llamaindex-agent",
+      "name": "LlamaIndex Agent",
+      "icon": "Zap",
+      "description": "LlamaIndex — framework for building RAG agents and LLM applications.",
+      "apiTypes": ["chat"],
+      "status": "stable",
+      "source": "https://docs.llamaindex.ai",
+      "addedAt": "2026-09-03",
+      "install": "pip install llamaindex",
+      "uninstall": "pip uninstall llamaindex",
+      "note": "Python framework. Supports multiple LLM providers via integrations. See docs for agent setup."
+    },
+    {
+      "id": "langsmith-cli",
+      "name": "LangSmith CLI",
+      "icon": "Terminal",
+      "description": "LangSmith — observability and evaluation platform for LLM applications.",
+      "apiTypes": ["chat"],
+      "status": "stable",
+      "source": "https://docs.smith.langchain.com",
+      "addedAt": "2026-09-03",
+      "binaries": ["langsmith"],
+      "settingsPaths": {
+        "darwin": ["~/.langsmith/config.json"],
+        "linux": ["~/.langsmith/config.json"],
+        "win32": ["%USERPROFILE%\\.langsmith\\config.json"]
+      },
+      "install": "pip install langsmith",
+      "uninstall": "pip uninstall langsmith",
+      "note": "Python-based CLI for tracing and evaluating LLM outputs. API key required."
+    },
+    {
+      "id": "huggingface-agent",
+      "name": "Hugging Face Agent",
+      "icon": "Zap",
+      "description": "Hugging Face Agents — open-source agent framework with transformers.",
+      "apiTypes": ["chat"],
+      "status": "beta",
+      "source": "https://huggingface.co/docs/transformers/agents",
+      "addedAt": "2026-09-03",
+      "install": "pip install transformers",
+      "uninstall": "pip uninstall transformers",
+      "note": "Python framework. Supports multiple local and remote LLMs via Hugging Face Hub."
+    },
+    {
+      "id": "replicate-cli",
+      "name": "Replicate CLI",
+      "icon": "Box",
+      "description": "Replicate — run open-source models in the cloud via CLI.",
+      "apiTypes": ["chat"],
+      "status": "stable",
+      "source": "https://replicate.com",
+      "addedAt": "2026-09-03",
+      "binaries": ["replicate"],
+      "settingsPaths": {
+        "darwin": ["~/.replicate/config.json"],
+        "linux": ["~/.replicate/config.json"],
+        "win32": ["%USERPROFILE%\\.replicate\\config.json"]
+      },
+      "install": "npm install -g replicate",
+      "uninstall": "npm uninstall -g replicate",
+      "note": "Cloud model hosting. Replicate API token required (set REPLICATE_API_TOKEN env var)."
+    },
+    {
+      "id": "openrouter-cli",
+      "name": "OpenRouter CLI",
+      "icon": "Sparkles",
+      "description": "OpenRouter — unified API for accessing multiple LLMs via CLI.",
+      "apiTypes": ["chat"],
+      "status": "beta",
+      "source": "https://openrouter.ai",
+      "addedAt": "2026-09-03",
+      "binaries": ["openrouter"],
+      "settingsPaths": {
+        "darwin": ["~/.openrouter/config.json"],
+        "linux": ["~/.openrouter/config.json"],
+        "win32": ["%USERPROFILE%\\.openrouter\\config.json"]
+      },
+      "install": "npm install -g openrouter-cli",
+      "uninstall": "npm uninstall -g openrouter-cli",
+      "note": "API router for 100+ models. OpenRouter API key required."
+    },
+    {
+      "id": "together-cli",
+      "name": "Together CLI",
+      "icon": "Zap",
+      "description": "Together — fast inference API for open-source models.",
+      "apiTypes": ["chat"],
+      "status": "stable",
+      "source": "https://www.together.ai",
+      "addedAt": "2026-09-03",
+      "binaries": ["together"],
+      "settingsPaths": {
+        "darwin": ["~/.together/config.json"],
+        "linux": ["~/.together/config.json"],
+        "win32": ["%USERPROFILE%\\.together\\config.json"]
+      },
+      "install": "npm install -g @together-ai/cli",
+      "uninstall": "npm uninstall -g @together-ai/cli",
+      "note": "Inference platform. Together API key required (TOGETHER_API_KEY)."
+    },
+    {
+      "id": "modal-cli",
+      "name": "Modal CLI",
+      "icon": "Package",
+      "description": "Modal — serverless Python compute for running AI agents.",
+      "apiTypes": ["chat"],
+      "status": "stable",
+      "source": "https://modal.com",
+      "addedAt": "2026-09-03",
+      "binaries": ["modal"],
+      "settingsPaths": {
+        "darwin": ["~/.modal/config.toml"],
+        "linux": ["~/.modal/config.toml"],
+        "win32": ["%USERPROFILE%\\.modal\\config.toml"]
+      },
+      "install": "pip install modal",
+      "uninstall": "pip uninstall modal",
+      "note": "Python-based serverless platform. Modal token required (modal token set)."
+    }
+  ]
+}

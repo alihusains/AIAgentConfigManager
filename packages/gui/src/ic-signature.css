@@ -1,0 +1,805 @@
+/**
+ * IC Signature Theme — final cascade layer.
+ *
+ * Re-themes the dashboard to match the IC brand guidelines design system
+ * (icsignature.vercel.app): dark evergreen frame with ambient green blooms,
+ * a floating white content panel, transparent dark sidebar column, Geist
+ * variable type, electric-green accents on light surfaces.
+ *
+ * Loaded AFTER index.css and index-ic-combined.css, so equal-specificity
+ * rules here win. Most components re-theme automatically via the token
+ * remap in :root; the rest of this file skins the app shell (frame, panel,
+ * sidebar, header) and the shared primitives.
+ */
+
+/* ---------- Font ---------- */
+@font-face {
+  font-family: "Geist";
+  src: url("/fonts/Geist.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+  font-style: normal;
+}
+
+/* ---------- Token remap ---------- */
+:root {
+  /* Brand */
+  --ic-green: #0fc800;
+  --green-ink: #00a30e;
+  --green-dark: #002604;
+  --lime: #c8fa64;
+  --ic-dark: #001a02;
+  --mist: #c6d6c6;
+
+  /* Surfaces (light) */
+  --bg-canvas: #f4f7f4;
+  --bg-primary: #ffffff;
+  --bg-secondary: #fbfdfb;
+  --bg-tertiary: #ffffff;
+  --bg-hover: #eef4ee;
+  --bg-active: #e2efe0;
+
+  /* Text */
+  --text-primary: #0c160c;
+  --text-secondary: #51614f;
+  --text-tertiary: #8a9a8a;
+  --text-inverse: #ffffff;
+
+  /* Borders */
+  --border-primary: rgba(0, 26, 2, 0.1);
+  --border-secondary: rgba(0, 26, 2, 0.07);
+  --border-focus: #0fc800;
+
+  /* Accents */
+  --accent-primary: #00a30e;
+  --accent-primary-hover: #00870c;
+  --accent-primary-text: #00a30e;
+  --accent-secondary: #c8fa64;
+  --accent-success: rgba(15, 200, 0, 0.12);
+  --accent-success-text: #00870c;
+  --accent-warning: rgba(233, 159, 20, 0.16);
+  --accent-warning-text: #8a5d00;
+  --accent-error: #d64532;
+  --accent-error-text: #b03424;
+  --accent-info: rgba(131, 74, 205, 0.14);
+  --accent-info-text: #6b34a8;
+
+  /* Elevation — IC tinted shadows */
+  --elevation-1: 0 1px 2px rgba(0, 25, 0, 0.04), 0 10px 30px rgba(0, 35, 0, 0.05);
+  --elevation-2: 0 2px 6px rgba(0, 25, 0, 0.06), 0 18px 44px rgba(0, 35, 0, 0.09);
+  --elevation-3: 0 2px 8px rgba(0, 25, 0, 0.08), 0 24px 60px rgba(0, 35, 0, 0.14);
+  --shadow-sm: var(--elevation-1);
+  --shadow-md: var(--elevation-2);
+  --shadow-lg: var(--elevation-3);
+  --shadow-elevated: var(--elevation-3);
+
+  /* Shape */
+  --radius-sm: 9px;
+  --radius-md: 12px;
+  --radius-lg: 14px;
+
+  /* Type */
+  --font-sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-display: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, monospace;
+
+  /* Sidebar column geometry — also positions the frame bloom */
+  --sidebar-w: 288px;
+
+  /* Sidebar (dark column) */
+  --sb-bg: #001a02;
+  --sb-text: #a3b6a3;
+  --sb-text-dim: #8a9a8a;
+  --sb-text-strong: #ffffff;
+  --sb-border: rgba(255, 255, 255, 0.11);
+  --sb-hover: rgba(255, 255, 255, 0.06);
+  --sb-active: rgba(255, 255, 255, 0.09);
+  --sb-green: #0fc800;
+
+  --ic-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ---------- Frame: dark evergreen with ambient green blooms ---------- */
+html,
+body {
+  background: var(--ic-dark);
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      calc(var(--sidebar-w) * 1.4) 62vh at calc(var(--sidebar-w) * 1.16) 27vh,
+      rgba(26, 142, 26, 0.46),
+      rgba(26, 142, 26, 0.2) 55%,
+      rgba(26, 142, 26, 0) 125%
+    ),
+    radial-gradient(86vw 30vw at 52% -2%, rgba(26, 150, 28, 0.56), rgba(14, 80, 16, 0.22) 44%, transparent 78%),
+    radial-gradient(26vw 42vw at 104% 30%, rgba(16, 104, 18, 0.22), transparent 66%),
+    var(--ic-dark);
+}
+
+/* App shell sits above the frame paint */
+.app-shell {
+  position: relative;
+  z-index: 1;
+  background: transparent !important;
+}
+
+::selection {
+  background: var(--ic-green);
+  color: #002000;
+}
+
+/* Thin IC scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 26, 2, 0.18) transparent;
+}
+.sidebar * {
+  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+}
+
+/* ---------- Floating white content panel ---------- */
+.main-panel {
+  background: var(--surface, #ffffff);
+  margin: 16px;
+  border-radius: 22px;
+  box-shadow:
+    0 0 34px rgba(0, 0, 0, 0.42),
+    0 22px 60px rgba(0, 0, 0, 0.34);
+  overflow: hidden;
+  min-height: calc(100vh - 32px);
+}
+
+/* ---------- Panel header ---------- */
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border-secondary);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+}
+
+.panel-header kbd {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  border: 1px solid var(--border-primary);
+  border-radius: 5px;
+  padding: 1px 6px;
+  color: var(--text-tertiary);
+}
+
+.panel-header .skip-link:focus {
+  outline: 2px solid var(--ic-green);
+}
+
+/* ---------- Sidebar (dark transparent column over the frame) ---------- */
+.sidebar {
+  width: var(--sidebar-w);
+  background: transparent;
+  border-right: none;
+  box-shadow: none;
+  display: flex;
+  flex-direction: column;
+  z-index: 100;
+  transition: transform 0.4s var(--ic-ease);
+}
+
+.sidebar-header {
+  padding: 26px 24px 20px;
+  border-bottom: none;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sidebar-brand-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+}
+
+.sidebar-title {
+  font-family: var(--font-sans);
+  font-size: 15.5px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--sb-text-strong);
+}
+
+.sidebar-subtitle {
+  font-size: 12px;
+  color: var(--sb-text-dim);
+}
+
+.sidebar-close {
+  margin-left: auto;
+  color: var(--sb-text);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  transition: background 0.18s var(--ic-ease), color 0.18s;
+}
+.sidebar-close:hover {
+  background: var(--sb-hover);
+  color: var(--sb-text-strong);
+}
+@media (min-width: 1025px) {
+  .sidebar-close {
+    display: none;
+  }
+}
+
+/* Search row (opens the command palette) */
+.sb-search {
+  margin: 4px 18px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border: 1px solid var(--sb-border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--sb-text);
+  font-size: 13.5px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  width: calc(100% - 36px);
+  text-align: left;
+}
+.sb-search:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.08);
+}
+.sb-search kbd {
+  margin-left: auto;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  border: 1px solid var(--sb-border);
+  border-radius: 5px;
+  padding: 1px 6px;
+  color: var(--sb-text);
+}
+
+.sidebar-nav {
+  padding: 4px 12px 28px;
+}
+
+/* Numbered group labels, IC style */
+.nav-section-title {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--sb-text);
+  padding: 18px 12px 8px;
+  background: transparent;
+  border: none;
+}
+.nav-section-title .num {
+  color: var(--sb-green);
+  font-weight: 600;
+  margin-right: 6px;
+  font-family: var(--font-mono);
+}
+
+/* Nav rows — IC pill rows with green active bar */
+.sidebar .chat-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 11px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  position: relative;
+  color: var(--sb-text);
+  transition: background 0.18s var(--ic-ease), box-shadow 0.18s var(--ic-ease);
+}
+.sidebar .chat-row:hover {
+  background: var(--sb-hover);
+}
+.sidebar .chat-row:hover .chat-row-icon,
+.sidebar .chat-row:hover .chat-row-label {
+  color: var(--sb-text-strong);
+}
+.sidebar .chat-row--active {
+  background: var(--sb-active);
+}
+.sidebar .chat-row--active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 22px;
+  border-radius: 0 3px 3px 0;
+  background: var(--sb-green);
+}
+.sidebar .chat-row--active .chat-row-icon,
+.sidebar .chat-row--active .chat-row-label {
+  color: var(--sb-text-strong);
+}
+.sidebar .chat-row--active .chat-row-icon {
+  color: var(--sb-green);
+}
+
+.sidebar .chat-row-avatar {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+}
+.sidebar .chat-row-icon {
+  color: var(--sb-text);
+  transition: color 0.18s;
+}
+.sidebar .chat-row-label {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--sb-text-strong);
+  line-height: 1.25;
+  transition: color 0.18s;
+}
+.sidebar .chat-row-preview {
+  color: var(--sb-text-dim) !important;
+  font-size: 12px;
+  line-height: 1.3;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sidebar .chat-row--active .chat-row-preview {
+  color: var(--sb-text) !important;
+}
+.sidebar .chat-row-badge {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  border: 1px solid var(--sb-border);
+  border-radius: 6px;
+  padding: 1px 7px;
+  color: var(--sb-text);
+  font-variant-numeric: tabular-nums;
+  background: transparent;
+  margin-left: auto;
+}
+
+/* Agent icon tiles inside the dark column */
+.sidebar .agent-icon-tile {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--sb-border);
+  color: var(--sb-text);
+}
+.sidebar .chat-row--active .agent-icon-tile {
+  border-color: rgba(15, 200, 0, 0.45);
+}
+
+/* Status dots on the dark column */
+.sidebar .status-dot--on {
+  background: var(--sb-green);
+  color: var(--sb-green);
+}
+.sidebar .status-dot--off {
+  background: rgba(255, 255, 255, 0.22);
+  color: rgba(255, 255, 255, 0.22);
+}
+
+/* Sidebar footer — registry path as IC contact link */
+.sidebar-footer {
+  padding: 16px 24px;
+  border-top: 1px solid var(--sb-border);
+  font-size: 12px;
+  color: var(--sb-text);
+  display: grid;
+  gap: 7px;
+}
+.sidebar-footer-label {
+  font-size: 10.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--sb-text);
+}
+.sidebar-footer-path {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--sb-green);
+  font-weight: 500;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(15, 200, 0, 0.34);
+  word-break: break-all;
+  line-height: 1.45;
+  cursor: default;
+}
+
+/* Sidebar scrim (drawer open) */
+.sidebar-scrim.visible {
+  background: rgba(0, 12, 2, 0.45);
+}
+
+/* ---------- Buttons ---------- */
+.btn {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  border-radius: 10px;
+  transition:
+    background-color 0.18s var(--ic-ease),
+    border-color 0.18s var(--ic-ease),
+    box-shadow 0.18s var(--ic-ease),
+    color 0.18s var(--ic-ease),
+    transform 0.18s var(--ic-ease);
+}
+.btn:focus-visible {
+  outline: 2px solid var(--ic-green);
+  outline-offset: 2px;
+}
+.btn:disabled {
+  opacity: 0.55;
+}
+
+/* Primary: vivid IC green — the signature action color. White text, soft
+   green glow, gentle lift on hover. */
+.btn-primary {
+  background: linear-gradient(180deg, #16d40b 0%, var(--ic-green) 100%);
+  border-color: #0fb507;
+  color: #ffffff;
+  box-shadow:
+    0 1px 2px rgba(9, 90, 6, 0.24),
+    0 3px 10px rgba(15, 200, 8, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+.btn-primary:hover:not(:disabled) {
+  background: linear-gradient(180deg, #1ae40e 0%, #12d409 100%);
+  border-color: #0da806;
+  box-shadow:
+    0 2px 4px rgba(9, 90, 6, 0.26),
+    0 8px 20px rgba(15, 200, 8, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  transform: translateY(-1px);
+}
+.btn-primary:active:not(:disabled) {
+  transform: scale(0.98);
+  box-shadow: 0 1px 4px rgba(9, 90, 6, 0.3);
+}
+
+/* Secondary: white surface, hairline border, green-tinted fill on hover */
+.btn-secondary {
+  background: #ffffff;
+  color: var(--text-primary);
+  border-color: rgba(0, 26, 2, 0.14);
+  box-shadow: 0 1px 2px rgba(0, 25, 0, 0.05);
+}
+.btn-secondary:hover:not(:disabled) {
+  background: #f2fbf0;
+  border-color: rgba(15, 200, 8, 0.35);
+  color: var(--green-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(15, 200, 8, 0.12);
+}
+.btn-secondary:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+/* Accent: IC green fill with dark text for selected/active filter chips */
+.btn-accent {
+  background: var(--ic-green);
+  border-color: #0fb507;
+  color: var(--green-dark);
+  box-shadow: 0 1px 3px rgba(15, 200, 8, 0.25);
+}
+.btn-accent:hover:not(:disabled) {
+  background: #16d40b;
+  border-color: #0da806;
+  transform: translateY(-1px);
+}
+
+/* Ghost: transparent, quiet text, soft green fill on hover */
+.btn-ghost {
+  color: var(--text-secondary);
+  border-radius: 10px;
+  border-color: transparent;
+}
+.btn-ghost:hover:not(:disabled) {
+  background: rgba(15, 200, 8, 0.08);
+  border-color: transparent;
+  color: var(--green-dark);
+}
+.btn-ghost:active:not(:disabled) {
+  background: rgba(15, 200, 8, 0.14);
+}
+
+/* Icon-only buttons stay square with the shared radius */
+.btn-icon {
+  border-radius: 10px;
+}
+
+/* Small buttons share the IC radius instead of the legacy pill */
+.btn-sm {
+  border-radius: 10px;
+}
+
+.btn-danger {
+  background: var(--accent-error);
+  border-color: var(--accent-error);
+  color: #fff;
+  box-shadow: 0 1px 3px rgba(180, 40, 30, 0.2);
+}
+.btn-danger:hover:not(:disabled) {
+  background: #bf3a29;
+  border-color: #bf3a29;
+  transform: translateY(-1px);
+}
+.btn-danger:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+/* ---------- Cards / stat tiles ---------- */
+.card,
+.bento-card,
+.stat-card {
+  background: #ffffff;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elevation-1);
+}
+.stat-card-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.stat-card-value {
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Forms ---------- */
+.input,
+.select,
+.code-editor-textarea {
+  font-family: var(--font-sans);
+  background: #ffffff;
+  border: 1px solid rgba(0, 26, 2, 0.12);
+  border-radius: 10px;
+  transition: border-color 0.18s var(--ic-ease), box-shadow 0.18s var(--ic-ease);
+}
+.input:focus,
+.select:focus {
+  border-color: var(--ic-green);
+  box-shadow: 0 0 0 3px rgba(15, 200, 0, 0.18);
+  outline: none;
+}
+.input-error,
+.input-error:focus {
+  border-color: var(--accent-error);
+  box-shadow: 0 0 0 3px rgba(214, 69, 50, 0.14);
+}
+.form-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.01em;
+}
+
+/* ---------- Tabs ---------- */
+.tab-btn {
+  border-radius: 10px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  transition: background 0.18s var(--ic-ease), color 0.18s var(--ic-ease);
+}
+.tab-btn:hover {
+  background: rgba(0, 26, 2, 0.05);
+  color: var(--text-primary);
+}
+.tab-btn-active,
+.tab-btn-active:hover {
+  background: var(--ic-dark);
+  color: #ffffff;
+}
+
+/* ---------- Tables ---------- */
+.table th {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  font-weight: 600;
+  background: var(--bg-canvas);
+}
+
+/* ---------- Badges & chips ---------- */
+.chip,
+.badge {
+  font-family: var(--font-sans);
+}
+.badge-primary {
+  background: rgba(15, 200, 0, 0.12);
+  color: #00870c;
+}
+.status-dot--on {
+  background: var(--ic-green);
+  color: var(--ic-green);
+}
+
+/* ---------- Modals & overlays ---------- */
+.modal {
+  border-radius: 16px;
+  border: 1px solid var(--border-primary);
+  box-shadow: 0 24px 70px rgba(0, 20, 2, 0.35);
+}
+.modal-overlay {
+  background: rgba(0, 12, 2, 0.45);
+}
+.modal-header {
+  border-bottom: 1px solid var(--border-secondary);
+}
+.modal-footer {
+  border-top: 1px solid var(--border-secondary);
+  background: var(--bg-secondary);
+}
+
+/* ---------- Toasts ---------- */
+.toast {
+  border-radius: 14px;
+  border: 1px solid var(--border-primary);
+  box-shadow: var(--elevation-3);
+  background: #ffffff;
+}
+
+/* ---------- Command palette ---------- */
+.palette-overlay {
+  background: rgba(0, 12, 2, 0.45);
+}
+.palette {
+  border-radius: 16px;
+  border: 1px solid var(--border-primary);
+  box-shadow: 0 24px 70px rgba(0, 20, 2, 0.4);
+}
+.palette-item-active {
+  background: var(--sb-active);
+  box-shadow: inset 2px 0 0 var(--ic-green);
+}
+.palette-kbd {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  border: 1px solid var(--border-primary);
+  border-radius: 5px;
+  padding: 1px 6px;
+  color: var(--text-tertiary);
+}
+
+/* ---------- Tooltips / popovers ---------- */
+.tooltip,
+.popover {
+  border-radius: 10px;
+  border: 1px solid var(--border-primary);
+  box-shadow: var(--elevation-2);
+  background: #ffffff;
+  color: var(--text-primary);
+}
+
+/* ---------- Skeletons & spinners ---------- */
+.skeleton {
+  background: linear-gradient(
+    100deg,
+    rgba(0, 26, 2, 0.05) 30%,
+    rgba(15, 200, 0, 0.1) 50%,
+    rgba(0, 26, 2, 0.05) 70%
+  );
+  background-size: 200% 100%;
+  border-radius: var(--radius-sm);
+}
+.spinner {
+  border-top-color: var(--ic-green);
+  border-right-color: var(--ic-green);
+}
+
+/* ---------- Misc primitives ---------- */
+.code-block,
+.settings-path,
+.registry-footer {
+  font-family: var(--font-mono);
+}
+.empty-state-icon {
+  color: var(--text-tertiary);
+}
+.checkbox-wrapper input[type="checkbox"],
+.checkbox input[type="checkbox"] {
+  accent-color: var(--ic-green);
+}
+.switch-on .switch-thumb,
+.switch-on {
+  background: var(--ic-green);
+  border-color: var(--ic-green);
+}
+a,
+.breadcrumbs-link {
+  transition: color 0.15s var(--ic-ease);
+}
+.text-accent {
+  color: var(--green-ink);
+}
+kbd {
+  font-family: var(--font-mono);
+}
+
+/* ---------- Focus visibility (global) ---------- */
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid var(--ic-green);
+  outline-offset: 2px;
+}
+
+/* ---------- Responsive: drawer at ≤1024px ---------- */
+@media (max-width: 1024px) {
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    transform: translateX(-100%);
+    background: var(--sb-bg);
+    box-shadow: 24px 0 60px rgba(0, 10, 2, 0.4);
+  }
+  .sidebar.open {
+    transform: translateX(0);
+  }
+  .sidebar-scrim.visible {
+    display: block;
+  }
+  .main-panel {
+    margin: 10px;
+    border-radius: 16px;
+    min-height: calc(100vh - 20px);
+  }
+  .panel-header {
+    padding: 12px 14px;
+  }
+}
+
+@media (max-width: 768px) {
+  .main-panel {
+    margin: 0;
+    border-radius: 0;
+    min-height: 100vh;
+  }
+}
+
+/* ---------- Reduced motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .btn,
+  .chat-row,
+  .tab-btn {
+    transition: none !important;
+  }
+}

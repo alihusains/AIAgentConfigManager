@@ -86,6 +86,9 @@ export function createWindsurfAdapter(): AgentAdapter {
       win32: [WINDSURF_MCP_PATHS.win32],
       linux: [WINDSURF_MCP_PATHS.linux],
     },
+    // Research 2026-09: Windsurf BYOK is UI-only for specific providers —
+    // no documented editable config file for a custom OpenAI-compatible base
+    // URL. modelProviders stays false.
     supports: {
       modelProviders: false,
       mcpServers: true,

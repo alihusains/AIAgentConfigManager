@@ -1,0 +1,202 @@
+[
+  {
+    "id": "github-copilot-x",
+    "name": "GitHub Copilot X",
+    "icon": "Github",
+    "description": "GitHub Copilot X — chat, slash commands, and PR review in your editor.",
+    "apiTypes": ["anthropic", "chat"],
+    "status": "stable",
+    "source": "https://github.com/features/copilot",
+    "addedAt": "2026-09-03",
+    "settingsPaths": {
+      "darwin": ["~/.config/copilot-x/settings.json"],
+      "linux": ["~/.config/copilot-x/settings.json"],
+      "win32": ["%USERPROFILE%\\.copilot-x\\settings.json"]
+    },
+    "mcpPaths": {
+      "darwin": ["~/.config/copilot-x/mcp.json"],
+      "linux": ["~/.config/copilot-x/mcp.json"],
+      "win32": ["%USERPROFILE%\\.copilot-x\\mcp.json"]
+    },
+    "note": "GitHub account + Copilot subscription required. MCP servers in mcp.json (mcpServers)."
+  },
+  {
+    "id": "jetbrains-ai",
+    "name": "JetBrains AI Assistant",
+    "icon": "Braces",
+    "description": "JetBrains AI Assistant — integrated coding agent in IDE with chat and inline completions.",
+    "apiTypes": ["chat", "anthropic"],
+    "status": "stable",
+    "source": "https://www.jetbrains.com/help/idea/ai-assistant.html",
+    "addedAt": "2026-09-03",
+    "settingsPaths": {
+      "darwin": ["~/.config/JetBrains"],
+      "linux": ["~/.config/JetBrains"],
+      "win32": ["%APPDATA%\\JetBrains"]
+    },
+    "note": "IDE-integrated agent (detect-only). Config managed through IDE settings. JetBrains license required."
+  },
+  {
+    "id": "basedash",
+    "name": "BaseDash",
+    "icon": "Database",
+    "description": "BaseDash — AI database query builder (SQL agent).",
+    "apiTypes": ["chat"],
+    "status": "beta",
+    "source": "https://basedash.com",
+    "addedAt": "2026-09-03",
+    "binaries": ["basedash"],
+    "settingsPaths": {
+      "darwin": ["~/.basedash/config.json"],
+      "linux": ["~/.basedash/config.json"],
+      "win32": ["%USERPROFILE%\\.basedash\\config.json"]
+    },
+    "install": "npm install -g basedash-cli",
+    "uninstall": "npm uninstall -g basedash-cli",
+    "note": "SQL generation and execution. API key required."
+  },
+  {
+    "id": "copilot-workspace",
+    "name": "GitHub Copilot Workspace",
+    "icon": "Github",
+    "description": "Copilot Workspace — multi-agent IDE for complex coding tasks (browser-based).",
+    "apiTypes": ["chat", "anthropic"],
+    "status": "stable",
+    "source": "https://github.com/features/copilot-workspace",
+    "addedAt": "2026-09-03",
+    "binaries": ["copilot-workspace"],
+    "note": "Browser-based SaaS; desktop client optional. GitHub Copilot subscription required."
+  },
+  {
+    "id": "tabnine",
+    "name": "Tabnine",
+    "icon": "Sparkles",
+    "description": "Tabnine — AI code completion and chat assistant.",
+    "apiTypes": ["chat"],
+    "status": "stable",
+    "source": "https://www.tabnine.com",
+    "addedAt": "2026-09-03",
+    "binaries": ["tabnine"],
+    "settingsPaths": {
+      "darwin": ["~/.tabnine/config.json"],
+      "linux": ["~/.tabnine/config.json"],
+      "win32": ["%USERPROFILE%\\.tabnine\\config.json"]
+    },
+    "install": "npm install -g tabnine",
+    "uninstall": "npm uninstall -g tabnine",
+    "note": "Free tier available; paid tier unlocks advanced features. IDE extension primary interface."
+  },
+  {
+    "id": "replit-ghostwriter",
+    "name": "Replit Ghostwriter",
+    "icon": "Sparkles",
+    "description": "Replit Ghostwriter — AI coding assistant in the Replit IDE.",
+    "apiTypes": ["chat"],
+    "status": "stable",
+    "source": "https://replit.com/ai",
+    "addedAt": "2026-09-03",
+    "note": "SaaS-only in Replit IDE; no standalone CLI. Requires Replit account."
+  },
+  {
+    "id": "databricks-sql-assistant",
+    "name": "Databricks SQL Assistant",
+    "icon": "Database",
+    "description": "Databricks SQL Assistant — AI query generation and optimization for SQL.",
+    "apiTypes": ["chat"],
+    "status": "stable",
+    "source": "https://docs.databricks.com/sql/admin/ai-sql-assistant.html",
+    "addedAt": "2026-09-03",
+    "note": "SaaS feature in Databricks platform. No standalone CLI; configure through account dashboard."
+  },
+  {
+    "id": "anthropic-interleave",
+    "name": "Anthropic Interleave (Internal)",
+    "icon": "MessageCircle",
+    "description": "Anthropic Interleave — internal multi-turn agent framework (research).",
+    "apiTypes": ["anthropic", "chat"],
+    "status": "beta",
+    "source": "https://docs.anthropic.com/claude/reference/interleave-api",
+    "addedAt": "2026-09-03",
+    "note": "Research/beta release. Requires Anthropic API key. Install via Claude API integrations."
+  },
+  {
+    "id": "v0",
+    "name": "v0 by Vercel",
+    "icon": "Sparkles",
+    "description": "v0 — AI web component and UI generator by Vercel.",
+    "apiTypes": ["chat"],
+    "status": "stable",
+    "source": "https://v0.dev",
+    "addedAt": "2026-09-03",
+    "note": "SaaS-only web UI generator. No CLI; browser-based interface at v0.dev."
+  },
+  {
+    "id": "cursor-compose",
+    "name": "Cursor Compose",
+    "icon": "Sparkles",
+    "description": "Cursor Compose — Cursor's multi-file editing agent.",
+    "apiTypes": ["chat", "anthropic"],
+    "status": "stable",
+    "source": "https://cursor.com/docs/compose",
+    "addedAt": "2026-09-03",
+    "note": "Embedded in Cursor editor. No standalone CLI; use Cursor CLI + Cursor editor for full access."
+  },
+  {
+    "id": "lambda-labs-hf",
+    "name": "Lambda Labs Hub (Hugging Face Integration)",
+    "icon": "Zap",
+    "description": "Lambda Labs Hub — Hugging Face-integrated GPU cloud IDE with agents.",
+    "apiTypes": ["chat"],
+    "status": "beta",
+    "source": "https://lambdalabs.com/service/gpu-cloud",
+    "addedAt": "2026-09-03",
+    "note": "Cloud-based IDE. SSH tunneling possible; primarily web interface at hub.lambdalabs.com."
+  },
+  {
+    "id": "lovable",
+    "name": "Lovable.dev",
+    "icon": "Heart",
+    "description": "Lovable — AI-first full-stack web app generator from Vercel team.",
+    "apiTypes": ["chat"],
+    "status": "stable",
+    "source": "https://lovable.dev",
+    "addedAt": "2026-09-03",
+    "note": "SaaS-only. Web UI for building apps with AI. No CLI."
+  },
+  {
+    "id": "cursor-agent-runtime",
+    "name": "Cursor Agent Runtime",
+    "icon": "Bot",
+    "description": "Cursor Agent Runtime — Cursor's headless agent execution layer (beta).",
+    "apiTypes": ["chat", "anthropic"],
+    "status": "beta",
+    "source": "https://cursor.com/docs/agent-runtime",
+    "addedAt": "2026-09-03",
+    "binaries": ["cursor-agent"],
+    "settingsPaths": {
+      "darwin": ["~/.cursor/agent-runtime-config.json"],
+      "linux": ["~/.cursor/agent-runtime-config.json"],
+      "win32": ["%USERPROFILE%\\.cursor\\agent-runtime-config.json"]
+    },
+    "note": "Beta feature. Requires Cursor subscription. Install via npm scoped to @cursor."
+  },
+  {
+    "id": "claude-mcp-server",
+    "name": "Claude MCP Server",
+    "icon": "MessageCircle",
+    "description": "Claude MCP Server — local Claude server with Model Context Protocol support.",
+    "apiTypes": ["anthropic", "chat"],
+    "status": "beta",
+    "source": "https://github.com/anthropics/claude-mcp-server",
+    "addedAt": "2026-09-03",
+    "binaries": ["claude-mcp-server"],
+    "settingsPaths": {
+      "darwin": ["~/.claude-mcp-server/config.json"],
+      "linux": ["~/.claude-mcp-server/config.json"],
+      "win32": ["%USERPROFILE%\\.claude-mcp-server\\config.json"]
+    },
+    "install": "npm install -g claude-mcp-server",
+    "uninstall": "npm uninstall -g claude-mcp-server",
+    "note": "MCP-native server; Anthropic API key required. Runs a local server for Claude interactions."
+  }
+]

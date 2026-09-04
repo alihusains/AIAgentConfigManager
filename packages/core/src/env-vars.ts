@@ -161,19 +161,20 @@ export function parseShellProfile(_file: string, content: string): Map<string, s
 
 /** Read every existing profile file under `homeDir` and parse it. */
 async function readProfileFiles(homeDir: string): Promise<ParsedProfile[]> {
-  const parsed: ParsedProfile[] = [];
-  for (const filename of PROFILE_FILENAMES) {
-    const file = path.join(homeDir, filename);
-    let content: string | null = null;
-    try {
-      content = await fs.readFile(file, 'utf-8');
-    } catch {
-      content = null; // does not exist or unreadable — skip
-    }
-    if (content === null) continue;
-    parsed.push({ file, vars: parseProfileLines(content) });
-  }
-  return parsed;
+  const results = await Promise.all(
+    PROFILE_FILENAMES.map(async (filename): Promise<ParsedProfile | null> => {
+      const file = path.join(homeDir, filename);
+      let content: string | null = null;
+      try {
+        content = await fs.readFile(file, 'utf-8');
+      } catch {
+        content = null;
+      }
+      if (content === null) return null;
+      return { file, vars: parseProfileLines(content) };
+    })
+  );
+  return results.filter((p): p is ParsedProfile => p !== null);
 }
 
 /**

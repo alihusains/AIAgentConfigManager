@@ -25,6 +25,7 @@ export type View =
   | 'agent-rankings'
   | 'skills'
   | 'tools'
+  | 'cli'
   | 'env-vars'
   | 'permissions'
   | 'settings';
@@ -203,7 +204,10 @@ export const useStore = create<GUIState>()(
       toggleProviderAgent: async (id, agentId) => {
         const registry = get().registry;
         const entry = registry?.providers.find((p) => p.provider.id === id);
-        if (!entry) return false;
+        if (!entry) {
+          notify('error', 'Provider Not Found', `Provider "${id}" not found in registry`);
+          return false;
+        }
         const installing = !entry.agentIds.includes(agentId);
         return run(
           () =>
@@ -238,7 +242,10 @@ export const useStore = create<GUIState>()(
         ),
       toggleMCPAgent: async (name, agentId) => {
         const entry = get().registry?.mcpServers.find((m) => m.server.name === name);
-        if (!entry) return false;
+        if (!entry) {
+          notify('error', 'MCP Server Not Found', `MCP server "${name}" not found in registry`);
+          return false;
+        }
         const installing = !entry.agentIds.includes(agentId);
         return run(
           () =>

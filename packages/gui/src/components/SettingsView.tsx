@@ -185,7 +185,9 @@ export function SettingsView() {
             <Badge variant="primary">{providers.length} providers</Badge>
             <Badge variant="primary">{mcpServers.length} MCP servers</Badge>
             <Badge variant="neutral">{customAgents.length} custom agents</Badge>
-            <Badge variant="neutral">{agents.length} detected agents</Badge>
+            <Badge variant="neutral">
+              {agents.filter((a) => a.detection.installed).length} detected agents
+            </Badge>
           </div>
         </div>
 
@@ -236,7 +238,10 @@ export function SettingsView() {
           <InfoRow label="Platform" value={platform || 'unknown'} />
           <InfoRow label="Server" value={window.location.origin} />
           <InfoRow label="Interfaces" value="CLI + localhost API + this GUI" />
-          <InfoRow label="Detected agents" value={agents.length} />
+          <InfoRow
+            label="Detected agents"
+            value={agents.filter((a) => a.detection.installed).length}
+          />
           <InfoRow label="Built with" value="React + Vite, served by ai-config CLI" divider />
         </div>
       </Card>

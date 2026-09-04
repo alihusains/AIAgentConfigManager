@@ -201,6 +201,8 @@ export function EnvVarsView() {
   const [query, setQuery] = useState('');
   const [busy, setBusy] = useState<BusyKey | null>(null);
 
+  // True while the edit modal is fetching the real value to prefill.
+  const [valueLoading, setValueLoading] = useState(false);
   // Revealed (unredacted) values, per variable name — only fetched on the
   // explicit eye-icon action, never on list load.
   const [revealed, setRevealed] = useState<Record<string, string>>({});
@@ -286,10 +288,22 @@ export function EnvVarsView() {
     setEditing(entry);
     setAdopting(false);
     setName(entry.name);
-    // Never prefill the redacted value — the edit form starts the value
-    // blank on purpose: saving would otherwise write the mask back.
+    // Prefill with the REAL value: the masked value in the list is never
+    // usable, so fetch the unredacted one via the deliberate reveal path
+    // and populate the field once it lands. Stays editable/blank on failure.
     setValue('');
+    setValueLoading(true);
     setModalOpen(true);
+    void (async () => {
+      try {
+        const res = await api.revealEnvVar(entry.name);
+        if (res.ok && res.data?.value != null) {
+          setValue(res.data.value);
+        }
+      } finally {
+        setValueLoading(false);
+      }
+    })();
   }, []);
 
   // "Adopt into profile": a process-only var gets a new export line in the
@@ -561,15 +575,18 @@ export function EnvVarsView() {
           htmlFor="env-var-value"
           help={
             editing
-              ? 'The masked value is not prefilled on purpose — type the value you want to save.'
+              ? valueLoading
+                ? 'Fetching the current value…'
+                : 'Current value prefilled — edit it and save to update your shell profile.'
               : 'Stored in your shell profile file (or HKCU on Windows), never anywhere else.'
           }
         >
           <input
             id="env-var-value"
             className="input font-mono"
-            placeholder="e.g. sk-…"
+            placeholder={valueLoading ? 'Loading current value…' : 'e.g. sk-…'}
             value={value}
+            disabled={valueLoading}
             onChange={(e) => setValue(e.target.value)}
           />
         </Field>

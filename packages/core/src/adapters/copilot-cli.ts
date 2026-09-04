@@ -53,6 +53,9 @@ export function createCopilotCliAdapter(): AgentAdapter {
       win32: [COPILOT_CLI_PATHS.win32],
       linux: [COPILOT_CLI_PATHS.linux],
     },
+    // Research 2026-09: ~/.copilot/config.json is auto-managed internal
+    // state and settings.json has no provider/endpoint keys — models are
+    // GitHub-managed. modelProviders stays false.
     supports: {
       modelProviders: false,
       mcpServers: true,

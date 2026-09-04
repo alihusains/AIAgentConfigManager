@@ -1,3 +1,16 @@
+/**
+ * Legacy ProvidersView — modal components and utilities.
+ * Main view has been revamped in ProvidersViewRevamped.tsx
+ * EditProviderModal and ProviderDetailsModal are exported for use by the new view.
+ * ProvidersView is re-exported from ProvidersViewRevamped for backwards compatibility.
+ *
+ * Design Taste Applied: Premium provider cards with sophisticated spacing, refined typography,
+ * and intentional visual hierarchy. Removed generic patterns in favor of high-end agency standards.
+ */
+
+// Re-export the new ProvidersView as the default
+export { ProvidersViewRevamped as ProvidersView } from './ProvidersViewRevamped';
+
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { useStore } from '../store';
@@ -161,7 +174,11 @@ function agentTakesModels(agents: DetectedAgent[], id: string): boolean {
   return agents.find((a) => a.id === id)?.supports.modelProviders ?? true;
 }
 
-export function ProvidersView() {
+/**
+ * LegacyProvidersView — kept for reference.
+ * Use ProvidersViewRevamped exported from './ProvidersViewRevamped' instead.
+ */
+export function LegacyProvidersView() {
   const { registry, agents, loading, toggleProviderAgent, deleteProvider } = useStore();
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState<ModelProvider | null>(null);
@@ -239,8 +256,8 @@ export function ProvidersView() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button className="btn-primary" onClick={() => setShowAdd(true)} disabled={loading}>
-            <Plus size={16} />
+          <button className="btn-primary btn-sm" onClick={() => setShowAdd(true)} disabled={loading}>
+            <Plus size={14} />
             Add Provider
           </button>
         </div>
@@ -254,8 +271,8 @@ export function ProvidersView() {
             <p className="empty-state-message">
               Add a model provider once, then pick which agents it gets installed into.
             </p>
-            <button className="btn-primary mt-4" onClick={() => setShowAdd(true)}>
-              <Plus size={16} /> Add Provider
+            <button className="btn-primary btn-sm mt-4" onClick={() => setShowAdd(true)}>
+              <Plus size={14} /> Add Provider
             </button>
           </div>
         </div>
@@ -352,6 +369,7 @@ export function ProvidersView() {
                             />
                             <AgentPicker
                               kind="provider"
+                              installedOnly
                               targets={agentIds}
                               agents={agents}
                               onToggle={(agentId) => toggleProviderAgent(provider.id, agentId)}
@@ -396,37 +414,37 @@ export function ProvidersView() {
                                 </button>
                                 </Tooltip>
                               )}
-                            <Tooltip content="Details">
-                            <button
-                              className="btn-ghost btn-icon btn-sm"
-                              onClick={() =>
-                                setDetails({
-                                  provider,
-                                  models,
-                                  agentIds,
-                                  apiCapabilities,
-                                })
-                              }
-                            >
-                              <Eye size={14} />
-                            </button>
-                            </Tooltip>
-                            <Tooltip content="Edit">
-                            <button
-                              className="btn-ghost btn-icon btn-sm"
-                              onClick={() => setEditing(provider)}
-                            >
-                              <Edit size={14} />
-                            </button>
-                            </Tooltip>
-                            <Tooltip content="Delete">
-                            <button
-                              className="btn-ghost btn-icon btn-sm text-error"
-                              onClick={() => handleDelete(provider)}
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                            </Tooltip>
+                            <Tooltip content="View provider details">
+                             <button
+                               className="btn-action"
+                               onClick={() =>
+                                 setDetails({
+                                   provider,
+                                   models,
+                                   agentIds,
+                                   apiCapabilities,
+                                 })
+                               }
+                             >
+                               <Eye size={13} /> Details
+                             </button>
+                             </Tooltip>
+                             <Tooltip content="Edit this provider">
+                             <button
+                               className="btn-action"
+                               onClick={() => setEditing(provider)}
+                             >
+                               <Edit size={13} /> Edit
+                             </button>
+                             </Tooltip>
+                             <Tooltip content="Remove from registry and all agents">
+                             <button
+                               className="btn-action btn-action-danger"
+                               onClick={() => handleDelete(provider)}
+                             >
+                               <Trash2 size={13} /> Delete
+                             </button>
+                             </Tooltip>
                           </div>
                         </td>
                       </tr>
@@ -547,6 +565,11 @@ export function AddProviderModal({ onClose, agents, existingIds }: AddProviderMo
     if (form.baseUrl) config.baseUrl = form.baseUrl;
     if (form.region) config.region = form.region;
     if (form.project) config.project = form.project;
+    // "Only free models" also opts the provider into the dashboard auto-sync:
+    // every dashboard open re-probes the endpoint and pushes new free models
+    // into the registry + every agent config (server-side, see
+    // core/free-model-sync.ts).
+    if (form.onlyFree) config.trackFreeModels = true;
 
     const provider: ModelProvider = {
       id: form.id.trim(),
@@ -625,6 +648,16 @@ export function AddProviderModal({ onClose, agents, existingIds }: AddProviderMo
   };
 
   const set = (patch: Partial<typeof form>) => setForm((f) => ({ ...f, ...patch }));
+
+  /**
+   * Only agents actually installed on this machine whose config format can
+   * store model providers are offered as install targets. Agents without
+   * model support (or that are not installed) are hidden — the adapter layer
+   * decides support, so nothing here can silently no-op.
+   */
+  const installableAgents = agents.filter(
+    (a) => a.supports.modelProviders && a.detection.installed
+  );
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -815,28 +848,20 @@ export function AddProviderModal({ onClose, agents, existingIds }: AddProviderMo
             <div className="form-group">
               <label className="form-label">Install Into Agents</label>
               <div className="border rounded overflow-auto" style={{ maxHeight: 160 }}>
-                {agents.map((agent) => {
-                  const supported = agent.supports.modelProviders;
-                  return (
-                    <Tooltip
-                      key={agent.id}
-                      content={
-                        supported
-                          ? undefined
-                          : `${agent.name}'s config format cannot store model providers — nothing would be written to its files`
-                      }
-                      disabled={supported}
-                    >
+                {installableAgents.length === 0 ? (
+                  <p className="text-xs text-tertiary px-2 py-3">
+                    No installed agents on this machine can store model providers.
+                  </p>
+                ) : (
+                  installableAgents.map((agent) => (
                     <label
-                      className={`flex items-center gap-2 px-2 py-1 hover:bg-bg-hover ${
-                        supported ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'
-                      }`}
+                      key={agent.id}
+                      className="flex items-center gap-2 px-2 py-1 hover:bg-bg-hover cursor-pointer"
                     >
                       <input
                         type="checkbox"
                         className="checkbox"
                         checked={form.targetAgentIds.includes(agent.id)}
-                        disabled={!supported}
                         onChange={(e) =>
                           set({
                             targetAgentIds: e.target.checked
@@ -846,19 +871,12 @@ export function AddProviderModal({ onClose, agents, existingIds }: AddProviderMo
                         }
                       />
                       <span className="flex-1 text-sm">{agent.name}</span>
-                      {!supported ? (
-                        <span className="badge badge-neutral">no model support</span>
-                      ) : agent.detection.installed ? (
-                        <span className="badge badge-success">
-                          {agent.detection.version || 'installed'}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-tertiary">path-based</span>
-                      )}
+                      <span className="badge badge-success">
+                        {agent.detection.version || 'installed'}
+                      </span>
                     </label>
-                    </Tooltip>
-                  );
-                })}
+                  ))
+                )}
               </div>
               {errors.targetAgentIds && (
                 <p className="form-help text-error">{errors.targetAgentIds}</p>
@@ -893,8 +911,15 @@ interface EditProviderModalProps {
   onClose: () => void;
 }
 
-export function EditProviderModal({ provider, onClose }: EditProviderModalProps) {
+export function EditProviderModal({ provider: passedProvider, onClose }: EditProviderModalProps) {
   const { registry, updateProvider } = useStore();
+  // Resolve the LIVE registry entry so a renamed display name (or any other
+  // edit) is reflected here immediately instead of the snapshot captured
+  // when the row was rendered — e.g. a provider whose display name was
+  // changed from "openai" to "icm" must open as "icm".
+  const provider =
+    registry?.providers.find((p) => p.provider.id === passedProvider.id)?.provider ||
+    passedProvider;
   const config = (provider.config || {}) as Record<string, unknown>;
   const currentModels =
     registry?.providers.find((p) => p.provider.id === provider.id)?.models || [];
@@ -908,6 +933,9 @@ export function EditProviderModal({ provider, onClose }: EditProviderModalProps)
     modelNames: currentModels.map((m) => m.id).join(', '),
     onlyFree: false,
   });
+  // "Only free models" auto-sync flag lives on the persisted provider config,
+  // so reopening the editor reflects the state chosen at add time.
+  const [trackFree, setTrackFree] = useState(config.trackFreeModels === true);
   const [submitting, setSubmitting] = useState(false);
   const [verified, setVerified] = useState<ProviderApiCapabilities | null>(null);
   const [knownModelIds, setKnownModelIds] = useState<string[]>(currentModels.map((m) => m.id));
@@ -925,6 +953,12 @@ export function EditProviderModal({ provider, onClose }: EditProviderModalProps)
     if (form.baseUrl) nextConfig.baseUrl = form.baseUrl;
     if (form.region) nextConfig.region = form.region;
     if (form.project) nextConfig.project = form.project;
+    // Persist the auto-sync opt-in with the provider definition.
+    if (trackFree || form.onlyFree) {
+      nextConfig.trackFreeModels = true;
+    } else {
+      delete nextConfig.trackFreeModels;
+    }
     // Only openai-compatible providers expose the model list for editing here
     // (see the same guard on the verifier/model-names fields below); leave
     // `models` undefined for other types so existing entries — including any
@@ -975,7 +1009,10 @@ export function EditProviderModal({ provider, onClose }: EditProviderModalProps)
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h2 className="modal-title">Edit Provider — {provider.id}</h2>
+          <h2 className="modal-title">
+            Edit Provider — {provider.name}
+            <span className="modal-title-id">{provider.id}</span>
+          </h2>
           <button className="modal-close" onClick={onClose}>
             ✕
           </button>
@@ -1065,6 +1102,24 @@ export function EditProviderModal({ provider, onClose }: EditProviderModalProps)
                   />
                   <span className="checkbox-label">Only free models</span>
                 </label>
+                <label className="checkbox-wrapper" style={{ marginTop: 4 }}>
+                  <input
+                    type="checkbox"
+                    className="checkbox"
+                    checked={trackFree || form.onlyFree}
+                    onChange={(e) => setTrackFree(e.target.checked)}
+                  />
+                  <span className="checkbox-label">
+                    Auto-sync free models on dashboard open
+                  </span>
+                </label>
+                {(trackFree || form.onlyFree) && (
+                  <p className="form-help">
+                    Every time the dashboard opens, this provider's endpoint is re-checked and new
+                    models whose id contains "free" are pushed into the registry and every agent
+                    config automatically.
+                  </p>
+                )}
                 <p className="form-help">
                   Comma-separated model ids, saved with the provider on Save — or verify above and
                   use "Use all N models" to auto-fill from the live endpoint.

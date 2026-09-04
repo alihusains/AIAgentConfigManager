@@ -51,6 +51,8 @@ export function createFreebuffAdapter(): AgentAdapter {
     },
     format: 'json',
     mcpShape: 'keyed',
+    // Research 2026-09: manicode/freebuff stores auth only under
+    // ~/.config/manicode/ — no file-based custom provider support. Keep false.
     supports: {
       modelProviders: false,
       mcpServers: true,

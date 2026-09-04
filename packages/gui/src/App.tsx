@@ -7,12 +7,11 @@ import { ProviderDetailView } from './components/ProviderDetailView';
 import { MCPView } from './components/MCPView';
 import { AgentsView } from './components/AgentsView';
 import { AgentDetailView } from './components/AgentDetailView';
-import { AgentRankings } from './components/AgentRankings';
 import { ToolsView } from './components/ToolsView';
+import { CLIView } from './components/CLIView';
 import { SkillsView } from './components/SkillsView';
 import { EnvVarsView } from './components/EnvVarsView';
 import { SettingsView } from './components/SettingsView';
-import { PermissionsView } from './components/PermissionsView';
 import { RamMeter } from './components/RamMeter';
 import { ToastContainer } from './components/Toast';
 import { Breadcrumbs } from './components/Breadcrumbs';
@@ -30,11 +29,10 @@ const VALID_VIEWS: View[] = [
   'mcp',
   'agents',
   'agent-detail',
-  'agent-rankings',
   'skills',
   'tools',
+  'cli',
   'env-vars',
-  'permissions',
   'settings',
 ];
 
@@ -177,16 +175,14 @@ function App() {
         return <AgentsView />;
       case 'agent-detail':
         return <AgentDetailView agentId={selectedAgentId} />;
-      case 'agent-rankings':
-        return <AgentRankings agents={agents} />;
       case 'skills':
         return <SkillsView />;
       case 'env-vars':
         return <EnvVarsView />;
       case 'tools':
         return <ToolsView />;
-      case 'permissions':
-        return <PermissionsView />;
+      case 'cli':
+        return <CLIView />;
       case 'settings':
         return <SettingsView />;
       default:
@@ -195,7 +191,7 @@ function App() {
   };
 
   return (
-    <div className="flex h-full bg-bg-canvas">
+    <div className="flex h-full app-shell">
       {/* Skip-to-content link (audit H1): first focusable element, bypasses the
           sidebar + header to reach the main content. */}
       <a href="#main" className="skip-link">
@@ -213,7 +209,7 @@ function App() {
       </button>
 
       {/* Mobile sidebar scrim (audit B2): click-dismissable overlay behind
-          the open sidebar; hidden above 768px via CSS. */}
+          the open sidebar; hidden above 1024px via CSS. */}
       {sidebarOpen && (
         <button
           type="button"
@@ -226,10 +222,10 @@ function App() {
 
       <Sidebar />
 
-      {/* Main Content */}
-      <main id="main" className="flex-1 flex flex-col min-w-0">
+      {/* Floating content panel over the dark IC frame */}
+      <main id="main" className="main-panel flex-1 flex flex-col min-w-0">
         {/* Top Bar */}
-        <header className="flex items-center justify-between px-4 py-3 border-b sticky top-0 z-10 bg-bg-canvas/95 backdrop-blur-sm">
+        <header className="panel-header sticky top-0 z-10">
           <div className="flex items-center gap-3 min-w-0">
             <button
               className="btn-ghost btn-icon flex-shrink-0"
@@ -239,17 +235,17 @@ function App() {
               {sidebarOpen ? <X size={18} /> : <Menu size={18} />}
             </button>
             <button
-              className="btn-ghost btn-icon flex-shrink-0 hover:bg-bg-hover"
+              className="btn-ghost btn-icon flex-shrink-0"
               onClick={() => setActiveView('overview')}
               aria-label="Home"
               title="Go to Overview"
             >
               <img
                 src="/logo-full-40.png"
-                alt="Home"
-                width={40}
-                height={40}
-                style={{ maxWidth: '40px', maxHeight: '40px' }}
+                alt="AI Config Manager home"
+                width={34}
+                height={34}
+                style={{ maxWidth: '34px', maxHeight: '34px' }}
               />
             </button>
             <Breadcrumbs />
@@ -270,7 +266,7 @@ function App() {
             >
               <Search size={14} />
               <span className="hidden sm:inline">Search</span>
-              <kbd className="font-mono text-xs opacity-60 ml-1">{IS_MAC ? '⌘K' : 'Ctrl-K'}</kbd>
+              <kbd className="ml-1">{IS_MAC ? '⌘K' : 'Ctrl-K'}</kbd>
             </button>
             <RamMeter />
             <button
@@ -280,7 +276,7 @@ function App() {
               disabled={loading}
             >
               <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-              Refresh
+              <span className="hidden sm:inline">Refresh</span>
             </button>
           </div>
         </header>
@@ -288,11 +284,11 @@ function App() {
         {/* Error banner (audit E3): full width, dismissible; a dismissal
             is forgotten as soon as a new error replaces it. */}
         {error && error !== dismissedError && (
-          <div className="border-t" style={{ background: 'var(--bg-tertiary)' }}>
+          <div className="border-b" style={{ background: 'var(--bg-canvas)' }}>
             <div className="px-4 py-3 flex items-start gap-3 flex-wrap">
               <AlertCircle size={18} className="text-error flex-shrink-0 mt-0.5" />
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold">Something failed</p>
+                <p className="text-sm font-semibold">Connection failed</p>
                 <p className="text-xs text-secondary mt-1">{error}</p>
               </div>
               <button

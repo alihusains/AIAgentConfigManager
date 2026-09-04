@@ -400,6 +400,17 @@ export async function migrateFromAgentConfigs(
 
   for (const input of inputs) {
     for (const provider of input.config.modelProviders) {
+      // Alternate-wire siblings (e.g. "<id>-anthropic" derived by adapters'
+      // deriveAlternateProviders) live in agent files but are DERIVED from
+      // their base registry entry — they must never be re-imported as
+      // independent registry providers, otherwise deleting a provider is
+      // undone on the next restart (the sibling materialized into agent
+      // files gets re-absorbed as a fresh entry). Skip them here; the base
+      // entry's materialization recreates the sibling on demand.
+      if (provider.id.endsWith('-anthropic')) {
+        const baseId = provider.id.slice(0, -'-anthropic'.length);
+        if (registry.providers.some((p) => p.provider.id === baseId)) continue;
+      }
       const entry = registry.providers.find((p) => p.provider.id === provider.id);
       if (entry) {
         // Same provider across agents: record coverage, keep first definition.

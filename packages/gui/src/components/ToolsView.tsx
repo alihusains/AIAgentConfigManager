@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api';
 import type { AgentJob, CliToolStatus, ToolUpdateStatus } from '@ai-agent-config/core';
 import { useStore } from '../store';
@@ -215,6 +215,11 @@ export function ToolsView() {
   const [updateChecking, setUpdateChecking] = useState(false);
   const [updatingName, setUpdatingName] = useState<string | null>(null);
   const [updateJobId, setUpdateJobId] = useState<string | null>(null);
+  // "Update All" queue: pending tool names, updated one at a time — the
+  // next update starts only after the previous job settles (installers
+  // can't run concurrently; e.g. npm self-update while pnpm updates).
+  // A ref, not state: the queue is never rendered, only drained.
+  const updateQueueRef = useRef<string[]>([]);
 
   const addToast = useStore((s) => s.addToast);
 
@@ -271,8 +276,8 @@ export function ToolsView() {
     }
   }, [addToast]);
 
-  /** Explicit user action: run the update for one tool as a tracked job. */
-  const runUpdate = useCallback(
+  /** Launch the tracked update job for one tool (shared by row + Update All). */
+  const startUpdate = useCallback(
     async (name: string) => {
       setUpdatingName(name);
       const res = await api.runToolUpdate(name);
@@ -283,12 +288,40 @@ export function ToolsView() {
           title: `${name} update failed`,
           message: res.error || 'Could not start the update',
         });
+        // Move on to the rest of the queue instead of stalling it.
+        const [next, ...rest] = updateQueueRef.current;
+        updateQueueRef.current = rest;
+        if (next) setTimeout(() => void startUpdate(next), 400);
         return;
       }
       setUpdateJobId(res.data.jobId);
     },
     [addToast]
   );
+
+  /** Explicit user action: run the update for one tool as a tracked job. */
+  const runUpdate = useCallback(
+    async (name: string) => {
+      await startUpdate(name);
+    },
+    [startUpdate]
+  );
+
+  /**
+   * Update All: every npm-managed tool flagged updateAvailable, updated
+   * strictly one-by-one. The first job starts immediately; the poll-finish
+   * handler pulls the next name off the queue.
+   */
+  const updateAll = useCallback(() => {
+    if (!updates) return;
+    const pending = Object.values(updates)
+      .filter((u) => u.updateAvailable)
+      .map((u) => u.name);
+    if (pending.length === 0) return;
+    const [first, ...rest] = pending;
+    updateQueueRef.current = rest;
+    void startUpdate(first);
+  }, [updates, startUpdate]);
 
   // Bounded job polling: only active while an update job is in flight,
   // torn down on completion or unmount (no leaky subscriptions).
@@ -308,6 +341,13 @@ export function ToolsView() {
       setUpdatingName(null);
       setUpdateJobId(null);
       if (ok) void checkUpdates(); // refresh versions + update status
+      // Dequeue: kick off the next tool's update after this one settled.
+      const [next, ...rest] = updateQueueRef.current;
+      updateQueueRef.current = rest;
+      if (next) {
+        // Small delay so the toast for the finished tool lands first.
+        setTimeout(() => void startUpdate(next), 400);
+      }
     };
     const tick = async () => {
       const res = await api.getAgentJob(updateJobId);
@@ -387,6 +427,21 @@ export function ToolsView() {
             >
               Check for updates
             </Button>
+            {updateCount !== null && updateCount > 0 && (
+              <Button
+                variant="primary"
+                icon={<ArrowUpCircle size={14} />}
+                loading={updatingName !== null}
+                onClick={updateAll}
+                title={
+                  updatingName !== null
+                    ? `Updating ${updatingName}…`
+                    : `Update all ${updateCount} outdated tool${updateCount > 1 ? 's' : ''}, one at a time`
+                }
+              >
+                {updatingName !== null ? `Updating ${updatingName}…` : `Update All (${updateCount})`}
+              </Button>
+            )}
           </div>
         }
       />

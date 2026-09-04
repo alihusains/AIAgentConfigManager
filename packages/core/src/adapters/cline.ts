@@ -50,6 +50,11 @@ export function createClineAdapter(): AgentAdapter {
       win32: [CLINE_CLI_PATHS.win32],
       linux: [CLINE_CLI_PATHS.linux],
     },
+    // Research 2026-09: Cline DOES support custom OpenAI-compatible providers
+    // via ~/.cline/data/settings/providers.json (official docs), but the
+    // exact JSON schema of that file is unpublished — writing a guessed shape
+    // would corrupt user config, so modelProviders stays false until the
+    // schema is verified.
     supports: {
       modelProviders: false,
       mcpServers: true,

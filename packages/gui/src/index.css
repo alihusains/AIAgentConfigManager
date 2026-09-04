@@ -1,4 +1,9 @@
-/* AI Agent Config Manager — Agentic Control Plane design tokens (v2).
+/* Tailwind directives — must come first before custom CSS */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* AI Config Manager — Agentic Control Plane design tokens (v2).
 
    RESPONSIVE SCALE (audit B3) — three canonical breakpoints; do not add
    ad-hoc widths:
@@ -11,7 +16,7 @@
    Canonical spec: docs/epics/agentic-control-plane-redesign-v2.md */
 
 :root {
-  /* ── WhatsApp Theme (single-theme, light only) ──────────────────────── */
+  /* ── WhatsApp Theme — Light Mode (default) ────────────────────────── */
   color-scheme: light;
 
   /* Surfaces: canvas (page) → primary (panels) → secondary (cards/sidebar) → tertiary (raised) */
@@ -111,6 +116,68 @@
   /* Glass / atmosphere */
   --surface-glass: rgba(255, 255, 255, 0.85);
   --glass-blur: 20px;
+}
+
+/* ── Dark Mode Overrides — prefers-color-scheme media query ─────────── */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+
+    /* Surfaces: dark backgrounds with subtle hierarchy */
+    --bg-canvas: #1a1a1a;
+    --bg-primary: #242424;
+    --bg-secondary: #2d2d2d;
+    --bg-tertiary: #323232;
+    --bg-hover: #353535;
+    --bg-active: #3f3f3f;
+
+    /* Text — light on dark with WCAG AA contrast (4.5:1+) */
+    --text-primary: #f5f5f5;
+    --text-secondary: #b0b0b0;
+    --text-tertiary: #808080;
+    --text-inverse: #1a1a1a;
+
+    /* Borders — maintain visibility on dark */
+    --border-primary: #404040;
+    --border-secondary: #353535;
+    --border-focus: #00d99f;
+
+    /* Accents — brighter variants for dark mode readability */
+    --accent-primary: #00d99f;
+    --accent-primary-hover: #00a884;
+    --accent-primary-text: #a8f5dd;
+    --accent-secondary: #5ed4f5;
+
+    /* Status / semantic — adjusted for dark mode contrast (WCAG AA) */
+    --accent-success: #86efac;
+    --accent-success-text: #22c55e;
+    --accent-warning: #facc15;
+    --accent-warning-text: #fbbf24;
+    --accent-error: #f87171;
+    --accent-error-text: #fb7185;
+    --accent-info: #60a5fa;
+    --accent-info-text: #93c5fd;
+
+    /* Categorical — dark-adjusted tints for readability */
+    --anthropic-accent: #d4a574;
+    --cat-olive: #a3c957;
+    --provider-anthropic: #e6c378;
+    --provider-openai: #8fa3dd;
+    --provider-bedrock: #e6a86d;
+    --provider-vertex: #8098c8;
+
+    /* Shadows / elevation — darker but with appropriate depth */
+    --elevation-1: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+    --elevation-2: 0 4px 12px -2px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.3);
+    --elevation-3: 0 16px 32px -8px rgb(0 0 0 / 0.5), 0 6px 12px -6px rgb(0 0 0 / 0.4);
+    --shadow-sm: var(--elevation-1);
+    --shadow-md: var(--elevation-2);
+    --shadow-lg: var(--elevation-3);
+    --shadow-elevated: var(--elevation-3);
+
+    /* Glass / atmosphere — dark mode variant */
+    --surface-glass: rgba(36, 36, 36, 0.85);
+  }
 }
 
 * {
@@ -599,6 +666,12 @@ textarea {
 .z-50 {
   z-index: 50;
 }
+/* Above the IC-theme sidebar (z-index: 100) so a card whose popover is open
+   paints over the sidebar when the card sits at the left edge of the panel.
+   Below modals (1000) / toasts (1001). */
+.z-\[110\] {
+  z-index: 110;
+}
 .bg-bg-canvas {
   background-color: var(--bg-canvas);
 }
@@ -641,6 +714,7 @@ textarea {
   right: 0;
   z-index: 60;
   min-width: 240px;
+  max-width: min(320px, calc(100vw - 16px));
   max-height: 280px;
   overflow-y: auto;
   background: var(--bg-primary);
@@ -648,6 +722,18 @@ textarea {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
   padding: 8px;
+}
+
+/* Viewport-fit modifiers: AgentPicker measures the button on open and flips
+   the anchor when the default bottom-right placement would overflow the
+   window (left edge, right edge, or bottom of the card grid). */
+.popover-align-start {
+  left: 0;
+  right: auto;
+}
+.popover-drop-up {
+  top: auto;
+  bottom: calc(100% + 4px);
 }
 
 /* Agent chip (provider/mcp → agent) — 11px text uses the AA-safe variant */
@@ -779,6 +865,59 @@ textarea {
   border-radius: var(--radius-md);
 }
 
+/* Row action buttons — Details / Edit / Delete with labels.
+   Soft pill surface, icon+label; the destructive variant is filled red
+   with white text so the irreversible action is unmistakable. */
+.btn-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  border-radius: 9px;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: all 140ms ease;
+  white-space: nowrap;
+}
+.btn-action:hover {
+  color: var(--text-primary);
+  border-color: var(--border-focus, var(--accent-primary));
+  background: var(--bg-hover);
+  transform: translateY(-1px);
+}
+.btn-action-danger {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #ffffff;
+}
+.btn-action-danger:hover {
+  background: #b91c1c;
+  border-color: #b91c1c;
+  color: #ffffff;
+  box-shadow: 0 3px 10px rgba(220, 38, 38, 0.35);
+}
+@media (prefers-color-scheme: dark) {
+  .btn-action {
+    background: var(--bg-tertiary);
+  }
+  .btn-action:hover {
+    background: color-mix(in srgb, var(--accent-primary) 12%, var(--bg-tertiary));
+  }
+  .btn-action-danger {
+    background: #ef4444;
+    border-color: #ef4444;
+  }
+  .btn-action-danger:hover {
+    background: #dc2626;
+    border-color: #dc2626;
+  }
+}
+
 /* Buttons — Refined WhatsApp theme with improved visual hierarchy, feedback, and polish */
 .btn {
   display: inline-flex;
@@ -789,7 +928,7 @@ textarea {
   font-size: var(--text-size-sm);
   font-weight: 600;
   letter-spacing: -0.01em;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-full);
   border: 1px solid transparent;
   cursor: pointer;
   transition: background-color var(--transition-fast), border-color var(--transition-fast),
@@ -856,25 +995,23 @@ textarea {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
-/* Ghost button: transparent background, teal text, left-border accent on hover */
+/* Ghost button: transparent, quiet text, soft neutral fill on hover */
 .btn-ghost {
   background: transparent;
-  color: var(--accent-primary);
-  border-left: 3px solid transparent;
-  padding-left: 17px;
-  transition: background-color var(--transition-fast), border-left-color var(--transition-fast),
+  color: var(--text-secondary);
+  border: 1px solid transparent;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast),
     color var(--transition-fast), transform var(--transition-fast);
 }
 
 .btn-ghost:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent-primary) 6%, transparent);
-  border-left-color: var(--accent-primary);
-  color: var(--accent-primary);
-  transform: translateX(2px);
+  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+  border-color: color-mix(in srgb, var(--text-primary) 8%, transparent);
+  color: var(--text-primary);
 }
 
 .btn-ghost:active:not(:disabled) {
-  background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
+  background: color-mix(in srgb, var(--text-primary) 10%, transparent);
   transform: scale(0.98);
 }
 
@@ -900,18 +1037,23 @@ textarea {
 
 /* Small button: compact padding, smaller font */
 .btn-sm {
-  padding: 8px 16px;
+  padding: 6px 14px;
   font-size: var(--text-size-xs);
   font-weight: 600;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-full);
   letter-spacing: -0.005em;
 }
 
-/* Icon button: small padding for icon-only buttons */
+/* Icon button: compact square for icon-only actions */
 .btn-icon {
-  padding: 10px;
+  padding: 8px;
   border-radius: var(--radius-md);
   font-size: 0;
+  line-height: 0;
+}
+
+.btn-icon svg {
+  display: block;
 }
 
 .btn-icon svg {
@@ -992,8 +1134,8 @@ select.input {
   border-radius: var(--radius-md);
   padding: 16px;
   transition: box-shadow var(--transition-normal), border-color var(--transition-normal),
-    background-color var(--transition-normal), border-left var(--transition-normal),
-    padding-left var(--transition-normal);
+    background-color var(--transition-normal), border-left var(--transition-normal), padding-left
+    var(--transition-normal);
   position: relative;
 }
 
@@ -1834,8 +1976,8 @@ select.input {
 .chat-row-card:hover {
   background: var(--bg-primary);
   border-color: var(--accent-primary);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-primary) 14%, transparent),
-              inset 2px 0 0 var(--accent-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-primary) 14%, transparent), inset 2px 0 0
+    var(--accent-primary);
   transform: translateY(-1px);
 }
 
@@ -2098,6 +2240,23 @@ select.input {
   font-size: 16px;
   font-weight: 600;
   color: var(--text-primary);
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* Secondary id chip inside a modal title (e.g. "Edit Provider — icm  openai") */
+.modal-title-id {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  background: var(--bg-hover);
+  border: 1px solid var(--border-secondary);
+  border-radius: 999px;
+  padding: 1px 8px;
+  white-space: nowrap;
 }
 
 .modal-close {
@@ -2884,19 +3043,44 @@ h3 {
    Provider API-kind badges (verification results)
    ============================================================================ */
 
+/* API-kind chips — pastel per protocol (user spec):
+   chat = pastel green, responses = pastel purple, anthropic = pastel orange. */
 .badge-chat {
-  background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
-  color: var(--accent-primary);
+  background: #d3f5d8;
+  color: #1c6b2d;
+  border-color: #b5ecc0;
 }
 
 .badge-responses {
-  background: color-mix(in srgb, var(--accent-info) 12%, transparent);
-  color: var(--accent-info);
+  background: #e8dff7;
+  color: #5b3a9e;
+  border-color: #d8c9f2;
 }
 
 .badge-anthropic {
-  background: color-mix(in srgb, var(--anthropic-accent) 14%, transparent);
-  color: var(--anthropic-accent);
+  background: #fde3cd;
+  color: #9a4d12;
+  border-color: #f9d0ad;
+}
+
+@media (prefers-color-scheme: dark) {
+.badge-chat {
+  background: rgba(46, 160, 67, 0.18);
+  color: #7ee2a0;
+  border-color: rgba(126, 226, 160, 0.3);
+}
+
+.badge-responses {
+  background: rgba(139, 109, 216, 0.2);
+  color: #c9b5f5;
+  border-color: rgba(201, 181, 245, 0.3);
+}
+
+.badge-anthropic {
+  background: rgba(224, 122, 44, 0.18);
+  color: #f5b98a;
+  border-color: rgba(245, 185, 138, 0.3);
+}
 }
 
 /* Provider-type brand tints (ProvidersView). Each .ptype-<id> class sets a
@@ -3124,7 +3308,8 @@ textarea {
   overflow: hidden;
   flex-shrink: 0;
   user-select: none;
-  transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color
+    var(--transition-fast);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
@@ -3239,7 +3424,7 @@ textarea {
 
 .protocol-row {
   display: grid;
-  grid-template-columns: 110px 1fr 44px;
+  grid-template-columns: 110px 1fr 64px;
   align-items: center;
   gap: 12px;
 }
@@ -3276,9 +3461,17 @@ textarea {
 .protocol-row-count {
   font-size: 12.5px;
   font-weight: 600;
-  color: var(--text-secondary);
+  color: var(--text-primary);
   text-align: right;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Percent sits beside the count as muted context, not a competing signal. */
+.protocol-row-pct {
+  margin-left: 6px;
+  font-weight: 500;
+  color: var(--text-tertiary);
 }
 
 .protocol-bar {
@@ -3313,38 +3506,8 @@ textarea {
   );
 }
 
-/* Combined distribution — one segmented bar of the same three real counts. */
-.protocol-segments {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  height: 6px;
-  border-radius: 3px;
-  background: var(--bg-tertiary);
-  overflow: hidden;
-  margin-top: 2px;
-}
-
-.protocol-segment {
-  height: 100%;
-  transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.protocol-segment.is-chat {
-  background: linear-gradient(90deg, var(--accent-primary), var(--accent-primary-text));
-}
-
-.protocol-segment.is-responses {
-  background: linear-gradient(90deg, var(--accent-info), var(--accent-info-text));
-}
-
-.protocol-segment.is-anthropic {
-  background: linear-gradient(
-    90deg,
-    var(--anthropic-accent),
-    color-mix(in srgb, var(--anthropic-accent) 70%, var(--text-primary))
-  );
-}
+/* (Combined segmented distribution bar removed — it duplicated the three
+   per-protocol bars above it; one encoding per datum.) */
 
 /* ============================================================================
    Windowed lists (AgentsView / SkillsView) — shared virtualization chrome
@@ -3445,13 +3608,9 @@ header button {
   color: var(--text-primary);
 }
 
-/* --- Bento stat grid (Dashboard overview) -----------------------------------
-   Four differentiated stat cards. Each card sets its own --bento-tint (a
-   per-metric semantic accent token) which drives its subtle gradient, icon
-   tint, and hover border — so no two cards share identical styling. This is
-   an intentional overview panel, not a uniform row of identical tinted cards:
-   the tints are semantic per metric, and only cards with a real secondary
-   dimension (ring) differentiate further. */
+/* --- Bento stat tiles (shared KPI chrome, Skills/Tools views) ----------------
+   The dashboard's own stat row uses `.stat-card` (neutral, below). These
+   `.bento-card` tiles remain for the static KPI rows in other views. */
 .bento-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -3473,8 +3632,9 @@ header button {
   color: inherit;
   appearance: none;
   cursor: pointer;
-  transition: border-color var(--transition-fast), border-left var(--transition-fast),
-    box-shadow var(--transition-normal), transform var(--transition-fast), padding-left var(--transition-normal);
+  transition: border-color var(--transition-fast), border-left var(--transition-fast), box-shadow
+    var(--transition-normal), transform var(--transition-fast), padding-left
+    var(--transition-normal);
 }
 
 .bento-card:hover {
@@ -3540,89 +3700,254 @@ header button {
   text-overflow: ellipsis;
 }
 
-/* Ring — real ratio only (installed/known agents). Track + fill are color-
-   mixed from the semantic token so both themes inherit correct values. */
-.bento-ring {
-  flex-shrink: 0;
-  display: block;
-}
-
-.bento-ring-track {
-  stroke: var(--bg-tertiary);
-}
-
-.bento-ring-track-success {
-  stroke: var(--bg-tertiary);
-}
-
-.bento-ring-fill {
-  stroke: var(--accent-primary);
-  transition: stroke-dashoffset 0.7s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.bento-ring-fill-success {
-  stroke: var(--accent-success);
-  transition: stroke-dashoffset 0.7s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
 @media (max-width: 900px) {
   .bento-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-.dashboard-panels {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+/* --- Dashboard header (quiet title + primary actions) ----------------------- */
+.dashboard-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
   gap: 16px;
-  align-items: start;
+  flex-wrap: wrap;
 }
 
-@media (max-width: 900px) {
-  .dashboard-panels {
-    grid-template-columns: minmax(0, 1fr);
+.dashboard-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* --- Dashboard stat grid (Mobile-First Responsive) ---------------------
+   Neutral KPI cards: every card looks the same so the numbers, not the
+   chrome, carry the signal. Saturated color is reserved for the one card
+   with a real ratio (the linear bar), per the restraint rule.
+   
+   Mobile-first breakpoints:
+   - Mobile (<640px): 1 column, full-width cards
+   - Tablet (640px-768px): 2 columns
+   - Desktop (768px+): 4 columns */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 12px;
+}
+
+/* Tablet (640px+): 2 columns */
+@media (min-width: 640px) {
+  .stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
   }
 }
 
-/* Detected-agents strip: wrapping chips, each a clickable agent shortcut. */
-.detected-strip {
+/* Desktop (768px+): 4 columns */
+@media (min-width: 768px) {
+  .stat-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+  }
+}
+
+.stat-card {
+  position: relative;
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.detected-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 12px;
-  border-radius: var(--radius-md);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 14px 16px;
   border: 1px solid var(--border-primary);
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-  font-size: 12.5px;
-  font-weight: 600;
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  appearance: none;
   cursor: pointer;
-  transition: border-color var(--transition-fast), background var(--transition-fast), transform
-    var(--transition-fast);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-normal);
+  min-height: 100%;
 }
 
-.detected-chip:hover {
-  border-color: var(--accent-primary);
-  background: var(--bg-hover);
-  transform: translateY(-1px);
+@media (min-width: 640px) {
+  .stat-card {
+    padding: 16px 18px;
+  }
 }
 
-.detected-chip:focus-visible {
-  outline: 2px solid var(--accent-primary);
+.stat-card:hover {
+  border-color: var(--border-secondary);
+  box-shadow: var(--elevation-2);
+}
+
+.stat-card:focus-visible {
+  outline: 2px solid var(--border-focus);
   outline-offset: 2px;
 }
 
-.detected-chip-name {
+.stat-card-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+@media (min-width: 640px) {
+  .stat-card-label {
+    font-size: 12px;
+  }
+}
+
+.stat-card-label svg {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.stat-card-value {
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.05;
+  color: var(--text-primary);
+}
+
+@media (min-width: 640px) {
+  .stat-card-value {
+    font-size: 28px;
+  }
+}
+
+@media (min-width: 768px) {
+  .stat-card-value {
+    font-size: 30px;
+  }
+}
+
+.stat-card-context {
+  font-size: 11px;
+  color: var(--text-tertiary);
   white-space: nowrap;
-  max-width: 140px;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+@media (min-width: 640px) {
+  .stat-card-context {
+    font-size: 12px;
+  }
+}
+
+/* Compact linear ratio bar — a real comparison (installed / known). */
+.stat-card-bar {
+  display: block;
+  width: 100%;
+  height: 4px;
+  margin-top: 6px;
+  border-radius: 2px;
+  background: var(--bg-hover);
+  overflow: hidden;
+}
+
+.stat-card-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent-primary);
+  transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Dashboard panels (Mobile-First Responsive)
+   - Mobile (<640px): 1 column, stacked
+   - Tablet (640px+): 1 column
+   - Desktop (768px+): 2 columns */
+.dashboard-panels {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+@media (min-width: 768px) {
+  .dashboard-panels {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+    gap: 16px;
+  }
+}
+
+/* Detected-agents list: stable rows (icon, name, badges, affordance) so the
+   row order is learnable and the scan path is top-to-bottom. */
+.detected-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.detected-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.detected-row:hover {
+  background: var(--bg-hover);
+}
+
+.detected-row:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
+}
+
+.detected-row-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.detected-row-arrow {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+/* --- Registry footer — quiet metadata line, not a card ---------------------- */
+.registry-footer {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 12px 4px 0;
+  border-top: 1px solid var(--border-primary);
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+
+.registry-footer-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.registry-footer-manage {
+  margin-left: auto;
 }
 
 /* ============================================================================
@@ -4063,3 +4388,390 @@ header button {
   font-size: 11px;
   word-break: break-all;
 }
+
+/* ============================================================================
+   RESPONSIVE DESIGN ENHANCEMENTS — Mobile-first approach
+   ============================================================================
+   
+   Breakpoints:
+   - Mobile (< 640px): Single column, touch-friendly
+   - Tablet (640px - 1024px): Two columns, intermediate spacing
+   - Desktop (1024px+): Multi-column layouts, full feature set
+   
+   All components transition gracefully; no horizontal scrolling on mobile.
+   Touch targets minimum 44px for mobile accessibility.
+   ============================================================================ */
+
+/* ── Table Container Responsive ──────────────────────────────────────── */
+
+/* Mobile: Stack table horizontally with cards */
+@media (max-width: 640px) {
+  .table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: var(--radius-md);
+  }
+
+  .table {
+    min-width: 600px;
+    font-size: 13px;
+  }
+
+  .table thead {
+    display: none;
+  }
+
+  .table tbody tr {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-md);
+    margin-bottom: 12px;
+    padding: 12px;
+    background: var(--bg-primary);
+  }
+
+  .table tbody td {
+    padding: 8px 0;
+    border: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .table tbody td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: var(--text-secondary);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+}
+
+/* Tablet and above: Standard table layout */
+@media (min-width: 641px) {
+  .table {
+    font-size: 14px;
+  }
+}
+
+/* ── Provider/Models Grid Responsive ─────────────────────────────────── */
+
+/* Mobile: Single column cards */
+@media (max-width: 640px) {
+  .grid-cols-1 {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+
+  .providers-table .table tbody tr {
+    flex-direction: row;
+    align-items: center;
+  }
+}
+
+/* Tablet: Two columns */
+@media (min-width: 641px) and (max-width: 1023px) {
+  .grid-cols-2,
+  .md\:grid-cols-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Desktop: Three+ columns where appropriate */
+@media (min-width: 1024px) {
+  .grid-cols-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .grid-cols-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .lg\:grid-cols-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* ── Card Responsive ─────────────────────────────────────────────────── */
+
+/* Ensure cards don't overflow on mobile */
+@media (max-width: 640px) {
+  .card {
+    border-radius: var(--radius-md);
+    padding: 12px;
+  }
+
+  .card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .card-title {
+    font-size: 16px;
+  }
+}
+
+@media (min-width: 641px) {
+  .card {
+    padding: 16px;
+  }
+
+  .card-header {
+    margin-bottom: 16px;
+  }
+}
+
+/* ── Modal Responsive ────────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .modal {
+    width: 95vw;
+    max-width: calc(100vw - 20px);
+    max-height: 90vh;
+    border-radius: var(--radius-lg);
+  }
+
+  .modal-body {
+    max-height: calc(90vh - 120px);
+    overflow-y: auto;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1023px) {
+  .modal {
+    width: 90vw;
+    max-width: 600px;
+  }
+}
+
+/* ── Page Container Responsive ──────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .page-container {
+    padding: 12px 12px 20px;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1023px) {
+  .page-container {
+    padding: 16px 20px 28px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .page-container {
+    padding: 28px 32px 40px;
+  }
+}
+
+/* ── Form Elements Responsive ───────────────────────────────────────── */
+
+/* Touch targets: minimum 44px height on mobile */
+@media (max-width: 640px) {
+  button,
+  input,
+  select,
+  textarea,
+  .btn {
+    min-height: 44px;
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+
+  .btn-sm,
+  .input-sm {
+    min-height: 40px;
+  }
+}
+
+/* ── Spacing Adjustments for Mobile ─────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .gap-4 {
+    gap: 12px;
+  }
+
+  .gap-6 {
+    gap: 16px;
+  }
+
+  .mb-4 {
+    margin-bottom: 12px;
+  }
+
+  .mb-6 {
+    margin-bottom: 16px;
+  }
+
+  .p-4 {
+    padding: 12px;
+  }
+
+  .p-6 {
+    padding: 16px;
+  }
+
+  .px-4 {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .py-4 {
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+}
+
+/* ── Detected Row Responsive ────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .detected-row {
+    gap: 8px;
+    padding: 8px;
+    font-size: 12px;
+  }
+
+  .detected-row-arrow {
+    display: none;
+  }
+}
+
+/* ── Chat Row Card Responsive ───────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .chat-row-card {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 12px;
+  }
+
+  .chat-row-avatar {
+    width: 36px;
+    height: 36px;
+  }
+
+  .chat-row-content {
+    width: 100%;
+  }
+
+  .chat-row-header {
+    flex-wrap: wrap;
+  }
+
+  .chat-row-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+
+@media (min-width: 641px) {
+  .chat-row-card {
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .chat-row-avatar {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+/* ── Text Truncation for Small Screens ──────────────────────────────── */
+
+@media (max-width: 640px) {
+  .line-clamp-1 {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+/* ── Flex Wrap Adjustments ──────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .flex-nowrap {
+    flex-wrap: wrap;
+  }
+
+  .sm\:flex-col {
+    flex-direction: column;
+  }
+
+  .sm\:gap-1 {
+    gap: 4px;
+  }
+
+  .sm\:gap-2 {
+    gap: 8px;
+  }
+}
+
+/* ── API Type Badges Responsive ─────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .api-badge-row {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .api-badge-row .badge {
+    font-size: 9px;
+    padding: 1px 5px;
+  }
+}
+
+/* ── Touch-friendly interactions ─────────────────────────────────────── */
+
+@media (hover: none) and (pointer: coarse) {
+  /* Touch devices: make interactive elements easier to tap */
+  button,
+  a,
+  [role="button"] {
+    padding: 12px;
+  }
+
+  /* Reduce motion on touch devices */
+  * {
+    transition-duration: 100ms !important;
+  }
+}
+
+/* ── Dark Mode Responsive adjustments ───────────────────────────────── */
+
+@media (prefers-color-scheme: dark) {
+  /* Ensure proper contrast in dark mode for small text on mobile */
+  @media (max-width: 640px) {
+    body {
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .text-secondary {
+      color: var(--text-secondary);
+    }
+
+    .text-tertiary {
+      color: var(--text-tertiary);
+    }
+  }
+}
+
+/* ============================================================================
+   IC Signature Theme — Imported below
+   ============================================================================ */
+
+/* NOTE: IC theme CSS is appended at build time. See vite.config.ts for
+   CSS preprocessing. This allows @import to be placed after Tailwind
+   directives without breaking the CSS cascade. */

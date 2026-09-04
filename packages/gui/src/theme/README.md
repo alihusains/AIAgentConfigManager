@@ -1,6 +1,6 @@
 # Theme Token System
 
-Design tokens for the AI Agent Config Manager GUI. Dark & Minimal ultramodern theme.
+Design tokens for the AI Config Manager GUI. Dark & Minimal ultramodern theme.
 
 ## Overview
 

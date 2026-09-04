@@ -129,11 +129,11 @@ export interface AgentCommands {
   note?: string;
 }
 
-/** A running (or finished) install/uninstall command launched by the dashboard. */
+/** A running (or finished) agent/CLI command launched by the dashboard. */
 export interface AgentJob {
   id: string;
   agentId: string;
-  action: 'install' | 'uninstall' | 'update';
+  action: 'install' | 'uninstall' | 'update' | 'execute';
   command: string;
   status: 'running' | 'success' | 'failed';
   exitCode?: number;
@@ -286,17 +286,10 @@ export async function detectCatalogEntry(entry: AgentCatalogEntry): Promise<Cata
 
   let version: string | undefined;
   if (installed) {
-    for (const binary of binaries) {
-      try {
-        const v = await getCommandVersion(binary, entry.versionArgs);
-        if (v) {
-          version = v;
-          break;
-        }
-      } catch {
-        // Version probing is best-effort.
-      }
-    }
+    const versions = await Promise.all(
+      binaries.map((b) => getCommandVersion(b, entry.versionArgs).catch(() => null))
+    );
+    version = versions.find((v) => v != null);
   }
 
   const settingsPaths = (entry.settingsPaths?.[getCurrentPlatform()] ?? []).map(expandPath);
@@ -449,12 +442,33 @@ const PY_PACKAGE = '[a-z0-9][a-z0-9._-]*';
 /** https URL with no shell metacharacters (curl|bash installer scripts). */
 const HTTPS_URL = 'https://[^\\s]+';
 
+const GIT_COMMAND = 'git (?:[a-z]+(?: [a-zA-Z0-9_.-]+)*)';
+const DOCKER_COMMAND = 'docker (?:[a-z]+(?: [a-zA-Z0-9_.-]+)*)';
+
+// Extra verbs the CLI Manager dashboard ships as canned commands (CLIView).
+// Same trust level as the update commands: server/UI-owned literals, never
+// free-form client input — the client picks a canned command, the server
+// still validates the string against this list before executing.
+const NPM_RUN_SCRIPT = '[a-zA-Z][a-zA-Z0-9:_-]*';
+const CLI_MANAGER_PATTERNS: string[] = [
+  `npm (?:run ${NPM_RUN_SCRIPT}|test)`, // npm run build/dev/lint/typecheck, npm test
+  `pnpm (?:install|update|outdated)(?: -[a-zA-Z]+)*`, // pnpm install/update/outdated
+  `acm (?:start|stop|health|status)`, // this CLI's own lifecycle commands
+  `jq --(?:help|version)`,
+  `du -sh [^\\s;&|]+`, // du -sh <path> (canned: '.')
+  `top -(?:l 1 -n \\d+|b -n 1)`, // macOS top -l 1 -n 10, Linux top -b -n 1
+  `ps aux(?: \\| head -\\d+)?`, // ps aux (optionally piped to head)
+];
+
 const SAFE_COMMAND_PATTERNS: RegExp[] = [
   new RegExp(`^(?:npm|pnpm|yarn|bun) (?:install|add|uninstall|remove) -g ${NPM_PACKAGE}$`),
   new RegExp(`^brew (?:install|uninstall|upgrade) ${BREW_FORMULA}$`),
   new RegExp(`^pip (?:install|uninstall) ${PY_PACKAGE}$`),
   new RegExp(`^pipx (?:install|uninstall) ${PY_PACKAGE}$`),
   new RegExp(`^curl -fsSL ${HTTPS_URL} \\| bash$`),
+  new RegExp(`^${GIT_COMMAND}$`),
+  new RegExp(`^${DOCKER_COMMAND}$`),
+  ...CLI_MANAGER_PATTERNS.map((p) => new RegExp(`^${p}$`)),
 ];
 
 export function isSafeCommand(command: string): boolean {

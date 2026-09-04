@@ -27,6 +27,15 @@ export * from './agent-catalog';
 // Provider API verification (probe /models, /chat/completions, /responses)
 export * from './provider-test';
 
+// Free-model auto-sync ("Only free models" providers)
+export * from './free-model-sync';
+
+// CLI Manager canned commands (id → trusted literal; the client sends ids only)
+export * from './cli-commands';
+
+// Explore catalog — trending AI coding agents (OpenRouter ranking order)
+export * from './explore-agents';
+
 // Environment variables (read, categorize, redact, edit user-level env vars)
 export * from './env-vars';
 
@@ -112,6 +121,14 @@ import {
   aggregateMaterialize,
   type MigrationInput,
 } from './registry';
+import {
+  tracksFreeModels,
+  withFreeModelTracking,
+  probeProviderModels,
+  diffFreeModels,
+  type FreeModelSyncSummary,
+  type FreeModelSyncOutcome,
+} from './free-model-sync';
 
 /**
  * An agent's static info merged with the runtime detection of whether its
@@ -800,6 +817,7 @@ export class AgentConfigManager {
 
   async getRegistryState(): Promise<RegistryState> {
     const registry = await this.requireRegistry();
+    await this.purgePersistedSiblings();
     return {
       path: this.registryFilePath,
       providers: registry.providers,
@@ -807,6 +825,28 @@ export class AgentConfigManager {
       customAgents: registry.customAgents,
       updatedAt: registry.updatedAt,
     };
+  }
+
+  /**
+   * One-time heal for registries created before alternate-wire siblings were
+   * excluded from migration: drop persisted "<id>-anthropic" entries whose
+   * base provider still exists. These siblings are derived state — the base
+   * entry's materialization recreates them inside agent files on demand, so
+   * they must not appear as independent providers. Persisted immediately so
+   * the dedupe sticks across restarts.
+   */
+  private async purgePersistedSiblings(): Promise<void> {
+    const registry = this.registry;
+    if (!registry) return;
+    const ids = registry.providers.map((p) => p.provider.id);
+    const droppable = ids.filter(
+      (id) => id.endsWith('-anthropic') && ids.includes(id.slice(0, -'-anthropic'.length))
+    );
+    if (droppable.length === 0) return;
+    registry.providers = registry.providers.filter(
+      (p) => !droppable.includes(p.provider.id)
+    );
+    await saveRegistry(this.registryFilePath, registry);
   }
 
   /**
@@ -1571,6 +1611,130 @@ export class AgentConfigManager {
     return { success: true, data: true };
   }
 
+  // ==========================================================================
+  // Free-model auto-sync ("Only free models" providers)
+  // ==========================================================================
+
+  /**
+   * Re-probe ONE provider's endpoint, diff its registered models against the
+   * fresh free-model list and rewrite the agent configs it is installed on.
+   * A failed probe never wipes the registered list.
+   */
+  async syncProviderFreeModels(providerId: string): Promise<FreeModelSyncOutcome> {
+    const registry = await this.requireRegistry();
+    const entry = registry.providers.find((p) => p.provider.id === providerId);
+    if (!entry) {
+      return {
+        providerId,
+        models: [],
+        added: [],
+        removed: [],
+        agentsWritten: [],
+        endpointOk: false,
+        error: `Provider "${providerId}" not found in registry`,
+        syncedAt: new Date().toISOString(),
+      };
+    }
+    const probe = await probeProviderModels(entry);
+    if (!probe.gotList) {
+      return {
+        providerId,
+        models: entry.models.map((m) => m.id),
+        added: [],
+        removed: [],
+        agentsWritten: [],
+        endpointOk: false,
+        error: probe.error,
+        syncedAt: new Date().toISOString(),
+      };
+    }
+    const { models, added, removed } = diffFreeModels(entry.models, probe.ids);
+    // Only hand the caps to the commit when the supported-API set actually
+    // differs — `verifiedAt` changes on every probe, so comparing the whole
+    // capability object would defeat the no-change skip below.
+    const capsChanged =
+      probe.caps !== undefined &&
+      JSON.stringify(probe.caps.supported ?? []) !==
+        JSON.stringify(entry.apiCapabilities?.supported ?? []);
+    return this.commitFreeModelSync(
+      entry,
+      models,
+      added,
+      removed,
+      capsChanged ? probe.caps : undefined
+    );
+  }
+
+  /**
+   * Re-probe every provider that opted into free-model tracking
+   * (`config.trackFreeModels`), diff the model lists and rewrite the agent
+   * configs of the providers that changed. Called by the dashboard on open.
+   */
+  async syncAllFreeModelProviders(): Promise<FreeModelSyncSummary> {
+    const registry = await this.requireRegistry();
+    const tracked = registry.providers.filter((p) => tracksFreeModels(p.provider));
+    const results: FreeModelSyncOutcome[] = [];
+    for (const entry of tracked) {
+      // Sequential on purpose: each sync rewrites shared agent config files.
+      results.push(await this.syncProviderFreeModels(entry.provider.id));
+    }
+    const changed = results.filter((r) => r.added.length > 0 || r.removed.length > 0).length;
+    return { checked: tracked.length, changed, results };
+  }
+
+  /** Opt a provider in or out of free-model tracking (persisted immediately). */
+  async setProviderFreeModelTracking(
+    providerId: string,
+    enabled: boolean
+  ): Promise<OperationResult<RegistryState>> {
+    const registry = await this.requireRegistry();
+    const entry = registry.providers.find((p) => p.provider.id === providerId);
+    if (!entry) return { success: false, error: `Provider "${providerId}" not found in registry` };
+    entry.provider = withFreeModelTracking(entry.provider, enabled);
+    await saveRegistry(this.registryFilePath, registry);
+    this.registry = registry;
+    const data = await this.getRegistryState();
+    return { success: true, data };
+  }
+
+  /**
+   * Persist a diffed model list for a free-model-synced provider and rewrite
+   * every agent config it is installed on. Skips the write entirely when
+   * nothing changed (the common case — one probe per dashboard open).
+   */
+  private async commitFreeModelSync(
+    entry: RegistryProvider,
+    models: ModelConfig[],
+    added: string[],
+    removed: string[],
+    caps?: ProviderApiCapabilities
+  ): Promise<FreeModelSyncOutcome> {
+    const syncedAt = new Date().toISOString();
+    const base: FreeModelSyncOutcome = {
+      providerId: entry.provider.id,
+      models: models.map((m) => m.id),
+      added,
+      removed,
+      agentsWritten: [],
+      endpointOk: true,
+      syncedAt,
+    };
+    if (added.length === 0 && removed.length === 0 && caps === undefined) {
+      return base;
+    }
+    const result = await this.registryMutation((registry) => {
+      const target = registry.providers.find((p) => p.provider.id === entry.provider.id);
+      if (!target) return;
+      target.models = models;
+      if (caps) target.apiCapabilities = caps;
+    }, [...entry.agentIds]);
+    return {
+      ...base,
+      agentsWritten: result.success ? entry.agentIds : [],
+      error: result.success ? undefined : result.error,
+    };
+  }
+
   /**
    * Migrate an EXISTING provider's plaintext API key into the OS keychain
    * (Phase 1 Secrets) — one provider at a time, explicit action only. The
@@ -1615,9 +1779,26 @@ export class AgentConfigManager {
       // and never blocks the registry deletion itself.
       await deleteProviderKeychainSecret(entry);
     }
+    // Alternate-wire siblings persisted as their own registry entries (e.g.
+    // "<id>-anthropic" imported before the migration guard existed) are part
+    // of this provider — remove them too, plus their stale ids for cleanup.
+    const siblingIds = registry.providers
+      .map((p) => p.provider.id)
+      .filter((id) => id !== providerId && id.startsWith(`${providerId}-`));
+    for (const siblingId of siblingIds) {
+      staleProviderIds.add(siblingId);
+      const sibling = registry.providers.find((p) => p.provider.id === siblingId);
+      if (sibling) {
+        for (const agentId of sibling.agentIds) {
+          if (!affected.includes(agentId)) affected.push(agentId);
+        }
+      }
+    }
     return this.registryMutation(
       (r) => {
-        r.providers = r.providers.filter((p) => p.provider.id !== providerId);
+        r.providers = r.providers.filter(
+          (p) => p.provider.id !== providerId && !siblingIds.includes(p.provider.id)
+        );
       },
       affected,
       staleProviderIds
@@ -2189,25 +2370,31 @@ export class AgentConfigManager {
           });
         }
 
-        // Step 3: Scan agent configs for plaintext keys
-        for (const agentId of agentIds) {
-          try {
-            const adapter = this.adapters.get(agentId);
-            if (!adapter) continue;
-            const config = await adapter.readConfig();
-            const providerInAgent = config.modelProviders.find(
-              (p: ModelProvider) => p.id === providerId
-            );
-            if (providerInAgent?.config?.apiKey) {
-              locations.push({
-                type: 'agent-plaintext',
-                agentId,
-                configPath: adapter.getConfigPath(getCurrentPlatform()),
-              });
+        // Step 3: Scan agent configs for plaintext keys (parallel)
+        const agentScans = await Promise.all(
+          [...agentIds].map(async (agentId) => {
+            try {
+              const adapter = this.adapters.get(agentId);
+              if (!adapter) return null;
+              const config = await adapter.readConfig();
+              const providerInAgent = config.modelProviders.find(
+                (p: ModelProvider) => p.id === providerId
+              );
+              if (providerInAgent?.config?.apiKey) {
+                return {
+                  type: 'agent-plaintext' as const,
+                  agentId,
+                  configPath: adapter.getConfigPath(getCurrentPlatform()),
+                };
+              }
+              return null;
+            } catch {
+              return null;
             }
-          } catch {
-            // Agent config unreadable; skip it
-          }
+          })
+        );
+        for (const loc of agentScans) {
+          if (loc) locations.push(loc);
         }
 
         // If no locations found, record as missing

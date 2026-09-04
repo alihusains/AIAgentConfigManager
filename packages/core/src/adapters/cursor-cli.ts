@@ -50,6 +50,9 @@ export function createCursorCliAdapter(): AgentAdapter {
       win32: [CURSOR_CLI_PATHS.win32],
       linux: [CURSOR_CLI_PATHS.linux],
     },
+    // Research 2026-09: ~/.cursor/cli-config.json holds model SELECTION only
+    // (verified schema: channel/model/maxMode/notifications/... ) — no
+    // provider/baseURL/apiKey fields. modelProviders stays false.
     supports: {
       modelProviders: false,
       mcpServers: true,

@@ -120,14 +120,14 @@ describe('Logo assets', () => {
 describe('Logo sidebar integration', () => {
   it('displays sidebar logo with correct alt text', async () => {
     const { container } = render(<Sidebar />);
-    const sidebarLogo = container.querySelector('img[alt="AI Agent Config Manager"]') as HTMLImageElement;
+    const sidebarLogo = container.querySelector('img[alt="AI Config Manager"]') as HTMLImageElement;
     expect(sidebarLogo).toBeInTheDocument();
     expect(sidebarLogo.src).toContain('logo-icon-32.png');
   });
 
   it('sidebar logo has accessible dimensions (32x32)', async () => {
     const { container } = render(<Sidebar />);
-    const sidebarLogo = container.querySelector('img[alt="AI Agent Config Manager"]') as HTMLImageElement;
+    const sidebarLogo = container.querySelector('img[alt="AI Config Manager"]') as HTMLImageElement;
     expect(sidebarLogo.width).toBe(32);
     expect(sidebarLogo.height).toBe(32);
   });
@@ -172,7 +172,7 @@ describe('Logo header integration', () => {
 describe('Logo accessibility', () => {
   it('sidebar logo alt text is semantic and descriptive', () => {
     const { container } = render(<Sidebar />);
-    const sidebarLogo = container.querySelector('img[alt="AI Agent Config Manager"]') as HTMLImageElement;
+    const sidebarLogo = container.querySelector('img[alt="AI Config Manager"]') as HTMLImageElement;
     // Alt text should convey the purpose of the image (app brand mark)
     expect(sidebarLogo.alt).toBeTruthy();
     expect(sidebarLogo.alt.length).toBeGreaterThan(0);

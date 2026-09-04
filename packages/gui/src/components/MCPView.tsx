@@ -54,7 +54,7 @@ export function MCPView() {
             One definition per server — installed into the agents listed on each row.
           </p>
         </div>
-        <button className="btn-primary" onClick={() => setShowAdd(true)} disabled={loading}>
+        <button className="btn-primary btn-sm" onClick={() => setShowAdd(true)} disabled={loading}>
           <Plus size={16} />
           Add MCP Server
         </button>
@@ -69,7 +69,7 @@ export function MCPView() {
               Register an MCP server once (stdio or remote), then install it onto any agent.
             </p>
             <button className="btn-primary mt-4" onClick={() => setShowAdd(true)}>
-              <Plus size={16} /> Add MCP Server
+              <Plus size={14} /> Add MCP Server
             </button>
           </div>
         </div>
@@ -189,20 +189,20 @@ export function MCPView() {
                       </td>
                       <td>
                         <div className="mcp-row-actions flex items-center gap-1">
-                          <Tooltip content="Edit">
+                          <Tooltip content="Edit this MCP server">
                           <button
-                            className="btn-ghost btn-icon btn-sm"
+                            className="btn-action"
                             onClick={() => setEditing(server)}
                           >
-                            <Edit size={14} />
+                            <Edit size={13} /> Edit
                           </button>
                           </Tooltip>
-                          <Tooltip content="Delete">
+                          <Tooltip content="Remove this MCP server">
                           <button
-                            className="btn-ghost btn-icon btn-sm text-error"
+                            className="btn-action btn-action-danger"
                             onClick={() => handleDelete(server)}
                           >
-                            <Trash2 size={14} />
+                            <Trash2 size={13} /> Delete
                           </button>
                           </Tooltip>
                         </div>

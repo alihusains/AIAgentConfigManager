@@ -24,9 +24,29 @@
  *
  * Field names are `command`/`args`/`env`/`url`/`type` (type: stdio | sse |
  * streamable-http). This adapter reads/writes config.yaml with js-yaml,
- * preserving unknown top-level keys and the `models:` list untouched.
+ * preserving unknown top-level keys.
  *
- * Source: https://docs.continue.dev/customize/deep-dives/mcp
+ * Model providers ARE file-configurable in the same config.yaml `models:`
+ * list (docs.continue.dev/reference — config.json is deprecated). OpenAI-
+ * compatible entries use `provider: openai` + `apiBase`:
+ *
+ *   models:
+ *     - name: My Model
+ *       provider: openai
+ *       apiBase: https://gateway.example.com/v1
+ *       model: my-model-id
+ *       apiKey: <literal or ${{ secrets.ENV_VAR }}>
+ *       roles: [chat, edit, apply, summarize]
+ *       capabilities: [tool_use, image_input]
+ *       defaultCompletionOptions:
+ *         contextLength: 128000
+ *         maxTokens: 8192
+ *
+ * Entries are grouped into providers per apiBase (provider id derived from
+ * the base URL); unknown per-entry keys are preserved on write.
+ *
+ * Sources: https://docs.continue.dev/reference
+ *          https://docs.continue.dev/customize/deep-dives/mcp
  */
 
 import type {
@@ -92,7 +112,7 @@ export class ContinueAdapter implements AgentAdapter {
       linux: ['~/.continue/.env'],
     },
     supports: {
-      modelProviders: false,
+      modelProviders: true,
       mcpServers: true,
       permissions: false,
       projectConfig: false,
@@ -144,11 +164,15 @@ export class ContinueAdapter implements AgentAdapter {
       }
     }
 
+    const { modelProviders, models } = this.rawCache
+      ? this.decodeModelsRaw(this.rawCache)
+      : { modelProviders: [] as ModelProvider[], models: [] as ModelConfig[] };
+
     const config: AgentConfig = {
       version: '1.0.0',
       lastModified: Date.now(),
-      modelProviders: [],
-      models: [],
+      modelProviders,
+      models,
       mcpServers,
       permissions: [] as PermissionConfig[],
       customSettings: {},
@@ -167,10 +191,172 @@ export class ContinueAdapter implements AgentAdapter {
       ? JSON.parse(JSON.stringify(this.rawCache))
       : {};
     raw.mcpServers = this.encodeMCP(config.mcpServers);
+    this.encodeModelsRaw(raw, config.modelProviders, config.models);
     await backupFile(this.configPathFor()).catch(() => undefined);
     await writeFileSafe(this.configPathFor(), stringifyConfig(raw, 'yaml'));
     this.rawCache = raw;
     this.configCache = config;
+  }
+
+  /**
+   * Drift projection: model entries express apiBase/apiKey/roles/capabilities
+   * + completion options. Grouping-derived provider ids are not config.
+   */
+  expressibleProviderConfig = (config: Record<string, unknown>) => {
+    const out: Record<string, unknown> = {};
+    if (config.baseUrl !== undefined) out.baseUrl = config.baseUrl;
+    if (config.apiKey !== undefined) out.apiKey = config.apiKey;
+    return out;
+  };
+
+  // ==========================================================================
+  // models: list conversion (unified <-> config.yaml)
+  // ==========================================================================
+
+  private isRecordValue(v: unknown): v is Record<string, unknown> {
+    return Boolean(v) && typeof v === 'object' && !Array.isArray(v);
+  }
+
+  private continueProviderId(apiBase: string): string {
+    let host = apiBase.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+    host = host.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+    return host || 'custom-endpoint';
+  }
+
+  private decodeModelsRaw(raw: Record<string, unknown>): {
+    modelProviders: ModelProvider[];
+    models: ModelConfig[];
+  } {
+    const list = Array.isArray(raw.models) ? raw.models : [];
+    const modelProviders: ModelProvider[] = [];
+    const models: ModelConfig[] = [];
+    for (const entry of list) {
+      if (!this.isRecordValue(entry)) continue;
+      const provider = typeof entry.provider === 'string' ? entry.provider : '';
+      const modelId = typeof entry.model === 'string' ? entry.model : '';
+      // Only OpenAI-compatible custom endpoints are surfaced as registry
+      // providers; built-in provider entries keep flowing through Continue.
+      if (provider !== 'openai' || !modelId) continue;
+      const apiBase = typeof entry.apiBase === 'string' ? entry.apiBase : '';
+      if (!apiBase) continue;
+      const providerId = `continue-${this.continueProviderId(apiBase)}`;
+      let p = modelProviders.find((x) => x.id === providerId);
+      if (!p) {
+        p = {
+          id: providerId,
+          name: apiBase,
+          type: 'openai-compatible',
+          enabled: true,
+          priority: 0,
+          config: {
+            baseUrl: apiBase,
+            ...(typeof entry.apiKey === 'string' ? { apiKey: entry.apiKey } : {}),
+          },
+        } as ModelProvider;
+        modelProviders.push(p);
+      }
+      const dco = this.isRecordValue(entry.defaultCompletionOptions)
+        ? entry.defaultCompletionOptions
+        : {};
+      const roles =
+        Array.isArray(entry.roles) && entry.roles.length > 0
+          ? (entry.roles.filter((r) => typeof r === 'string') as ModelConfig['roles'])
+          : (['chat', 'edit', 'apply', 'summarize'] as ModelConfig['roles']);
+      const capabilities = Array.isArray(entry.capabilities)
+        ? (entry.capabilities.filter((c) => typeof c === 'string') as ModelConfig['capabilities'])
+        : (['tool_use'] as ModelConfig['capabilities']);
+      models.push({
+        id: modelId,
+        providerId,
+        name: modelId,
+        displayName: typeof entry.name === 'string' && entry.name ? entry.name : modelId,
+        roles,
+        capabilities,
+        contextLength:
+          typeof dco.contextLength === 'number' ? dco.contextLength : undefined,
+        maxTokens: typeof dco.maxTokens === 'number' ? dco.maxTokens : undefined,
+        temperature:
+          typeof dco.temperature === 'number' ? dco.temperature : undefined,
+        customOptions: entry,
+      } as ModelConfig);
+    }
+    return { modelProviders, models };
+  }
+
+  private encodeModelsRaw(
+    raw: Record<string, unknown>,
+    providers: ModelProvider[],
+    models: ModelConfig[]
+  ): void {
+    const priorList = Array.isArray(raw.models) ? raw.models : [];
+    // Managed keys: derived from the grouping, so decode/encode are stable.
+    const managedIds = new Set(
+      providers.map((p) => p.id)
+    );
+    const out: unknown[] = [];
+    // Keep every non-managed entry (built-ins + hand-written) verbatim.
+    for (const entry of priorList) {
+      if (!this.isRecordValue(entry)) continue;
+      const provider = typeof entry.provider === 'string' ? entry.provider : '';
+      const modelId = typeof entry.model === 'string' ? entry.model : '';
+      const apiBase = typeof entry.apiBase === 'string' ? entry.apiBase : '';
+      const isManaged =
+        provider === 'openai' &&
+        modelId &&
+        apiBase &&
+        managedIds.has(`continue-${this.continueProviderId(apiBase)}`);
+      if (!isManaged) {
+        out.push(entry);
+        continue;
+      }
+      // Re-emit only entries whose model id still exists.
+      const pid = `continue-${this.continueProviderId(apiBase)}`;
+      const stillThere = models.some(
+        (m) => m.providerId === pid && m.id === modelId
+      );
+      if (!stillThere) continue;
+      // Falls through to the unified re-encode below (skip here).
+    }
+    // Re-encode managed providers from the unified lists.
+    for (const p of providers) {
+      const cfg = (p.config || {}) as Record<string, unknown>;
+      const priorProviderModels = priorList.filter(
+        (e: unknown) =>
+          this.isRecordValue(e) &&
+          e.provider === 'openai' &&
+          typeof e.apiBase === 'string' &&
+          `continue-${this.continueProviderId(e.apiBase)}` === p.id
+      ) as Record<string, unknown>[];
+      const priorByModel = new Map<string, Record<string, unknown>>();
+      for (const e of priorProviderModels) {
+        if (typeof e.model === 'string') priorByModel.set(e.model, e);
+      }
+      for (const m of models.filter((m) => m.providerId === p.id)) {
+        const prior = this.isRecordValue(m.customOptions)
+          ? (m.customOptions as Record<string, unknown>)
+          : priorByModel.get(m.id) || {};
+        out.push({
+          ...prior,
+          name: m.displayName || m.name || m.id,
+          provider: 'openai',
+          ...(cfg.baseUrl ? { apiBase: cfg.baseUrl } : {}),
+          model: m.id,
+          ...(cfg.apiKey ? { apiKey: cfg.apiKey } : {}),
+          roles: m.roles?.length ? m.roles : ['chat', 'edit', 'apply', 'summarize'],
+          ...(m.capabilities?.length ? { capabilities: m.capabilities } : {}),
+          ...(m.contextLength || m.maxTokens || m.temperature !== undefined
+            ? {
+                defaultCompletionOptions: {
+                  ...(m.contextLength ? { contextLength: m.contextLength } : {}),
+                  ...(m.maxTokens ? { maxTokens: m.maxTokens } : {}),
+                  ...(m.temperature !== undefined ? { temperature: m.temperature } : {}),
+                },
+              }
+            : {}),
+        });
+      }
+    }
+    raw.models = out;
   }
 
   validateConfig(config: unknown): { valid: boolean; errors: string[] } {

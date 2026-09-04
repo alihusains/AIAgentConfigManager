@@ -28,7 +28,41 @@
  * MCPServerConfig (command/args/env/url) onto Goose's cmd/envs/uri. Unknown
  * top-level and per-extension keys are preserved on write.
  *
- * Source: https://goose-docs.ai (Using Extensions) + crates/goose/src/agents/extension.rs
+ * Model providers ARE file-configurable (docs: guides/config-files +
+ * getting-started/providers). The canonical shape (goose >= 1.x, YAML):
+ *
+ *   config.yaml:
+ *     active_provider: custom_corp_api
+ *     providers:
+ *       custom_corp_api:
+ *         enabled: true
+ *         model: gpt-4o
+ *         configured: true
+ *     GOOSE_PLANNER_PROVIDER: "custom_corp_api"
+ *     GOOSE_PLANNER_MODEL: "gpt-4o"
+ *
+ *   ~/.config/goose/custom_providers/custom_corp_api.json:
+ *     {
+ *       "name": "custom_corp_api",
+ *       "engine": "openai",            // openai | anthropic | ollama
+ *       "display_name": "Corporate API",
+ *       "api_key_env": "CUSTOM_CORP_API_API_KEY",
+ *       "base_url": "https://api.company.com/v1/chat/completions",
+ *       "models": [{ "name": "gpt-4o", "context_limit": 128000 }],
+ *       "headers": {},
+ *       "supports_streaming": true,
+ *       "requires_auth": true
+ *     }
+ *
+ * The API key NEVER goes into config.yaml (goose ignores it) — the provider
+ * JSON carries `api_key_env` and the literal key (when the registry has one)
+ * is written to ~/.config/goose/secrets.yaml under that env name (goose's
+ * file-based secret store; harmless when the keyring is active instead).
+ * base_url in the provider JSON is the FULL chat-completions URL; the unified
+ * config.baseUrl stores the root and /chat/completions is appended on write.
+ *
+ * Source: https://goose-docs.ai/docs/guides/config-files/
+ *         https://goose-docs.ai/docs/getting-started/providers/
  */
 
 import type {
@@ -42,6 +76,7 @@ import type {
   Platform,
   ConfigFormat,
 } from '../types';
+import * as fs from 'node:fs/promises';
 import {
   resolveConfigPath,
   readFileSafe,
@@ -100,7 +135,7 @@ export class GooseAdapter implements AgentAdapter {
       linux: ['~/.config/goose/credentials'],
     },
     supports: {
-      modelProviders: false,
+      modelProviders: true,
       mcpServers: true,
       permissions: false,
       projectConfig: false,
@@ -152,11 +187,14 @@ export class GooseAdapter implements AgentAdapter {
       }
     }
 
+    // Custom providers: one JSON file per provider in custom_providers/.
+    const { modelProviders, models } = await this.decodeCustomProviders();
+
     const config: AgentConfig = {
       version: '1.0.0',
       lastModified: Date.now(),
-      modelProviders: [],
-      models: [],
+      modelProviders,
+      models,
       mcpServers,
       permissions: [] as PermissionConfig[],
       customSettings: {},
@@ -175,6 +213,9 @@ export class GooseAdapter implements AgentAdapter {
       ? JSON.parse(JSON.stringify(this.rawCache))
       : {};
     raw.extensions = this.encodeExtensions(config.mcpServers);
+    // Keep active_provider pointing at a managed provider when one exists —
+    // must run BEFORE the file write (it mutates `raw`).
+    await this.encodeCustomProviders(raw, config.modelProviders, config.models);
     await backupFile(this.configPathFor()).catch(() => undefined);
     await writeFileSafe(this.configPathFor(), stringifyConfig(raw, 'yaml'));
     this.rawCache = raw;
@@ -183,6 +224,183 @@ export class GooseAdapter implements AgentAdapter {
 
   validateConfig(config: unknown): { valid: boolean; errors: string[] } {
     return validateAgentConfig(config);
+  }
+
+  /**
+   * Drift projection: provider JSONs express base_url/api_key_env/engine/
+   * headers. The literal apiKey (kept in secrets.yaml) round-trips through
+   * the registry.
+   */
+  expressibleProviderConfig = (config: Record<string, unknown>) => {
+    const out: Record<string, unknown> = {};
+    if (config.baseUrl !== undefined) out.baseUrl = config.baseUrl;
+    if (config.apiKeyEnv !== undefined) out.apiKeyEnv = config.apiKeyEnv;
+    if (config.apiKey !== undefined) out.apiKey = config.apiKey;
+    if (config.headers !== undefined) out.headers = config.headers;
+    return out;
+  };
+
+  // ============================================================================
+  // Custom provider conversion (unified <-> config.yaml + custom_providers/*.json)
+  // ============================================================================
+
+  private customProvidersDir(): string {
+    // config.yaml lives at ~/.config/goose/config.yaml; provider JSONs sit
+    // next to it under custom_providers/.
+    const configPath = this.configPathFor();
+    const sep = configPath.includes('\\') ? '\\' : '/';
+    return `${configPath.substring(0, configPath.lastIndexOf(sep))}${sep}custom_providers`;
+  }
+
+  private async decodeCustomProviders(): Promise<{
+    modelProviders: ModelProvider[];
+    models: ModelConfig[];
+  }> {
+    const dir = this.customProvidersDir();
+    const modelProviders: ModelProvider[] = [];
+    const models: ModelConfig[] = [];
+    let entries: string[] = [];
+    try {
+      entries = (await fs.readdir(dir)).filter((f) => f.endsWith('.json'));
+    } catch {
+      return { modelProviders, models };
+    }
+    for (const file of entries) {
+      try {
+        const content = await readFileSafe(`${dir}/${file}`);
+        if (!content) continue;
+        const raw = JSON.parse(content) as Record<string, unknown>;
+        const name = typeof raw.name === 'string' ? raw.name : file.replace(/\.json$/, '');
+        const engine = typeof raw.engine === 'string' ? raw.engine : 'openai';
+        let baseUrl = typeof raw.base_url === 'string' ? raw.base_url : '';
+        // The provider JSON stores the FULL chat-completions URL; unify to
+        // the root so the registry form matches every other adapter.
+        baseUrl = baseUrl.replace(/\/chat\/completions$/i, '');
+        modelProviders.push({
+          id: name,
+          name: typeof raw.display_name === 'string' ? raw.display_name : name,
+          type: engine === 'anthropic' ? 'anthropic' : 'openai-compatible',
+          enabled: raw.enabled !== false,
+          priority: 0,
+          config: {
+            ...(baseUrl ? { baseUrl } : {}),
+            // Only the env-var NAME is stored — the key itself lives in the
+            // goose secret store, never in this config.
+            ...(typeof raw.api_key_env === 'string' ? { apiKeyEnv: raw.api_key_env } : {}),
+            ...(engine !== 'openai' && engine !== 'anthropic' ? { gooseEngine: engine } : {}),
+            ...(this.isRecord(raw.headers) ? { headers: raw.headers } : {}),
+          },
+        } as ModelProvider);
+        if (Array.isArray(raw.models)) {
+          for (const m of raw.models) {
+            if (!this.isRecord(m)) continue;
+            const id = typeof m.name === 'string' ? m.name : '';
+            if (!id) continue;
+            models.push({
+              id,
+              providerId: name,
+              name: id,
+              displayName: id,
+              roles: ['chat', 'edit', 'apply', 'summarize'],
+              capabilities: ['tool_use'],
+              contextLength: typeof m.context_limit === 'number' ? m.context_limit : undefined,
+            } as ModelConfig);
+          }
+        }
+      } catch {
+        // Malformed provider file: skip rather than fail the whole read.
+      }
+    }
+    return { modelProviders, models };
+  }
+
+  private async encodeCustomProviders(
+    configRaw: Record<string, unknown>,
+    providers: ModelProvider[],
+    models: ModelConfig[]
+  ): Promise<void> {
+    const dir = this.customProvidersDir();
+    // Snapshot existing files so providers removed from the registry are
+    // dropped from disk too.
+    let existing: string[] = [];
+    try {
+      existing = (await fs.readdir(dir)).filter((f) => f.endsWith('.json'));
+    } catch {
+      existing = [];
+    }
+    const keep = new Set<string>();
+    for (const p of providers) {
+      const cfg = (p.config || {}) as Record<string, unknown>;
+      const engine =
+        typeof cfg.gooseEngine === 'string'
+          ? cfg.gooseEngine
+          : p.type === 'anthropic'
+            ? 'anthropic'
+            : 'openai';
+      // api_key_env: reuse the configured name, or derive a deterministic one.
+      const apiKeyEnv =
+        typeof cfg.apiKeyEnv === 'string' && cfg.apiKeyEnv
+          ? cfg.apiKeyEnv
+          : `${p.id.toUpperCase().replace(/[^A-Z0-9]/g, '_')}_API_KEY`;
+      const baseUrl = String(cfg.baseUrl || '').replace(/\/+$/, '');
+      const providerModels = models.filter((m) => m.providerId === p.id);
+      const json: Record<string, unknown> = {
+        name: p.id,
+        engine,
+        display_name: p.name || p.id,
+        api_key_env: apiKeyEnv,
+        // goose expects the FULL chat-completions URL for openai engines.
+        base_url:
+          engine === 'openai' && baseUrl
+            ? `${baseUrl.replace(/\/chat\/completions$/i, '')}/chat/completions`
+            : baseUrl,
+        models: providerModels.map((m) => ({
+          name: m.name || m.id,
+          ...(m.contextLength ? { context_limit: m.contextLength } : {}),
+        })),
+        supports_streaming: true,
+        requires_auth: Boolean(cfg.apiKey || cfg.apiKeyEnv),
+      };
+      keep.add(`${p.id}.json`);
+      const filePath = `${dir}/${p.id}.json`;
+      await writeFileSafe(filePath, `${JSON.stringify(json, null, 2)}\n`).catch(() => undefined);
+      // Persist the literal key into goose's file-based secret store when the
+      // registry holds one (goose ignores keys in config.yaml by design).
+      if (typeof cfg.apiKey === 'string' && cfg.apiKey) {
+        await this.writeGooseSecret(apiKeyEnv, cfg.apiKey).catch(() => undefined);
+      }
+    }
+    for (const file of existing) {
+      if (!keep.has(file)) {
+        await fs.rm(`${dir}/${file}`, { force: true }).catch(() => undefined);
+      }
+    }
+    // Point active_provider at the first managed provider when the current
+    // value dangles or is absent.
+    if (providers.length > 0) {
+      const first = providers[0].id;
+      const current = typeof configRaw.active_provider === 'string' ? configRaw.active_provider : '';
+      if (!current || !providers.some((p) => p.id === current)) {
+        configRaw.active_provider = first;
+      }
+    }
+  }
+
+  /** Merge one key into ~/.config/goose/secrets.yaml (goose file-secret store). */
+  private async writeGooseSecret(key: string, value: string): Promise<void> {
+    const secretsPath = `${this.configPathFor().replace(/config\.yaml$/, '')}secrets.yaml`;
+    let raw: Record<string, unknown> = {};
+    const content = await readFileSafe(secretsPath);
+    if (content) {
+      try {
+        const parsed = parseConfig(content, 'yaml');
+        if (parsed && typeof parsed === 'object') raw = parsed as Record<string, unknown>;
+      } catch {
+        raw = {};
+      }
+    }
+    raw[key] = value;
+    await writeFileSafe(secretsPath, stringifyConfig(raw, 'yaml'));
   }
 
   // ============================================================================

@@ -752,10 +752,12 @@ describe('copilot-cli adapter (separate mcp-config.json)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Aider — detect-only (no native MCP; YAML config read into customSettings)
+// Aider — model settings read/write (researched 2026-09: custom OpenAI-
+// compatible models live in .aider.model.settings.yml via extra_params
+// api_base/api_key; no native MCP)
 // ---------------------------------------------------------------------------
-describe('aider adapter (detect-only)', () => {
-  it('reads .aider.conf.yml into customSettings and refuses writes', async () => {
+describe('aider adapter (model settings read/write)', () => {
+  it('reads .aider.conf.yml into customSettings and keeps MCP unsupported', async () => {
     resetHome();
     seed('~/.aider.conf.yml', 'model: gpt-4o\nedit-format: wholefile\n');
     const a = getAdapter('aider')!;
@@ -765,7 +767,73 @@ describe('aider adapter (detect-only)', () => {
     expect(cfg.mcpServers).toEqual([]);
     expect(a.info.supports.mcpServers).toBe(false);
     expect(a.getMCPConfigPath()).toBeNull();
-    await expect(a.writeConfig(cfg)).rejects.toThrow(/detect-only/);
+  });
+
+  it('round-trips providers through .aider.model.settings.yml + metadata', async () => {
+    resetHome();
+    seed('~/.aider.conf.yml', 'model: gpt-4o\n');
+    // A user-managed entry (no api_base) must be preserved verbatim.
+    seed(
+      '~/.aider.model.settings.yml',
+      [
+        '- name: gpt-4o',
+        '  extra_params:',
+        '    max_tokens: 4096',
+      ].join('\n')
+    );
+    const a = getAdapter('aider')!;
+    const cfg = await a.readConfig();
+    expect(cfg.modelProviders).toEqual([]);
+
+    await a.addModelProvider({
+      id: 'aider-https-gw-example-com-v1',
+      name: 'https://gw.example.com/v1',
+      type: 'openai-compatible',
+      enabled: true,
+      priority: 1,
+      config: { baseUrl: 'https://gw.example.com/v1', apiKey: 'sk-test' },
+    });
+    await a.addModel({
+      id: 'my-model',
+      providerId: 'aider-https-gw-example-com-v1',
+      name: 'openai/my-model',
+      displayName: 'My Model',
+      roles: ['chat', 'edit', 'apply', 'summarize'],
+      capabilities: ['tool_use'],
+      contextLength: 128000,
+      maxTokens: 8192,
+    });
+
+    const settingsRaw = readBack('~/.aider.model.settings.yml');
+    expect(settingsRaw).toContain('name: openai/my-model');
+    expect(settingsRaw).toContain('api_base: https://gw.example.com/v1');
+    expect(settingsRaw).toContain('api_key: sk-test');
+    // User-managed entry survives.
+    expect(settingsRaw).toContain('name: gpt-4o');
+    const metaRaw = readBack('~/.aider.model.metadata.json');
+    const meta = JSON.parse(metaRaw) as Record<string, Record<string, unknown>>;
+    expect(meta['openai/my-model']).toMatchObject({
+      max_input_tokens: 128000,
+      max_output_tokens: 8192,
+      litellm_provider: 'openai',
+    });
+
+    const reread = await a.readConfig();
+    expect(reread.modelProviders).toHaveLength(1);
+    expect(reread.modelProviders[0]).toMatchObject({
+      type: 'openai-compatible',
+      config: { baseUrl: 'https://gw.example.com/v1' },
+    });
+    expect(reread.models).toHaveLength(1);
+    expect(reread.models[0]).toMatchObject({ id: 'my-model', contextLength: 128000 });
+
+    await a.removeModelProvider('aider-https-gw-example-com-v1');
+    const after = await a.readConfig();
+    expect(after.modelProviders).toEqual([]);
+    expect(after.models).toEqual([]);
+    // User-managed entry still survives removal of the managed one.
+    const finalRaw = readBack('~/.aider.model.settings.yml');
+    expect(finalRaw).toContain('name: gpt-4o');
   });
 });
 

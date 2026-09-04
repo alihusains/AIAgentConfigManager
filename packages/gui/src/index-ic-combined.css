@@ -758,6 +758,34 @@
   gap: 12px;
 }
 
+/* The Live Metrics pane is ~40% of the shell on desktop — four columns
+   crush the tiles. Cap the grid at two columns there and shrink the value
+   so numbers, labels and context lines never overflow their cards. */
+@media (min-width: 1024px) {
+  .ic-pane-preview .ic-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+}
+
+.ic-pane-preview .ic-stat-tile {
+  min-width: 0;
+  padding: 14px;
+}
+
+.ic-pane-preview .ic-stat-tile-value {
+  font-size: 24px;
+}
+
+.ic-pane-preview .ic-stat-tile-label {
+  white-space: normal;
+  line-height: 1.35;
+}
+
+.ic-pane-preview .ic-stat-tile-context {
+  overflow-wrap: anywhere;
+}
+
 @media (min-width: 640px) {
   .ic-stats-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));

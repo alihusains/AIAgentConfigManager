@@ -71,6 +71,18 @@ function readBack(rel: string): string {
   return fs.readFileSync(abs, 'utf-8');
 }
 
+function readYaml(rel: string): Record<string, unknown> {
+  const fs = require('node:fs') as typeof import('node:fs');
+  const path = require('node:path') as typeof import('node:path');
+  const jsYaml = require('js-yaml') as { load?: unknown; parse?: unknown; default?: { load?: unknown; parse?: unknown } };
+  const yamlParse = (jsYaml.parse ?? jsYaml.load ?? jsYaml.default?.parse ?? jsYaml.default?.load) as (
+    input: string
+  ) => Record<string, unknown>;
+  // Tests run in a fake HOME sandbox; '~' resolves inside it.
+  const abs = rel.startsWith('~') ? path.join(HOME, rel.slice(1)) : rel;
+  return yamlParse(fs.readFileSync(abs, 'utf8')) as Record<string, unknown>;
+}
+
 function readJson(rel: string): Record<string, unknown> {
   return JSON.parse(readBack(rel));
 }
@@ -374,38 +386,28 @@ describe('generic adapter (keyed MCP shape)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// OMP — detected current-shape behaviors (being reworked in a parallel task)
+// OMP — full models.yml read/write (researched 2026-09: omp stores providers
+// in ~/.omp/agent/models.yml; MCP merges from other agents, stays read-only)
 // ---------------------------------------------------------------------------
-describe('omp adapter (detect-only)', () => {
-  it('reports OMP as detect-only with no config read/write support', () => {
+describe('omp adapter (models.yml read/write)', () => {
+  it('reports OMP with modelProviders + permissions unsupported, MCP read-only', () => {
     const a = getAdapter('omp')!;
     expect(a.info.supports.permissions).toBe(false);
-    expect(a.info.supports.modelProviders).toBe(false);
+    expect(a.info.supports.modelProviders).toBe(true);
     expect(a.info.supports.mcpServers).toBe(false);
     expect(a.info.supports.projectConfig).toBe(false);
     expect(a.info.binaries).toEqual(['omp']);
   });
 
-  it('backupConfig throws when the config file does not exist', async () => {
+  it('backupConfig throws when models.yml does not exist', async () => {
     const a = getAdapter('omp')!;
-    await expect(a.backupConfig()).rejects.toThrow(/No OMP config file found/);
+    await expect(a.backupConfig()).rejects.toThrow(/No OMP models\.yml found/);
   });
 
-  it('rejects all config write operations with detect-only error', async () => {
+  it('rejects MCP/permission writes (merged/unsupported surfaces)', async () => {
     const a = getAdapter('omp')!;
-    await expect(
-      a.writeConfig({
-        version: '1.0.0',
-        lastModified: Date.now(),
-        modelProviders: [],
-        models: [],
-        mcpServers: [],
-        permissions: [],
-        customSettings: {},
-      })
-    ).rejects.toThrow(/detect-only/);
     await expect(a.addMCPServer(stdioServer('test', 'node', ['x.js']))).rejects.toThrow(
-      /detect-only/
+      /read-only/
     );
     await expect(
       a.addPermission({
@@ -415,9 +417,48 @@ describe('omp adapter (detect-only)', () => {
         pattern: 'bash',
         allowed: false,
       })
-    ).rejects.toThrow(/detect-only/);
-    await expect(a.addModelProvider({ id: 'test', name: 'Test', type: 'custom', config: {}, enabled: true, priority: 1 })).rejects.toThrow(
-      /detect-only/
-    );
+    ).rejects.toThrow(/not supported here/);
+  });
+
+  it('round-trips providers and models through models.yml', async () => {
+    const a = getAdapter('omp')!;
+    const config = await a.readConfig();
+    expect(config.modelProviders).toEqual([]);
+    await a.addModelProvider({
+      id: 'gw',
+      name: 'Gateway',
+      type: 'openai-compatible',
+      enabled: true,
+      priority: 1,
+      config: { baseUrl: 'https://gw.example.com/v1', apiKey: 'GW_KEY', ompApi: 'openai-completions' },
+    });
+    await a.addModel({
+      id: 'gw-model',
+      providerId: 'gw',
+      name: 'gw-model',
+      displayName: 'GW Model',
+      roles: ['chat', 'edit', 'apply', 'summarize'],
+      capabilities: ['tool_use'],
+      contextLength: 128000,
+      maxTokens: 8192,
+    });
+    const raw = readYaml('~/.omp/agent/models.yml') as Record<string, any>;
+    expect(raw.providers.gw.baseUrl).toBe('https://gw.example.com/v1');
+    expect(raw.providers.gw.apiKey).toBe('GW_KEY');
+    expect(raw.providers.gw.api).toBe('openai-completions');
+    expect(raw.providers.gw.models[0]).toMatchObject({
+      id: 'gw-model',
+      name: 'GW Model',
+      contextWindow: 128000,
+      maxTokens: 8192,
+    });
+    const reread = await a.readConfig();
+    expect(reread.modelProviders).toHaveLength(1);
+    expect(reread.modelProviders[0]).toMatchObject({ id: 'gw', type: 'openai-compatible' });
+    expect(reread.models[0]).toMatchObject({ id: 'gw-model', providerId: 'gw' });
+    await a.removeModelProvider('gw');
+    const after = await a.readConfig();
+    expect(after.modelProviders).toEqual([]);
+    expect(after.models).toEqual([]);
   });
 });

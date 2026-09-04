@@ -265,47 +265,46 @@ export async function checkToolUpdates(
   opts: CheckToolUpdatesOptions = {}
 ): Promise<ToolUpdateStatus[]> {
   const npmLatest = opts.npmLatest ?? defaultNpmLatest;
-  const results: ToolUpdateStatus[] = [];
 
-  for (const tool of tools) {
-    if (!tool.installed) continue;
-    const npmPackage = NPM_PACKAGE_MAP[tool.name];
-    const command = TOOL_UPDATE_COMMANDS[tool.name];
-    const base: ToolUpdateStatus = {
-      name: tool.name,
-      currentVersion: tool.version,
-      updateAvailable: false,
-      method: 'unsupported',
-    };
+  const installed = tools.filter((tool) => tool.installed);
+  return Promise.all(
+    installed.map(async (tool): Promise<ToolUpdateStatus> => {
+      const npmPackage = NPM_PACKAGE_MAP[tool.name];
+      const command = TOOL_UPDATE_COMMANDS[tool.name];
+      const base: ToolUpdateStatus = {
+        name: tool.name,
+        currentVersion: tool.version,
+        updateAvailable: false,
+        method: 'unsupported',
+      };
 
-    if (!npmPackage || !command) {
-      results.push({
-        ...base,
-        reason: 'Auto-update is not supported for this tool — it is installed or managed externally.',
-      });
-      continue;
-    }
+      if (!npmPackage || !command) {
+        return {
+          ...base,
+          reason: 'Auto-update is not supported for this tool — it is installed or managed externally.',
+        };
+      }
 
-    let latestVersion: string | undefined;
-    try {
-      latestVersion = (await npmLatest(npmPackage)) || undefined;
-    } catch {
-      latestVersion = undefined;
-    }
+      let latestVersion: string | undefined;
+      try {
+        latestVersion = (await npmLatest(npmPackage)) || undefined;
+      } catch {
+        latestVersion = undefined;
+      }
 
-    const currentVersion = tool.version;
-    const updateAvailable = !!(currentVersion && latestVersion && versionGt(latestVersion, currentVersion));
-    results.push({
-      name: tool.name,
-      currentVersion,
-      latestVersion,
-      updateAvailable,
-      method: 'npm',
-      command,
-      ...(latestVersion ? {} : { reason: 'Could not determine the latest version from the npm registry.' }),
-    });
-  }
-  return results;
+      const currentVersion = tool.version;
+      const updateAvailable = !!(currentVersion && latestVersion && versionGt(latestVersion, currentVersion));
+      return {
+        name: tool.name,
+        currentVersion,
+        latestVersion,
+        updateAvailable,
+        method: 'npm',
+        command,
+        ...(latestVersion ? {} : { reason: 'Could not determine the latest version from the npm registry.' }),
+      };
+    })
+  );
 }
 
 /** Return the allow-listed update command for a tool, or undefined. */

@@ -45,6 +45,11 @@ export function createGeminiAdapter(): AgentAdapter {
       win32: ['%USERPROFILE%\\.gemini\\settings.json'],
       linux: ['~/.gemini/settings.json'],
     },
+    // Research 2026-09: Gemini CLI has NO custom OpenAI-compatible provider
+    // support — settings.json has no baseUrl key of any kind; the only endpoint
+    // override (GOOGLE_GEMINI_BASE_URL) speaks the Google GenAI protocol, not
+    // OpenAI-compatible (GitHub issue #15430 confirms it fails for Ollama-style
+    // endpoints). modelProviders stays false.
     supports: {
       modelProviders: false,
       mcpServers: true,

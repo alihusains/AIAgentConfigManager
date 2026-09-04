@@ -20,6 +20,7 @@ export interface ResolvedBinary {
 
 let loginPathCache: string[] | null = null;
 let loginPathPending: Promise<string[]> | null = null;
+const binaryCache = new Map<string, ResolvedBinary | null>();
 
 /** Split a PATH string into its components. */
 function splitPath(p: string): string[] {
@@ -92,36 +93,52 @@ function knownDirs(): string[] {
  * Resolve an agent CLI binary. Returns null when not found via any layer.
  */
 export async function resolveBinary(name: string): Promise<ResolvedBinary | null> {
+  if (binaryCache.has(name)) return binaryCache.get(name) ?? null;
+
+  let result: ResolvedBinary | null = null;
+
   // Layer 1: current PATH
   const existing = await getCommandPath(name);
-  if (existing) return { path: existing, foundBy: 'path' };
+  if (existing) {
+    result = { path: existing, foundBy: 'path' };
+  } else {
+    // Layer 2: login shell PATH
+    const shellPaths = await getLoginShellPaths();
+    for (const dir of shellPaths) {
+      const candidate = getCurrentPlatform() === 'win32' ? `${dir}\\${name}.exe` : `${dir}/${name}`;
+      try {
+        if (await fileExists(candidate)) {
+          result = { path: candidate, foundBy: 'shell-env' };
+          break;
+        }
+      } catch {
+        // keep looking
+      }
+    }
 
-  // Layer 2: login shell PATH
-  const shellPaths = await getLoginShellPaths();
-  for (const dir of shellPaths) {
-    const candidate = getCurrentPlatform() === 'win32' ? `${dir}\\${name}.exe` : `${dir}/${name}`;
-    try {
-      if (await fileExists(candidate)) return { path: candidate, foundBy: 'shell-env' };
-    } catch {
-      // keep looking
+    // Layer 3: well-known install directories
+    if (!result) {
+      for (const dir of knownDirs()) {
+        const candidate = getCurrentPlatform() === 'win32' ? `${dir}\\${name}.exe` : `${dir}/${name}`;
+        try {
+          if (await fileExists(candidate)) {
+            result = { path: candidate, foundBy: 'known-location' };
+            break;
+          }
+        } catch {
+          // keep looking
+        }
+      }
     }
   }
 
-  // Layer 3: well-known install directories
-  for (const dir of knownDirs()) {
-    const candidate = getCurrentPlatform() === 'win32' ? `${dir}\\${name}.exe` : `${dir}/${name}`;
-    try {
-      if (await fileExists(candidate)) return { path: candidate, foundBy: 'known-location' };
-    } catch {
-      // keep looking
-    }
-  }
-
-  return null;
+  binaryCache.set(name, result);
+  return result;
 }
 
 /** Reset caches (test hook). */
 export function _resetBinaryCaches(): void {
   loginPathCache = null;
   loginPathPending = null;
+  binaryCache.clear();
 }

@@ -66,6 +66,9 @@ export function createRooCodeAdapter(): AgentAdapter {
       win32: [ROO_CLI_SETTINGS_PATHS.win32],
       linux: [ROO_CLI_SETTINGS_PATHS.linux],
     },
+    // Research 2026-09: Roo Code's OpenAI-compatible provider is UI-only
+    // (VS Code globalStorage); the Roo CLI takes providers via flags/env only —
+    // no config file. modelProviders stays false.
     supports: {
       modelProviders: false,
       mcpServers: true,

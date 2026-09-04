@@ -48,6 +48,9 @@ export function createAmazonQAdapter(): AgentAdapter {
       win32: ['%USERPROFILE%\\.aws\\amazonq'],
       linux: ['~/.aws/amazonq'],
     },
+    // Research 2026-09: Amazon Q is Bedrock-hosted only — ~/.aws/amazonq/
+    // holds MCP servers and agent definitions (tools/context), not model
+    // providers. modelProviders stays false.
     supports: {
       modelProviders: false,
       mcpServers: true,

@@ -9,6 +9,7 @@
 import * as http from 'node:http';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
+import * as fsp from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
@@ -21,6 +22,8 @@ import {
   getAgentCatalogMeta,
   getAgentCommands,
   isSafeCommand,
+  getCliManagerCommand,
+  EXPLORE_AGENTS,
   detectCatalogEntry,
   catalogEntryToDetected,
   detectCliTools,
@@ -54,6 +57,7 @@ import type {
   Platform,
   AgentJob,
 } from './core-shim.js';
+import modelsDb from './models-database.json' with { type: 'json' };
 
 // ============================================================================
 // Port selection
@@ -87,11 +91,11 @@ const MIME: Record<string, string> = {
   '.txt': 'text/plain; charset=utf-8',
 };
 
-function serveStatic(
+async function serveStatic(
   req: http.IncomingMessage,
   res: http.ServerResponse,
   distDir: string
-): boolean {
+): Promise<boolean> {
   const urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
   // Never allow traversal outside dist
   const rel = urlPath === '/' ? 'index.html' : urlPath.replace(/^\/+/, '');
@@ -100,12 +104,16 @@ function serveStatic(
     res.writeHead(403).end('Forbidden');
     return true;
   }
-  if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
-    // SPA fallback
+  try {
+    const stat = await fsp.stat(filePath);
+    if (stat.isDirectory()) {
+      filePath = path.join(distDir, 'index.html');
+    }
+  } catch {
     filePath = path.join(distDir, 'index.html');
   }
   try {
-    const content = fs.readFileSync(filePath);
+    const content = await fsp.readFile(filePath);
     const ext = path.extname(filePath).toLowerCase();
     const isHtml = ext === '.html';
     res.writeHead(200, {
@@ -299,7 +307,7 @@ export async function startGuiServer(
 
     // ---- Static ----
     if (!isApi) {
-      serveStatic(req, res, distDir);
+      await serveStatic(req, res, distDir);
       return;
     }
 
@@ -381,7 +389,7 @@ export async function startGuiServer(
     }
 
     // ================= REST routes =================
-    if (parts[0] !== 'api') return serveStatic(req, res, distDir);
+    if (parts[0] !== 'api') return await serveStatic(req, res, distDir);
 
     const wrap = async (data: unknown, status = 200) => handle(async () => ({ status, data }));
 
@@ -400,6 +408,129 @@ export async function startGuiServer(
         const agents = await manager.detectAgents();
         const registry = await manager.getRegistryState();
         return wrap({ agents, registry, platform: process.platform });
+      }
+
+      // ---- GET /api/models ----
+      // Returns all available models with comprehensive capability metadata.
+      // Merges the models database with provider information from the registry.
+      if (method === 'GET' && parts.length === 2 && parts[1] === 'models') {
+        return handle(async () => {
+          try {
+            const registry = await manager.getRegistryState();
+
+            // Import the models database (static JSON shipped alongside this
+            // file; resolveJsonModule types it, the cast keeps the mapping
+            // below flexible while staying explicit at the edge).
+            const modelsDb = (
+              await import('./models-database.json', { with: { type: 'json' } })
+            ).default as { models: Array<Record<string, unknown>> };
+
+            // Enrich models with provider information. Registry entries are
+            // `RegistryProvider` wrappers — the actual provider object (with
+            // id / name / type) lives on `entry.provider`.
+            const enrichedModels = modelsDb.models.map((model) => {
+              const providerId = String(model.provider || '');
+              const entry = registry.providers.find((p) => p.provider.id === providerId);
+              const provider = entry?.provider;
+
+              return {
+                id: model.id,
+                name: model.name,
+                provider_id: providerId,
+                provider_name: model.provider_name || provider?.name || 'Unknown',
+                provider_type: provider?.type || 'unknown',
+                vision_support: Boolean(model.vision_support),
+                token_limit: Number(model.token_limit) || 0,
+                input_tokens_per_million: Number(model.input_tokens_per_million) || 0,
+                output_tokens_per_million: Number(model.output_tokens_per_million) || 0,
+                capabilities: Array.isArray(model.capabilities) ? model.capabilities : [],
+                training_data_cutoff: String(model.training_data_cutoff || 'Unknown'),
+                api_compatibility: String(model.api_compatibility || 'unknown'),
+                status: String(model.status || 'unknown'),
+                recommended: Boolean(model.recommended),
+              };
+            });
+
+            return {
+              data: {
+                models: enrichedModels,
+                totalCount: enrichedModels.length,
+                lastUpdated: new Date().toISOString(),
+              },
+            };
+          } catch (error) {
+            return {
+              error: `Failed to load models: ${String(error)}`,
+              status: 500,
+            };
+          }
+        });
+      }
+
+      // ---- GET /api/providers ----
+      // Flat list of every registered provider for the dashboard.
+      if (method === 'GET' && parts.length === 2 && parts[1] === 'providers') {
+        return handle(async () => {
+          const state = await manager.getRegistryState();
+          const providers = state.providers.map((entry) => ({
+            id: entry.provider.id,
+            name: entry.provider.name,
+            type: entry.provider.type,
+            enabled: entry.provider.enabled,
+            priority: entry.provider.priority,
+            agentCount: entry.agentIds.length,
+            agentIds: entry.agentIds,
+            modelCount: entry.models.length,
+            verified: Boolean(entry.apiCapabilities),
+            verifiedAt: entry.apiCapabilities?.verifiedAt ?? null,
+            supportedApis: entry.apiCapabilities?.supported ?? [],
+            migrated: entry.migrated === true,
+          }));
+          return {
+            data: {
+              providers,
+              totalCount: providers.length,
+            },
+          };
+        });
+      }
+
+      // ---- GET /api/agents ----
+      // Detected agents on this machine, each annotated with the models and
+      // providers currently registered into it (model compatibility view).
+      if (method === 'GET' && parts.length === 2 && parts[1] === 'agents') {
+        return handle(async () => {
+          const [detected, state] = await Promise.all([
+            manager.detectAgents(),
+            manager.getRegistryState(),
+          ]);
+          const agents = detected.map((agent) => {
+            const providers = state.providers
+              .filter((entry) => entry.agentIds.includes(agent.id))
+              .map((entry) => ({
+                id: entry.provider.id,
+                name: entry.provider.name,
+                type: entry.provider.type,
+                models: entry.models.map((m) => m.id),
+              }));
+            const compatibleModels = providers.flatMap((p) => p.models);
+            return {
+              id: agent.id,
+              name: agent.name,
+              description: agent.description,
+              installed: agent.detection.installed,
+              providers,
+              compatibleModels,
+            };
+          });
+          return {
+            data: {
+              platform: process.platform,
+              agents,
+              totalCount: agents.length,
+            },
+          };
+        });
       }
 
       // ---- GET /api/system/stats ----
@@ -482,6 +613,61 @@ export async function startGuiServer(
           }
           const job = startAgentJob(toolName, 'update', command, { timeoutMs: 120000 });
           return { data: { jobId: job.id, tool: toolName, command } };
+        });
+      }
+
+      // ---- CLI Manager ----
+      // POST /api/cli/:id/execute — execute a CANNED command by id. The
+      // client never sends a command string: the id is looked up in the
+      // server-side catalog (cli-commands.ts) and expanded to its trusted
+      // literal. Every command the GUI shows is therefore executable by
+      // construction — there is no "command not in allow-list" failure mode.
+      // Jobs are tracked and polled via getAgentJob().
+      if (
+        method === 'POST' &&
+        parts.length === 4 &&
+        parts[1] === 'cli' &&
+        parts[3] === 'execute'
+      ) {
+        return handle(async () => {
+          const commandId = decodeURIComponent(parts[2]);
+          const canned = getCliManagerCommand(commandId);
+          if (!canned) {
+            return {
+              error: `Unknown command "${commandId}" — refresh the page to get the current command list`,
+              status: 404,
+            };
+          }
+          // Belt-and-braces: even the catalog literal must pass the safety
+          // check (a typo in the catalog can never become an injection).
+          if (!isSafeCommand(canned.command)) {
+            return { error: 'Canned command failed the safety check — please report this.', status: 500 };
+          }
+          const job = startAgentJob(canned.id, 'execute', canned.command, {
+            timeoutMs: canned.timeoutMs ?? 5 * 60_000,
+          });
+          return {
+            data: {
+              jobId: job.id,
+              commandId: canned.id,
+              command: canned.command,
+            },
+          };
+        });
+      }
+
+      // GET /api/cli/commands — the canned command catalog for the GUI
+      // (id, label, description, category, trusted command preview).
+      if (method === 'GET' && parts.length === 3 && parts[1] === 'cli' && parts[2] === 'commands') {
+        return handle(async () => {
+          const { CLI_MANAGER_COMMANDS, CLI_MANAGER_CATEGORIES } = await import(
+            '@ai-agent-config/core'
+          );
+          const commands = CLI_MANAGER_CATEGORIES.flatMap((cat: string) =>
+            Object.values(CLI_MANAGER_COMMANDS)
+              .filter((c: { category: string }) => c.category === cat)
+          );
+          return { data: { commands } };
         });
       }
 
@@ -780,6 +966,50 @@ export async function startGuiServer(
 
       // ---- Providers ----
       if (parts[1] === 'providers') {
+        // GET /api/providers/catalog — Load the 59 providers from openrouter-providers-merged.json
+        // for the "Add Provider from Catalog" workflow. Returns provider metadata including
+        // base URL, logo, and model list so the UI can display pre-filled forms.
+        if (method === 'GET' && parts.length === 3 && parts[2] === 'catalog') {
+          return handle(async () => {
+            try {
+              const catalogPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), './openrouter-providers-merged.json');
+              if (!fs.existsSync(catalogPath)) {
+                return { error: 'Provider catalog not found', status: 404 };
+              }
+              const catalogJson = JSON.parse(fs.readFileSync(catalogPath, 'utf8'));
+              const providers = (catalogJson.providers || []).map((p: any) => ({
+                id: p.id,
+                name: p.name,
+                base_url: p.api_configuration?.base_url || '',
+                logo_url: p.logo_url,
+                description: p.provider_metadata?.homepage,
+                category: p.category,
+                status: p.status,
+                models: (p.models || []).map((m: any) => ({
+                  name: m.name || m.id,
+                  capabilities: m.capabilities,
+                  context_window: m.context_window,
+                })),
+                api_type: p.api_compatibility?.openai_compatible 
+                  ? 'openai-compatible'
+                  : p.api_compatibility?.anthropic_compatible
+                    ? 'anthropic-compatible'
+                    : 'custom',
+              }));
+              return {
+                data: {
+                  providers,
+                  totalCount: providers.length,
+                },
+              };
+            } catch (error) {
+              return {
+                error: `Failed to load provider catalog: ${String(error)}`,
+                status: 500,
+              };
+            }
+          });
+        }
         // GET /api/providers/keychain — Phase 1 (Secrets) capability probe:
         // is the OS keychain usable in this environment? The Add Provider
         // form calls this BEFORE submitting with keychain storage opted in,
@@ -908,6 +1138,41 @@ export async function startGuiServer(
           return handle(async () => {
             const providerId = decodeURIComponent(parts[2]);
             const result = await manager.migrateProviderApiKeyToKeychain(providerId);
+            if (!result.success) return { error: result.error, status: 400 };
+            return { data: result.data };
+          });
+        }
+        // POST /api/providers/sync-free-models — "Only free models" auto-sync:
+        // re-probe every provider flagged config.trackFreeModels, diff the
+        // fresh /models list, and push added/removed free models into every
+        // agent config the provider is installed on. Called once per
+        // dashboard open by the GUI.
+        if (method === 'POST' && parts.length === 3 && parts[2] === 'sync-free-models') {
+          return handle(async () => {
+            const summary = await manager.syncAllFreeModelProviders();
+            return { data: summary };
+          });
+        }
+        // POST /api/providers/:id/sync-free-models — the same for ONE provider.
+        if (method === 'POST' && parts.length === 4 && parts[3] === 'sync-free-models') {
+          return handle(async () => {
+            const providerId = decodeURIComponent(parts[2]);
+            const outcome = await manager.syncProviderFreeModels(providerId);
+            return { data: outcome };
+          });
+        }
+        // POST /api/providers/:id/free-model-tracking { enabled } — opt a
+        // provider in or out of the "Only free models" auto-sync. The flag
+        // lives on provider.config.trackFreeModels so it survives registry
+        // round-trips like any other provider setting.
+        if (method === 'POST' && parts.length === 4 && parts[3] === 'free-model-tracking') {
+          const body = await readBody();
+          return handle(async () => {
+            const providerId = decodeURIComponent(parts[2]);
+            const result = await manager.setProviderFreeModelTracking(
+              providerId,
+              body.enabled === true
+            );
             if (!result.success) return { error: result.error, status: 400 };
             return { data: result.data };
           });
@@ -1107,6 +1372,35 @@ export async function startGuiServer(
               meta: getAgentCatalogMeta(),
             },
           };
+        });
+      }
+
+      // GET /api/agents/explore — trending coding agents (OpenRouter ranking
+      // order) joined with catalog entries so the GUI can show adapters and
+      // wire the Install button for adapter-capable agents.
+      if (method === 'GET' && parts.length === 3 && parts[1] === 'agents' && parts[2] === 'explore') {
+        return handle(async () => {
+          const data = EXPLORE_AGENTS.map((e) => {
+            const entry = e.catalogId ? getAgentCatalogEntry(e.catalogId) : undefined;
+            return {
+              ...e,
+              catalog: entry
+                ? {
+                    id: entry.id,
+                    name: entry.name,
+                    apiTypes: entry.apiTypes ?? [],
+                    status: entry.status ?? 'stable',
+                    install: entry.install,
+                    installPlatforms: entry.installPlatforms,
+                    uninstall: entry.uninstall,
+                    note: entry.note,
+                    github: entry.github,
+                    stars: entry.stars,
+                  }
+                : null,
+            };
+          });
+          return { data };
         });
       }
 

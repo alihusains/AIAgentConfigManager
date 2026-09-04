@@ -1,5 +1,5 @@
 /**
- * Design tokens for the AI Agent Config Manager GUI.
+ * Design tokens for the AI Config Manager GUI.
  *
  * WhatsApp-inspired theme: warm off-white canvas (#efeae2), white panels,
  * teal primary (#00a884), deep green accents (#075e54), bubble green success (#d9fdd3),

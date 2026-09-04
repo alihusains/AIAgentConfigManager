@@ -9,13 +9,30 @@
  * MCP servers live in a SEPARATE JSON file:
  *   - ~/.kimi/mcp.json   ({ mcpServers: { "<name>": { command, args, env } } })
  *
- * This is the one new agent whose MAIN config is TOML while its MCP file is
- * JSON, so it cannot be expressed with the generic (single-format) adapter.
- * Provider credentials live in ~/.kimi/credentials/<provider>.json, so
- * supports.modelProviders = false and config.toml is never polluted with
- * provider/model keys.
+ * Model providers ARE file-configurable (docs: configuration/providers):
  *
- * Source: https://moonshotai.github.io/kimi-cli/
+ *   default_model = "my-gateway-model"
+ *
+ *   [providers.my-gateway]
+ *   type = "openai_legacy"      # openai_legacy | openai_responses | anthropic
+ *                               # | gemini | vertexai | kimi
+ *   base_url = "https://gateway.example.com/v1"
+ *   api_key = "sk-..."
+ *   custom_headers = { X-Custom = "value" }
+ *
+ *   [models.my-gateway-model]
+ *   provider = "my-gateway"
+ *   model = "my-model-id"       # the API-side model name
+ *   max_context_size = 262144
+ *   capabilities = ["thinking", "image_in"]
+ *
+ * The unified adapter maps `[providers.*]` onto ModelProvider[] and
+ * `[models.*]` onto ModelConfig[] (id = TOML key, name = the API model name).
+ * The raw kimi provider `type` is stashed in config.kimiType so native
+ * providers (kimi/gemini/vertexai) round-trip losslessly. Caveat (docs): the
+ * kimi CLI rewrites config.toml on `/login` — write config before launching.
+ *
+ * Source: https://moonshotai.github.io/kimi-cli/en/configuration/providers.html
  */
 
 import type {
@@ -74,7 +91,7 @@ export class KimiAdapter implements AgentAdapter {
       linux: ['~/.kimi/credentials'],
     },
     supports: {
-      modelProviders: false,
+      modelProviders: true,
       mcpServers: true,
       permissions: false,
       projectConfig: false,
@@ -141,11 +158,14 @@ export class KimiAdapter implements AgentAdapter {
       }
     }
 
+    // Decode [providers.*] / [models.*] from the main TOML config.
+    const { modelProviders, models } = this.decodeProvidersRaw(this.mainRawCache);
+
     const config: AgentConfig = {
       version: '1.0.0',
       lastModified: Date.now(),
-      modelProviders: [],
-      models: [],
+      modelProviders,
+      models,
       mcpServers,
       permissions: [] as PermissionConfig[],
       customSettings: {},
@@ -160,12 +180,19 @@ export class KimiAdapter implements AgentAdapter {
       throw new Error(`Invalid config: ${validation.errors.join(', ')}`);
     }
 
-    // 1) Main TOML config: preserve unknown keys, drop managed provider/model keys.
+    // 1) Main TOML config: preserve unknown keys, rewrite managed
+    //    [providers.*] / [models.*] tables from the unified lists.
     const mainRaw: Record<string, unknown> = this.mainRawCache
       ? JSON.parse(JSON.stringify(this.mainRawCache))
       : {};
-    delete mainRaw.modelProviders;
-    delete mainRaw.models;
+    const modelKeys = this.encodeProvidersRaw(mainRaw, config.modelProviders, config.models);
+    // Keep `default_model` pointing at a model that exists. Only touch it
+    // when it dangles (references a removed model) or is absent while we
+    // manage models — never override an intentional built-in default.
+    const currentDefault = typeof mainRaw.default_model === 'string' ? mainRaw.default_model : '';
+    if (modelKeys.length > 0 && (!currentDefault || !modelKeys.includes(currentDefault))) {
+      mainRaw.default_model = modelKeys[0];
+    }
     await backupFile(this.configPathFor()).catch(() => undefined);
     await writeFileSafe(this.configPathFor(), stringifyConfig(mainRaw, 'toml'));
     this.mainRawCache = mainRaw;
@@ -188,6 +215,153 @@ export class KimiAdapter implements AgentAdapter {
 
   validateConfig(config: unknown): { valid: boolean; errors: string[] } {
     return validateAgentConfig(config);
+  }
+
+  /**
+   * Drift projection: [providers.*] express base_url/api_key/custom_headers
+   * and the encoded provider type. kimiType bookkeeping is not drift.
+   */
+  expressibleProviderConfig = (config: Record<string, unknown>) => {
+    const out: Record<string, unknown> = {};
+    if (config.baseUrl !== undefined) out.baseUrl = config.baseUrl;
+    if (config.apiKey !== undefined) out.apiKey = config.apiKey;
+    if (config.headers !== undefined) out.headers = config.headers;
+    if (config.wireApi !== undefined) out.wireApi = config.wireApi;
+    return out;
+  };
+
+  // ============================================================================
+  // Model provider shape conversion (unified <-> [providers.*] / [models.*])
+  // ============================================================================
+
+  /** Unified wire type for a kimi provider `type` value. */
+  private kimiTypeToUnified(type: string | undefined): ModelProvider['type'] {
+    switch (type) {
+      case 'openai_legacy':
+      case 'openai_responses':
+        return 'openai-compatible';
+      case 'anthropic':
+        return 'anthropic';
+      default:
+        // kimi | gemini | vertexai (and anything unknown): agent-native protocol.
+        return 'custom';
+    }
+  }
+
+  private decodeProvidersRaw(raw: Record<string, unknown> | null): {
+    modelProviders: ModelProvider[];
+    models: ModelConfig[];
+  } {
+    const providersRaw = raw && this.isRecord(raw.providers) ? raw.providers : {};
+    const modelsRaw = raw && this.isRecord(raw.models) ? raw.models : {};
+    const modelProviders: ModelProvider[] = [];
+    for (const [key, entry] of Object.entries(providersRaw)) {
+      if (!this.isRecord(entry)) continue;
+      const type = typeof entry.type === 'string' ? entry.type : undefined;
+      const unifiedType = this.kimiTypeToUnified(type);
+      modelProviders.push({
+        id: key,
+        name: typeof entry.name === 'string' ? entry.name : key,
+        type: unifiedType,
+        enabled: entry.enabled !== false,
+        priority: 0,
+        config: {
+          ...(typeof entry.base_url === 'string' ? { baseUrl: entry.base_url } : {}),
+          ...(typeof entry.api_key === 'string' ? { apiKey: entry.api_key } : {}),
+          ...(this.isRecord(entry.custom_headers) ? { headers: entry.custom_headers } : {}),
+          ...(type === 'openai_legacy' ? { wireApi: 'chat' } : {}),
+          ...(type === 'openai_responses' ? { wireApi: 'responses' } : {}),
+          // Lossless round-trip for native provider types.
+          ...(type && unifiedType === 'custom' ? { kimiType: type } : {}),
+        },
+      } as ModelProvider);
+    }
+    const models: ModelConfig[] = [];
+    for (const [key, entry] of Object.entries(modelsRaw)) {
+      if (!this.isRecord(entry)) continue;
+      const providerId = typeof entry.provider === 'string' ? entry.provider : '';
+      // Only models that reference a known provider are surfaced — a model
+      // entry without a provider cannot be materialized or edited.
+      if (!providerId || !modelProviders.some((p) => p.id === providerId)) continue;
+      models.push({
+        id: key,
+        providerId,
+        name: typeof entry.model === 'string' ? entry.model : key,
+        displayName: key,
+        roles: ['chat', 'edit', 'apply', 'summarize'],
+        capabilities: ['tool_use'],
+        contextLength:
+          typeof entry.max_context_size === 'number' ? entry.max_context_size : undefined,
+      } as ModelConfig);
+    }
+    return { modelProviders, models };
+  }
+
+  /**
+   * Rewrite [providers.*] / [models.*] from the unified lists, preserving
+   * unknown per-entry keys. Returns the encoded model keys (for
+   * default_model healing).
+   */
+  private encodeProvidersRaw(
+    raw: Record<string, unknown>,
+    providers: ModelProvider[],
+    models: ModelConfig[]
+  ): string[] {
+    const priorProviders: Record<string, unknown> = this.isRecord(raw.providers)
+      ? (raw.providers as Record<string, unknown>)
+      : {};
+    const priorModels = this.isRecord(raw.models) ? raw.models : {};
+    const providersOut: Record<string, unknown> = {};
+    for (const p of providers) {
+      const prior: Record<string, unknown> = this.isRecord(priorProviders[p.id])
+        ? (priorProviders[p.id] as Record<string, unknown>)
+        : {};
+      const cfg = (p.config || {}) as Record<string, unknown>;
+      let kimiType: string;
+      if (typeof cfg.kimiType === 'string') {
+        kimiType = cfg.kimiType;
+      } else if (p.type === 'anthropic') {
+        kimiType = 'anthropic';
+      } else if (cfg.wireApi === 'responses') {
+        kimiType = 'openai_responses';
+      } else {
+        kimiType = 'openai_legacy';
+      }
+      providersOut[p.id] = {
+        ...prior,
+        type: kimiType,
+        ...(cfg.baseUrl ? { base_url: cfg.baseUrl } : {}),
+        ...(cfg.apiKey ? { api_key: cfg.apiKey } : {}),
+        ...(cfg.headers && typeof cfg.headers === 'object'
+          ? { custom_headers: cfg.headers }
+          : {}),
+        ...(p.enabled === false ? { enabled: false } : {}),
+      };
+    }
+    const modelsOut: Record<string, unknown> = {};
+    const modelKeys: string[] = [];
+    for (const m of models) {
+      if (!providersOut[m.providerId]) continue; // dangling model — drop
+      const prior: Record<string, unknown> = this.isRecord(priorModels[m.id])
+        ? (priorModels[m.id] as Record<string, unknown>)
+        : {};
+      modelsOut[m.id] = {
+        ...prior,
+        provider: m.providerId,
+        model: m.name || m.id,
+        ...(m.contextLength ? { max_context_size: m.contextLength } : {}),
+      };
+      modelKeys.push(m.id);
+    }
+    // Only assign when there is content — an empty table would delete the
+    // user's hand-written entries if the write path is ever fed an empty list.
+    if (Object.keys(providersOut).length > 0 || Object.keys(priorProviders).length > 0) {
+      raw.providers = providersOut;
+    }
+    if (Object.keys(modelsOut).length > 0 || Object.keys(priorModels).length > 0) {
+      raw.models = modelsOut;
+    }
+    return modelKeys;
   }
 
   // ============================================================================

@@ -38,3 +38,19 @@ export { Modal, type ModalProps } from './Modal';
 export { Status, type StatusProps, type StatusKind } from './Status';
 export { Skeleton, type SkeletonProps } from './Skeleton';
 export { Tooltip, type TooltipProps } from './Tooltip';
+
+// IC Signature dual-pane layout components
+export { DualPaneLayout } from './DualPaneLayout';
+export type { DualPaneLayoutProps } from './DualPaneLayout';
+
+export { ControlPanel, ControlGroup } from './ControlPanel';
+export type { ControlPanelProps, ControlGroupProps } from './ControlPanel';
+
+export { PreviewPane } from './PreviewPane';
+export type { PreviewPaneProps } from './PreviewPane';
+
+export { ActionButton, ActionButtonGroup, CommonActions } from './ActionButtons';
+export type { ActionButtonProps, ActionButtonGroupProps } from './ActionButtons';
+
+export { StatusIndicator, StatusRow, StatusBadge } from './StatusIndicator';
+export type { StatusType, StatusIndicatorProps, StatusRowProps, StatusBadgeProps } from './StatusIndicator';

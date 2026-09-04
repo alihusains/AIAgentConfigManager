@@ -239,12 +239,9 @@ async function listSkillsInDir(dir: string): Promise<SkillDef[]> {
   } catch {
     return [];
   }
-  const skills: SkillDef[] = [];
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
-    const def = await readSkillDef(dir, entry.name);
-    if (def) skills.push(def);
-  }
+  const dirs = entries.filter((e) => e.isDirectory()).map((e) => e.name);
+  const defs = await Promise.all(dirs.map((name) => readSkillDef(dir, name)));
+  const skills = defs.filter((d): d is SkillDef => d !== null);
   skills.sort((a, b) => a.name.localeCompare(b.name));
   return skills;
 }
@@ -346,7 +343,7 @@ async function buildSkillsSnapshot(opts: SkillsDirOptions = {}): Promise<SkillsS
     }
   }
 
-  const allSkills = await getAllKnownSkills(opts);
+  const allSkills = await getAllKnownSkills(opts, skills);
 
   return { libraryDir, skills, agents, assignments, allSkills };
 }
@@ -359,7 +356,10 @@ async function buildSkillsSnapshot(opts: SkillsDirOptions = {}): Promise<SkillsS
  * first agent copy read. Known limitation: same id with different content on
  * two agents is merged as one entry (no content diffing).
  */
-export async function getAllKnownSkills(opts: SkillsDirOptions = {}): Promise<AggregatedSkill[]> {
+export async function getAllKnownSkills(
+  opts: SkillsDirOptions = {},
+  preloadedLibrarySkills?: SkillDef[]
+): Promise<AggregatedSkill[]> {
   const platform = opts.platform ?? getCurrentPlatform();
   const libraryDir = opts.libraryDir ?? getSkillsLibraryDir();
 
@@ -374,7 +374,8 @@ export async function getAllKnownSkills(opts: SkillsDirOptions = {}): Promise<Ag
   };
 
   // Library first so its metadata wins when the same id is also on an agent.
-  for (const def of await listSkillsInDir(libraryDir)) add(def, 'library');
+  const librarySkills = preloadedLibrarySkills ?? (await listSkillsInDir(libraryDir));
+  for (const def of librarySkills) add(def, 'library');
   for (const agentId of getSkillCapableAgentIds(platform)) {
     const dir = opts.agentSkillsDirs?.[agentId] ?? getAgentSkillsDir(agentId, platform);
     if (!dir) continue;
