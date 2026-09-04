@@ -20,6 +20,7 @@ import {
   Folder,
   Upload,
   Users,
+  FolderPlus,
 } from 'lucide-react';
 import type {
   AggregatedSkill,
@@ -89,6 +90,7 @@ const SKILL_ROW_HEIGHT = 92;
 
 interface SkillRowProps {
   skill: AggregatedSkill;
+  descriptionQuality?: 'good' | 'weak';
   agents: SkillCapableAgent[];
   isLibrarySkill: boolean;
   busy: BusyKey | null;
@@ -106,6 +108,7 @@ interface SkillRowProps {
 
 const SkillRow = memo(function SkillRow({
   skill,
+  descriptionQuality,
   agents,
   isLibrarySkill,
   busy,
@@ -210,6 +213,12 @@ const SkillRow = memo(function SkillRow({
             }
             if (skill.foundOn.includes('project-agents-dir')) {
               chips.push({ label: 'Project', title: 'Project cross-client dir (./.agents/skills)' });
+            }
+            if (descriptionQuality === 'weak') {
+              chips.push({
+                label: 'vague description',
+                title: "The spec recommends the description say what the skill does AND when to use it (e.g. 'use when…').",
+              });
             }
             const agentCount = skill.foundOn.filter(
               (loc) => loc !== 'library' && loc !== 'agents-dir' && loc !== 'project-agents-dir'
@@ -521,6 +530,8 @@ export function SkillsView() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<BusyKey | null>(null);
   const [search, setSearch] = useState('');
+  // P0 closeout: 'all' | 'issues' (invalid or warned per the spec validator).
+  const [validityFilter, setValidityFilter] = useState<'all' | 'issues'>('all');
 
   // New-skill modal state.
   const [modalOpen, setModalOpen] = useState(false);
@@ -1039,16 +1050,33 @@ export function SkillsView() {
     () => new Set((snapshot?.skills ?? []).map((s: SkillDef) => s.id)),
     [snapshot]
   );
+  // P4 closeout heuristic: the spec says descriptions should say WHAT + WHEN.
+  // Cheap proxy: mentions "use when/for" (or a when/trigger phrase).
+  const descriptionQuality = useMemo(() => {
+    const weak = new Set<string>();
+    for (const s of allSkills) {
+      const d = (s.description ?? '').toLowerCase();
+      if (!d || !(d.includes('use when') || d.includes('use for') || d.includes('use this') || d.includes('when the user'))) {
+        weak.add(s.id);
+      }
+    }
+    return { weak };
+  }, [allSkills]);
+
   const filteredSkills = useMemo(() => {
+    let list = allSkills;
+    if (validityFilter === 'issues') {
+      list = list.filter((s) => !(s.validation?.ok ?? true));
+    }
     const q = search.trim().toLowerCase();
-    if (!q) return allSkills;
-    return allSkills.filter(
+    if (!q) return list;
+    return list.filter(
       (s) =>
         s.name.toLowerCase().includes(q) ||
         s.id.toLowerCase().includes(q) ||
         (s.description ?? '').toLowerCase().includes(q)
     );
-  }, [allSkills, search]);
+  }, [allSkills, search, validityFilter]);
 
   const { containerRef, onScroll, range } = useWindowedList(
     filteredSkills.length,
@@ -1160,19 +1188,36 @@ export function SkillsView() {
           <Card
             title={`All skills (${allSkills.length})`}
             actions={
-              <div className="skill-search relative w-64 max-w-full">
-                <Search
-                  size={14}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-tertiary pointer-events-none"
-                />
-                <input
-                  className="input pl-8"
-                  type="search"
-                  placeholder="Filter skills…"
-                  aria-label="Filter skills"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
+              <div className="flex items-center gap-2">
+                <Tooltip content="Description quality: the spec wants descriptions that say what the skill does AND when to use it.">
+                  <Badge
+                    variant={descriptionQuality.weak.size > 0 ? 'warning' : 'neutral'}
+                    className="cursor-help flex-shrink-0"
+                  >
+                    {descriptionQuality.weak.size} vague
+                  </Badge>
+                </Tooltip>
+                <button
+                  type="button"
+                  className={`btn-action ${validityFilter === 'issues' ? 'btn-action-danger' : ''}`}
+                  onClick={() => setValidityFilter((v) => (v === 'issues' ? 'all' : 'issues'))}
+                >
+                  {validityFilter === 'issues' ? 'Showing issues' : 'Show only issues'}
+                </button>
+                <div className="skill-search relative w-64 max-w-full">
+                  <Search
+                    size={14}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-tertiary pointer-events-none"
+                  />
+                  <input
+                    className="input pl-8"
+                    type="search"
+                    placeholder="Filter skills…"
+                    aria-label="Filter skills"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                </div>
               </div>
             }
           >
@@ -1191,6 +1236,7 @@ export function SkillsView() {
                     <SkillRow
                       key={skill.id}
                       skill={skill}
+                      descriptionQuality={descriptionQuality.weak.has(skill.id) ? 'weak' : 'good'}
                       agents={snapshot.agents}
                       isLibrarySkill={librarySkillIds.has(skill.id)}
                       busy={busy}
@@ -1333,6 +1379,21 @@ export function SkillsView() {
                   Add
                 </Button>
               </div>
+              <label className="flex items-center gap-1.5 text-sm text-text-secondary cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={marketSources.some((src) => src.repo === 'anthropics/skills')}
+                  onChange={async (e) => {
+                    const res = await api.setOfficialSource(e.target.checked);
+                    if (res.ok) {
+                      await loadMarketMeta();
+                      setMarketSkills(null);
+                      void loadMarketplace(true, e.target.checked ? 'anthropics/skills' : '');
+                    }
+                  }}
+                />
+                anthropics/skills
+              </label>
               {marketUpdates && Object.keys(marketUpdates).length > 0 && (
                 <span className="badge badge-warning">
                   {Object.keys(marketUpdates).length} update
@@ -1573,8 +1634,63 @@ export function SkillsView() {
           <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-3">
             {/* P2: file browser sidebar */}
             <div className="border border-border-primary rounded-md overflow-y-auto max-h-[420px] text-sm">
-              <div className="px-2 py-1.5 text-xs font-medium text-text-secondary border-b border-border-primary">
+              <div className="px-2 py-1.5 text-xs font-medium text-text-secondary border-b border-border-primary flex items-center justify-between">
                 Files
+                <span className="flex items-center gap-1">
+                  <Tooltip content="Create a new file in this skill folder">
+                    <button
+                      type="button"
+                      aria-label="New file"
+                      className="text-text-tertiary hover:text-text-primary p-0.5"
+                      onClick={async () => {
+                        if (!viewEditSkill) return;
+                        const rel = prompt('New file path (e.g. scripts/run.sh):');
+                        if (!rel) return;
+                        const res = await api.createSkillFile(
+                          viewEditSkill.id,
+                          viewEditSkill.location,
+                          rel.trim()
+                        );
+                        if (!res.ok) {
+                          addToast({ type: 'error', title: 'Create failed', message: res.error ?? '' });
+                          return;
+                        }
+                        const list = await api.listSkillFiles(viewEditSkill.id, viewEditSkill.location);
+                        if (list.ok && list.data) setSkillFiles(list.data);
+                        void handleOpenFile(rel.trim());
+                      }}
+                    >
+                      <Plus size={12} />
+                    </button>
+                  </Tooltip>
+                  <Tooltip content="Create the conventional scripts/, references/ and assets/ folders">
+                    <button
+                      type="button"
+                      aria-label="Scaffold conventional folders"
+                      className="text-text-tertiary hover:text-text-primary p-0.5"
+                      onClick={async () => {
+                        if (!viewEditSkill) return;
+                        const res = await api.scaffoldSkill(viewEditSkill.id, viewEditSkill.location);
+                        if (!res.ok) {
+                          addToast({ type: 'error', title: 'Scaffold failed', message: res.error ?? '' });
+                          return;
+                        }
+                        addToast({
+                          type: res.data && res.data.created.length > 0 ? 'success' : 'info',
+                          title: 'Scaffold',
+                          message:
+                            res.data && res.data.created.length > 0
+                              ? `Created: ${res.data.created.join(', ')}`
+                              : 'All conventional folders already exist',
+                        });
+                        const list = await api.listSkillFiles(viewEditSkill.id, viewEditSkill.location);
+                        if (list.ok && list.data) setSkillFiles(list.data);
+                      }}
+                    >
+                      <FolderPlus size={12} />
+                    </button>
+                  </Tooltip>
+                </span>
               </div>
               {(skillFiles ?? [{ relPath: 'SKILL.md', size: 0, isDir: false }]).map((f) =>
                 f.isDir ? (

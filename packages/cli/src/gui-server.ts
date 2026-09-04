@@ -38,6 +38,8 @@ import {
   readSkillFile,
   saveSkillFile,
   deleteSkillFile,
+  scaffoldSkillDirs,
+  createSkillFile,
   renameSkill,
   duplicateSkill,
   exportSkillZip,
@@ -46,6 +48,8 @@ import {
   addMarketplaceSource,
   removeMarketplaceSource,
   checkMarketplaceUpdates,
+  enableBuiltinSource,
+  disableBuiltinSource,
   assignSkillToAgent,
   removeSkillFromAgent,
   removeSkillFromLibrary,
@@ -902,6 +906,54 @@ export async function startGuiServer(
             await deleteSkillFile(parts[2], url.searchParams.get('location') ?? 'library', rel);
             return { data: { ok: true } };
           });
+        }
+        // POST /api/skills/:id/scaffold?location=… — create scripts/references/assets.
+        if (method === 'POST' && parts.length === 4 && parts[3] === 'scaffold') {
+          return handle(async () => {
+            try {
+              return {
+                data: await scaffoldSkillDirs(
+                  parts[2],
+                  url.searchParams.get('location') ?? 'library'
+                ),
+              };
+            } catch (error) {
+              return { error: String(error).replace(/^Error: /, ''), status: 400 };
+            }
+          });
+        }
+        // POST /api/skills/:id/new-file?location=… { path, content? } — create one file.
+        if (method === 'POST' && parts.length === 4 && parts[3] === 'new-file') {
+          const body = await readBody();
+          return handle(async () => {
+            if (typeof body.path !== 'string' || !body.path.trim()) {
+              return { error: 'Missing path', status: 400 };
+            }
+            try {
+              await createSkillFile(
+                parts[2],
+                url.searchParams.get('location') ?? 'library',
+                String(body.path),
+                typeof body.content === 'string' ? body.content : ''
+              );
+              return { data: { ok: true } };
+            } catch (error) {
+              const message = String(error).replace(/^Error: /, '');
+              const status = message.includes('already exists') ? 409 : 400;
+              return { error: message, status };
+            }
+          });
+        }
+        // POST /api/skills/marketplace/official { enabled } — toggle the
+        // built-in anthropics/skills source (spec §13's second source).
+        if (method === 'POST' && parts.length === 4 && parts[2] === 'marketplace' && parts[3] === 'official') {
+          const body = await readBody();
+          return handle(async () => ({
+            data:
+              body.enabled === true
+                ? await enableBuiltinSource()
+                : await disableBuiltinSource(),
+          }));
         }
         // POST /api/skills/:id/rename { name } — rename a library skill.
         if (method === 'POST' && parts.length === 4 && parts[3] === 'rename') {

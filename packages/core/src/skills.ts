@@ -1044,3 +1044,58 @@ export async function importSkillZip(
     await fs.rm(tmpExtract, { recursive: true, force: true });
   }
 }
+
+/** P2 closeout: the conventional optional subfolders from the spec. */
+export const SKILL_CONVENTION_DIRS = ['scripts', 'references', 'assets'] as const;
+
+/**
+ * Create the conventional `scripts/`, `references/`, `assets/` subfolders
+ * (any missing ones) inside a skill folder. Existing files are untouched.
+ */
+export async function scaffoldSkillDirs(
+  skillId: string,
+  location: string,
+  opts: SkillsDirOptions = {}
+): Promise<{ created: string[] }> {
+  assertSafeId(skillId, 'skill id');
+  const dir = resolveSkillDir(location, opts);
+  if (!dir) throw new Error(`Unknown skill location: ${location}`);
+  const skillDir = path.join(dir, skillId);
+  if (!(await fileExists(path.join(skillDir, 'SKILL.md')))) {
+    throw new Error(`Skill not found at that location: ${skillId} -> ${location}`);
+  }
+  const created: string[] = [];
+  for (const sub of SKILL_CONVENTION_DIRS) {
+    const target = path.join(skillDir, sub);
+    if (!(await fileExists(target))) {
+      await fs.mkdir(target, { recursive: true });
+      created.push(sub);
+    }
+  }
+  clearSkillsCache();
+  return { created };
+}
+
+/**
+ * Create a new (empty) text file inside a skill folder — fails when the file
+ * already exists. Directories in `relPath` are created as needed.
+ */
+export async function createSkillFile(
+  skillId: string,
+  location: string,
+  relPath: string,
+  initialContent = '',
+  opts: SkillsDirOptions = {}
+): Promise<void> {
+  assertSafeId(skillId, 'skill id');
+  const safe = assertSafeRelPath(relPath);
+  const dir = resolveSkillDir(location, opts);
+  if (!dir) throw new Error(`Unknown skill location: ${location}`);
+  const abs = path.join(dir, skillId, safe);
+  if (await fileExists(abs)) {
+    throw new Error(`File already exists: ${relPath}`);
+  }
+  await fs.mkdir(path.dirname(abs), { recursive: true });
+  await fs.writeFile(abs, initialContent, 'utf8');
+  clearSkillsCache();
+}

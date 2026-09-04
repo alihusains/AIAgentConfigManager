@@ -38,6 +38,13 @@ import { fileExists } from './utils';
 /** The built-in marketplace source (verified public repo). */
 export const MARKETPLACE_SOURCE_REPO = 'alihusains/enterprise-skills';
 
+/**
+ * Second built-in source: Anthropic's official skills repo (spec §13
+ * suggestion). Optional for the user — hidden by default, toggled via
+ * enableBuiltinSource()/disableBuiltinSource().
+ */
+export const MARKETPLACE_OFFICIAL_REPO = 'anthropics/skills';
+
 /** Skills live under this path in a source repo (unless the source overrides it). */
 const SKILLS_ROOT = 'skills';
 
@@ -69,6 +76,60 @@ const BUILTIN_SOURCE: MarketplaceSource = {
   repo: MARKETPLACE_SOURCE_REPO,
   addedAt: '1970-01-01T00:00:00.000Z',
 };
+
+/** The official Anthropic source (built-in but opt-in). */
+const OFFICIAL_SOURCE: MarketplaceSource = {
+  repo: MARKETPLACE_OFFICIAL_REPO,
+  label: 'anthropics/skills (official)',
+  addedAt: '1970-01-01T00:00:00.000Z',
+};
+
+/** Is the official source currently enabled? Reads the persisted file. */
+async function officialEnabled(registryPath?: string): Promise<boolean> {
+  try {
+    const raw = await fs.readFile(getMarketplaceSourcesPath(registryPath), 'utf8');
+    const parsed: unknown = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed.some(
+        (e) => typeof e === 'object' && e !== null && (e as Record<string, unknown>).repo === MARKETPLACE_OFFICIAL_REPO
+      );
+    }
+  } catch {
+    /* missing file → default off */
+  }
+  return false;
+}
+
+/** Enable the official anthropics/skills built-in source. */
+export async function enableBuiltinSource(
+  registryPath?: string
+): Promise<{ sources: MarketplaceSource[] }> {
+  if (await officialEnabled(registryPath)) {
+    return { sources: (await listMarketplaceSources(registryPath)).sources };
+  }
+  const sourcesPath = getMarketplaceSourcesPath(registryPath);
+  const { sources } = await listMarketplaceSources(registryPath);
+  const user = sources
+    .filter((s) => s.repo !== BUILTIN_SOURCE.repo)
+    .concat(OFFICIAL_SOURCE);
+  await fs.writeFile(sourcesPath, JSON.stringify(user, null, 2), 'utf8');
+  listCache.clear();
+  return { sources: (await listMarketplaceSources(registryPath)).sources };
+}
+
+/** Disable the official anthropics/skills built-in source. */
+export async function disableBuiltinSource(
+  registryPath?: string
+): Promise<{ sources: MarketplaceSource[] }> {
+  const sourcesPath = getMarketplaceSourcesPath(registryPath);
+  const { sources } = await listMarketplaceSources(registryPath);
+  const user = sources
+    .filter((s) => s.repo !== BUILTIN_SOURCE.repo && s.repo !== MARKETPLACE_OFFICIAL_REPO)
+    .map((s) => ({ ...s }));
+  await fs.writeFile(sourcesPath, JSON.stringify(user, null, 2), 'utf8');
+  listCache.clear();
+  return { sources: (await listMarketplaceSources(registryPath)).sources };
+}
 
 /**
  * List the configured marketplace sources: the built-in default first, then

@@ -319,6 +319,24 @@ export const api = {
     }
     return results;
   },
+  /** Create the conventional scripts/references/assets subfolders. */
+  scaffoldSkill: (skillId: string, location: string) =>
+    request<{ created: string[] }>(
+      'POST',
+      `/api/skills/${encodeURIComponent(skillId)}/scaffold?location=${encodeURIComponent(location)}`
+    ),
+  /** Create a new empty file inside a skill folder. */
+  createSkillFile: (skillId: string, location: string, relPath: string, content = '') =>
+    request<{ ok: boolean }>(
+      'POST',
+      `/api/skills/${encodeURIComponent(skillId)}/new-file?location=${encodeURIComponent(location)}`,
+      { path: relPath, content }
+    ),
+  /** Toggle the built-in anthropics/skills marketplace source. */
+  setOfficialSource: (enabled: boolean) =>
+    request<{ sources: { repo: string }[] }>('POST', '/api/skills/marketplace/official', {
+      enabled,
+    }),
   /** Rename a library skill (folder + frontmatter name). */
   renameSkill: (skillId: string, newName: string) =>
     request<{ newId: string }>('POST', `/api/skills/${encodeURIComponent(skillId)}/rename`, {
